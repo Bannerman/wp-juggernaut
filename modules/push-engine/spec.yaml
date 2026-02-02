@@ -1,0 +1,395 @@
+name: push-engine
+version: 1.0.0
+status: To Do
+description: Manages pushing local changes back to WordPress with conflict detection and batch operations
+
+purpose: |
+  Orchestrates the push workflow including conflict detection, validation, batch preparation,
+  and updating local database after successful push. Ensures data integrity and prevents
+  accidental overwrites.
+
+dependencies:
+  external: []
+  internal:
+    - database
+    - wp-client
+    - queries
+
+interfaces:
+  exports:
+    - name: pushResource
+      type: function
+      signature: "(resourceId: number, skipConflictCheck?: boolean) => Promise<PushResult>"
+      description: Push single resource to WordPress
+    
+    - name: pushAllDirty
+      type: function
+      signature: "(skipConflictCheck?: boolean) => Promise<{ results: PushResult[]; conflicts: ConflictInfo[] }>"
+      description: Push all dirty resources in batches
+    
+    - name: checkForConflicts
+      type: function
+      signature: "(resourceIds: number[]) => Promise<ConflictInfo[]>"
+      description: Detect if resources were modified on server since last sync
+    
+    - name: buildUpdatePayload
+      type: function
+      signature: "(resourceId: number) => UpdateResourcePayload"
+      description: Build WordPress API payload from local resource data
+  
+  types:
+    - name: PushResult
+      description: Result of pushing single resource
+      fields:
+        - success: boolean
+        - resourceId: number
+        - error?: string
+    
+    - name: ConflictInfo
+      description: Information about conflicting resource
+      fields:
+        - resourceId: number
+        - title: string
+        - localModified: string
+        - serverModified: string
+
+dataModels:
+  input:
+    - source: queries.LocalResource
+      description: Resource data from local database
+  
+  output:
+    - destination: wp-client.UpdateResourcePayload
+      description: Payload for WordPress REST API
+    
+    - destination: database.resources
+      description: Updated modified_gmt and is_dirty after success
+
+businessLogic:
+  - name: Push Workflow (Single Resource)
+    description: Complete push process for one resource
+    implementation: |
+      1. Fetch resource from local database
+      2. If skipConflictCheck=false:
+         - Fetch current modified_gmt from WordPress
+         - Compare with local modified_gmt
+         - If different, return conflict error
+      3. Build update payload:
+         - Extract title, status
+         - Extract all taxonomy term arrays
+         - Extract meta_box object
+      4. Call wp-client.updateResource
+      5. On success:
+         - Update local modified_gmt from response
+         - Set is_dirty = 0
+         - Return success result
+      6. On failure:
+         - Return failure result with error
+         - Preserve dirty flag
+  
+  - name: Batch Push Workflow
+    description: Push multiple resources efficiently
+    implementation: |
+      1. Get all dirty resources from database
+      2. If skipConflictCheck=false:
+         - Check all resources for conflicts
+         - Filter out conflicting resources
+      3. Split into batches of 25 (WordPress limit)
+      4. For each batch:
+         - Build batch request payloads
+         - Call wp-client.batchUpdate
+         - Wait 300ms before next batch (rate limiting)
+      5. Parse batch responses
+      6. For each successful update:
+         - Update local modified_gmt
+         - Set is_dirty = 0
+      7. Return summary with results and conflicts
+  
+  - name: Conflict Detection
+    description: Check if server was modified since last sync
+    implementation: |
+      - For each resource ID:
+        - Fetch current modified_gmt from WordPress
+        - Get local modified_gmt from database
+        - If server.modified_gmt !== local.modified_gmt:
+          - Add to conflicts array
+      - Return conflicts array
+  
+  - name: Payload Building
+    description: Transform local resource to WordPress payload
+    implementation: |
+      - Extract basic fields: title, status
+      - For each taxonomy:
+        - Add array of term IDs to payload
+        - Use taxonomy slug as key
+      - Add complete meta_box object
+      - Validate required fields before sending
+  
+  - name: Validation Before Push
+    description: Ensure data is valid before sending
+    implementation: |
+      - Resource Type: exactly 1 term
+      - Access Level: exactly 1 term
+      - Topic: 0-3 terms (if present)
+      - Intent: 0-3 terms (if present)
+      - Throw validation error if invalid
+
+errorHandling:
+  - error: Conflict detected
+    handling: Skip resource, add to conflicts array, continue with others
+    recovery: User must re-sync or force overwrite
+  
+  - error: Validation failure
+    handling: Return error, don't attempt push
+    recovery: User must fix data
+  
+  - error: Network error during push
+    handling: Return error, preserve dirty flag, allow retry
+    recovery: User can retry
+  
+  - error: WordPress API error (500)
+    handling: Log error, return failure, preserve dirty flag
+    recovery: User can retry
+  
+  - error: Individual batch item failure
+    handling: Continue with remaining items, return failures in results
+    recovery: Partial success acceptable
+  
+  - error: Batch API failure
+    handling: Fall back to individual updates for that batch
+    recovery: true
+
+performance:
+  targets:
+    - metric: Push single resource
+      target: <3s (including conflict check)
+    
+    - metric: Push 25 resources (single batch)
+      target: <10s
+    
+    - metric: Push 100 resources (4 batches)
+      target: <45s
+    
+    - metric: Conflict check (per resource)
+      target: <1s
+  
+  optimizations:
+    - Batch updates (25 per batch)
+    - 300ms delay between batches (prevents rate limiting)
+    - Parallel conflict checks (with limit)
+    - Skip conflict check option for trusted scenarios
+  
+  rateLimit:
+    - 300ms between batches
+    - Respect WordPress rate limits
+    - Exponential backoff on 429 responses
+
+security:
+  - concern: Overwriting other users' changes
+    mitigation: Conflict detection by default
+  
+  - concern: Pushing invalid data
+    mitigation: Validation before push
+  
+  - concern: Partial push leaving inconsistent state
+    mitigation: Batch responses parsed individually, clear status reporting
+
+testing:
+  strategy: |
+    Mock wp-client and database to test push logic.
+    Verify payload building, conflict detection, and error handling.
+  
+  unitTests:
+    - name: test_build_update_payload
+      description: Verify payload structure
+      setup:
+        - Resource with title, status, taxonomies, meta_box
+      assertions:
+        - Payload includes all fields
+        - Taxonomies are arrays of term IDs
+        - meta_box is complete object
+    
+    - name: test_conflict_detection_detects_change
+      description: Verify conflict when server modified
+      setup:
+        - Local modified_gmt: 2024-01-01
+        - Server modified_gmt: 2024-01-02
+      assertions:
+        - Conflict detected
+        - Resource in conflicts array
+    
+    - name: test_conflict_detection_no_conflict
+      description: Verify no conflict when timestamps match
+      setup:
+        - Local and server modified_gmt match
+      assertions:
+        - No conflict detected
+        - Resource can be pushed
+    
+    - name: test_push_success_clears_dirty
+      description: Verify dirty flag cleared on success
+      setup:
+        - Resource with is_dirty=1
+      action:
+        - pushResource(id)
+      assertions:
+        - is_dirty set to 0
+        - modified_gmt updated
+    
+    - name: test_push_failure_preserves_dirty
+      description: Verify dirty flag preserved on error
+      setup:
+        - Resource with is_dirty=1
+        - Mock WordPress to return error
+      action:
+        - pushResource(id)
+      assertions:
+        - is_dirty remains 1
+        - Error in result
+    
+    - name: test_batch_push_splits_correctly
+      description: Verify batching logic
+      setup:
+        - 75 dirty resources
+      assertions:
+        - 3 batch requests made (25 + 25 + 25)
+        - 300ms delay between batches
+    
+    - name: test_batch_partial_failure
+      description: Verify individual failures don't abort batch
+      setup:
+        - Batch with 5 resources, #3 fails
+      assertions:
+        - Resources 1, 2, 4, 5 succeed
+        - Resource 3 marked as failed
+        - is_dirty cleared for successful ones only
+    
+    - name: test_validation_prevents_push
+      description: Verify validation errors caught
+      setup:
+        - Resource with 0 resource-type terms (invalid)
+      action:
+        - pushResource(id)
+      assertions:
+        - Returns validation error
+        - No API call made
+  
+  integrationTests:
+    - name: test_push_to_mock_wordpress
+      description: Full push workflow with mock WordPress
+      setup:
+        - Mock WordPress API
+        - Dirty resource in database
+      action:
+        - pushResource(id)
+      assertions:
+        - PUT request made to correct endpoint
+        - Payload structure correct
+        - is_dirty cleared on success
+    
+    - name: test_batch_push_integration
+      description: Batch push with mock WordPress
+      setup:
+        - 30 dirty resources
+        - Mock batch API
+      action:
+        - pushAllDirty()
+      assertions:
+        - 2 batch requests (25 + 5)
+        - All resources updated
+        - All dirty flags cleared
+  
+  coverage:
+    target: 90%
+    critical: 100% (conflict detection, validation)
+
+documentation:
+  readme: |
+    # Push Engine Module
+    
+    Manages pushing local changes to WordPress.
+    
+    ## Usage
+    
+    ```typescript
+    import { pushResource, pushAllDirty } from './push';
+    
+    // Push single resource
+    const result = await pushResource(123);
+    if (!result.success) {
+      console.error(result.error);
+    }
+    
+    // Push all dirty resources
+    const { results, conflicts } = await pushAllDirty();
+    console.log(`Pushed: ${results.filter(r => r.success).length}`);
+    console.log(`Conflicts: ${conflicts.length}`);
+    ```
+    
+    ## Conflict Resolution
+    
+    When conflicts detected:
+    1. Review conflict details
+    2. Re-sync to get latest data
+    3. Re-apply changes
+    4. Push again
+    
+    Or use skipConflictCheck=true to force overwrite (risky).
+  
+  apiDocs: |
+    Generated from JSDoc comments
+
+configuration:
+  constants:
+    - name: BATCH_SIZE
+      value: 25
+      description: Maximum requests per WordPress batch
+    
+    - name: BATCH_DELAY_MS
+      value: 300
+      description: Delay between batch requests
+
+logging:
+  - event: Push started
+    level: info
+    message: "Pushing {count} resources"
+  
+  - event: Conflict detected
+    level: warn
+    message: "Conflict on resource {id}: local={localTime}, server={serverTime}"
+  
+  - event: Push success
+    level: info
+    message: "Successfully pushed resource {id}"
+  
+  - event: Push failure
+    level: error
+    message: "Failed to push resource {id}: {error}"
+  
+  - event: Batch complete
+    level: info
+    message: "Batch {batchNum}: {success} success, {failed} failed"
+
+metadata:
+  owner: Technical Lead
+  reviewers:
+    - Content Manager
+  estimatedEffort: 8 story points
+  dependencies:
+    - database module
+    - wp-client module
+    - queries module
+  blockedBy: []
+  relatedUserStories:
+    - US-4.1 (Push Single)
+    - US-4.2 (Batch Push)
+    - US-4.3 (Conflict Detection)
+    - US-4.4 (Validation)
+  completionCriteria:
+    - Push single resource works
+    - Batch push works
+    - Conflict detection works
+    - Validation prevents bad data
+    - Performance targets met
+    - Tests pass (90%+ coverage)
+    - Code reviewed

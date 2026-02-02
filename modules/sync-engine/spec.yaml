@@ -1,0 +1,391 @@
+name: sync-engine
+version: 1.0.0
+status: To Do
+description: Orchestrates data synchronization from WordPress to local database
+
+purpose: |
+  Manages the complete sync workflow including fetching data from WordPress via wp-client,
+  storing in local database via database module, and tracking sync state. Supports both
+  full and incremental sync modes.
+
+dependencies:
+  external: []
+  internal:
+    - database
+    - wp-client
+
+interfaces:
+  exports:
+    - name: fullSync
+      type: function
+      signature: "() => Promise<SyncResult>"
+      description: Perform complete sync of all resources and taxonomies
+    
+    - name: incrementalSync
+      type: function
+      signature: "() => Promise<SyncResult>"
+      description: Sync only resources modified since last sync
+    
+    - name: syncTaxonomies
+      type: function
+      signature: "() => Promise<number>"
+      description: Sync all taxonomy terms, returns count
+    
+    - name: syncResources
+      type: function
+      signature: "(incremental: boolean) => Promise<{ updated: number; deleted: number }>"
+      description: Sync resources with optional incremental mode
+    
+    - name: saveResource
+      type: function
+      signature: "(resource: WPResource) => void"
+      description: Save single resource to database
+    
+    - name: saveTerm
+      type: function
+      signature: "(term: WPTerm) => void"
+      description: Save single taxonomy term to database
+    
+    - name: deleteResource
+      type: function
+      signature: "(id: number) => void"
+      description: Delete resource from local database
+    
+    - name: getLastSyncTime
+      type: function
+      signature: "() => string | null"
+      description: Get timestamp of last successful sync
+    
+    - name: setLastSyncTime
+      type: function
+      signature: "(timestamp: string) => void"
+      description: Update last sync timestamp
+  
+  types:
+    - name: SyncResult
+      description: Result of sync operation
+      fields:
+        - taxonomiesUpdated: number
+        - resourcesUpdated: number
+        - resourcesDeleted: number
+        - errors: string[]
+
+dataModels:
+  input:
+    - source: wp-client.WPResource
+      description: Resources fetched from WordPress
+    
+    - source: wp-client.WPTerm
+      description: Taxonomy terms fetched from WordPress
+  
+  output:
+    - destination: database.resources
+      description: Resource records in local database
+    
+    - destination: database.terms
+      description: Term records in local database
+    
+    - destination: database.resource_meta
+      description: Meta Box field records
+    
+    - destination: database.resource_terms
+      description: Resource-term assignments
+
+businessLogic:
+  - name: Full Sync Workflow
+    description: Complete data synchronization process
+    implementation: |
+      1. Fetch all taxonomy terms (9 taxonomies, parallel)
+      2. Save terms to database
+      3. Fetch all resources (paginated, all pages)
+      4. For each resource:
+         - Save to resources table
+         - Save meta_box fields to resource_meta
+         - Save taxonomy assignments to resource_terms
+      5. Detect deleted resources:
+         - Fetch all resource IDs from WordPress
+         - Compare with local database
+         - Delete resources not on server
+      6. Update last_sync_time on success
+      7. Return summary with counts and errors
+  
+  - name: Incremental Sync Workflow
+    description: Sync only changed resources
+    implementation: |
+      1. Get last_sync_time from database
+      2. Fetch taxonomies (always refresh)
+      3. Fetch resources with modified_after={last_sync_time}
+      4. Save changed resources (same as full sync)
+      5. Skip deletion detection (not reliable incrementally)
+      6. Update last_sync_time on success
+  
+  - name: Resource Storage
+    description: Store WordPress resource in normalized schema
+    implementation: |
+      1. Insert/replace resources table (core fields)
+      2. Delete old resource_meta entries for this resource
+      3. Insert meta_box fields as JSON (one row per field)
+      4. Delete old resource_terms entries
+      5. Insert new term assignments
+      6. Preserve is_dirty flag from existing record
+  
+  - name: Conflict Prevention
+    description: Don't overwrite local modifications
+    implementation: |
+      - COALESCE is_dirty on resource insert
+      - If resource exists and is_dirty=1, keep dirty flag
+      - This prevents sync from clearing unsaved changes
+  
+  - name: Error Handling Strategy
+    description: Partial success is acceptable
+    implementation: |
+      - Collect errors in array, don't abort
+      - Taxonomy sync failure: log error, continue with resources
+      - Individual resource save failure: log, continue with next
+      - Return errors array in result
+      - Only set last_sync_time if errors array is empty
+
+errorHandling:
+  - error: WordPress API unavailable
+    handling: Return error in SyncResult.errors, don't update last_sync_time
+    recovery: User can retry
+  
+  - error: Database write failure
+    handling: Log error, add to errors array, continue with next item
+    recovery: Partial data saved
+  
+  - error: Invalid resource data
+    handling: Log warning, skip resource, continue
+    recovery: true
+  
+  - error: Network timeout during sync
+    handling: Return partial results, errors array shows what failed
+    recovery: User can retry (incremental will catch missed items)
+
+performance:
+  targets:
+    - metric: Full sync (500 resources)
+      target: <120s
+      breakdown:
+        - Taxonomy fetch: 5s
+        - Resource fetch: 60s
+        - Database writes: 10s
+        - Deletion detection: 5s
+    
+    - metric: Incremental sync (50 resources)
+      target: <30s
+    
+    - metric: Resource save to database
+      target: <20ms per resource
+  
+  optimizations:
+    - Parallel taxonomy fetching via wp-client
+    - Batch database operations (transactions)
+    - Use prepared statements for repeated queries
+    - Skip deletion detection in incremental sync
+  
+  scalability:
+    - Tested with 2000 resources
+    - Memory efficient (stream processing, not bulk load)
+    - Database size: ~100MB for 2000 resources
+
+security:
+  - concern: SQL injection in resource data
+    mitigation: Prepared statements only, never string concatenation
+  
+  - concern: Malicious meta_box data
+    mitigation: Store as JSON string, validate on read if needed
+  
+  - concern: Sync timing attacks
+    mitigation: Not applicable (local app, trusted WordPress source)
+
+testing:
+  strategy: |
+    Mock wp-client and database modules to test sync logic in isolation.
+    Integration tests use real database (in-memory) and mock WordPress API.
+  
+  unitTests:
+    - name: test_full_sync_workflow
+      description: Verify full sync steps execute in order
+      mocks:
+        - wp-client.fetchAllTaxonomies
+        - wp-client.fetchAllResources
+        - database.getDb
+      assertions:
+        - Taxonomies fetched before resources
+        - All resources saved
+        - Deletion detection runs
+        - Last sync time updated
+    
+    - name: test_incremental_sync_uses_timestamp
+      description: Verify modified_after parameter passed
+      mocks:
+        - wp-client.fetchAllResources (verify called with timestamp)
+      assertions:
+        - getLastSyncTime called
+        - Timestamp passed to fetchAllResources
+        - Deletion detection skipped
+    
+    - name: test_preserve_dirty_flag
+      description: Verify sync doesn't clear dirty resources
+      setup:
+        - Resource 123 exists with is_dirty=1
+      action:
+        - Sync resource 123 from WordPress
+      assertions:
+        - is_dirty remains 1 after sync
+    
+    - name: test_error_collection
+      description: Verify errors collected, sync continues
+      mocks:
+        - wp-client throws error on resource 2 of 5
+      assertions:
+        - Resources 1, 3, 4, 5 saved
+        - errors array contains 1 error
+        - last_sync_time NOT updated
+  
+  integrationTests:
+    - name: test_full_sync_integration
+      description: Full sync with real database, mock WordPress
+      setup:
+        - In-memory database
+        - Mock WordPress API with 10 resources
+      assertions:
+        - 10 resources in database
+        - All meta_box fields saved
+        - All term assignments saved
+        - last_sync_time set
+    
+    - name: test_deletion_detection
+      description: Verify deleted resources removed
+      setup:
+        - Database has resources 1-10
+        - WordPress returns resources 1-5
+      action:
+        - Full sync
+      assertions:
+        - Resources 6-10 deleted from database
+        - resourcesDeleted = 5
+    
+    - name: test_incremental_after_full
+      description: Verify incremental works after full sync
+      setup:
+        - Full sync completed
+        - Modify resource 3 on WordPress
+      action:
+        - Incremental sync
+      assertions:
+        - Only resource 3 updated
+        - resourcesUpdated = 1
+  
+  performanceTests:
+    - name: test_sync_500_resources
+      description: Verify sync completes in target time
+      setup:
+        - Mock WordPress with 500 resources
+      assertions:
+        - Completes in <120s
+    
+    - name: test_database_write_speed
+      description: Verify resource save performance
+      assertions:
+        - Each resource saves in <20ms
+  
+  coverage:
+    target: 90%
+    critical: 100% (sync workflows, error handling)
+
+documentation:
+  readme: |
+    # Sync Engine Module
+    
+    Orchestrates synchronization between WordPress and local database.
+    
+    ## Usage
+    
+    ```typescript
+    import { fullSync, incrementalSync } from './sync';
+    
+    // Full sync (first run)
+    const result = await fullSync();
+    console.log(`Synced ${result.resourcesUpdated} resources`);
+    
+    // Incremental sync (subsequent runs)
+    const delta = await incrementalSync();
+    console.log(`Updated ${delta.resourcesUpdated} resources`);
+    ```
+    
+    ## Sync Strategies
+    
+    **Full Sync**: Use on first run or when data integrity concerns
+    **Incremental Sync**: Use for regular updates (faster)
+    
+    ## Error Handling
+    
+    Sync returns errors array but doesn't throw. Check result.errors.
+  
+  apiDocs: |
+    Generated from JSDoc comments
+
+configuration:
+  constants:
+    - name: SYNC_BATCH_SIZE
+      value: 100
+      description: Resources per batch (matches WordPress per_page)
+
+logging:
+  - event: Sync started
+    level: info
+    message: "Starting {type} sync"
+    context:
+      - type: full | incremental
+  
+  - event: Taxonomy sync complete
+    level: info
+    message: "Synced {count} taxonomy terms"
+  
+  - event: Resource sync progress
+    level: info
+    message: "Fetched {count} resources from WordPress"
+  
+  - event: Resource save progress
+    level: debug
+    message: "Saved resource {id}: {title}"
+  
+  - event: Deletion detected
+    level: info
+    message: "Deleted {count} resources no longer on server"
+  
+  - event: Sync complete
+    level: info
+    message: "Sync complete: {resourcesUpdated} updated, {resourcesDeleted} deleted, {errors} errors"
+  
+  - event: Sync error
+    level: error
+    message: "Sync error: {error}"
+    context:
+      - error: Error message
+      - phase: taxonomies | resources | deletion
+
+metadata:
+  owner: Technical Lead
+  reviewers:
+    - Content Manager
+  estimatedEffort: 8 story points
+  dependencies:
+    - database module
+    - wp-client module
+  blockedBy: []
+  relatedUserStories:
+    - US-1.1 (Full Sync)
+    - US-1.2 (Incremental Sync)
+    - US-1.3 (Taxonomy Sync)
+    - US-1.4 (Deleted Resources)
+  completionCriteria:
+    - Full sync works end-to-end
+    - Incremental sync works
+    - Deletion detection works
+    - Error handling robust
+    - Tests pass (90%+ coverage)
+    - Performance targets met
+    - Code reviewed
