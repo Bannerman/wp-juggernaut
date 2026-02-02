@@ -129,17 +129,20 @@ export interface FetchResourcesResult {
 export async function fetchResources(
   options: FetchResourcesOptions = {}
 ): Promise<FetchResourcesResult> {
-  const { page = 1, perPage = 100, status = 'publish', modifiedAfter } = options;
+  const { page = 1, perPage = 100, status = 'any', modifiedAfter } = options;
 
-  // Only use auth if we need non-public statuses
+  // Use auth if we have credentials and need non-public statuses
   const hasAuth = Boolean(WP_USERNAME && WP_APP_PASSWORD);
-  const needsAuth = status !== 'publish' && hasAuth;
-  const statusParam = needsAuth ? status : 'publish';
+  const needsAuth = hasAuth && status !== 'publish';
 
-  let endpoint = `/resource?per_page=${perPage}&page=${page}&status=${statusParam}`;
+  console.log(`[wp-client] fetchResources - status: ${status}, hasAuth: ${hasAuth}, needsAuth: ${needsAuth}`);
+
+  let endpoint = `/resource?per_page=${perPage}&page=${page}&status=${status}`;
   if (modifiedAfter) {
     endpoint += `&modified_after=${encodeURIComponent(modifiedAfter)}`;
   }
+
+  console.log(`[wp-client] Fetching: ${endpoint}`);
 
   const { data, headers } = await wpFetch<WPResource[]>(endpoint, {}, needsAuth);
   
