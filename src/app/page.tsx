@@ -270,17 +270,32 @@ export default function Home() {
                 New Resource
               </button>
 
+              <div className="relative inline-block">
+                <button
+                  onClick={() => handleSync(true)}
+                  disabled={isSyncing}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                    'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                    'disabled:opacity-50 disabled:cursor-not-allowed'
+                  )}
+                >
+                  <RefreshCw className={cn('w-4 h-4', isSyncing && 'animate-spin')} />
+                  {isSyncing ? 'Syncing...' : 'Incremental Sync'}
+                </button>
+              </div>
+
               <button
-                onClick={() => handleSync(true)}
+                onClick={() => handleSync(false)}
                 disabled={isSyncing}
                 className={cn(
                   'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-                  'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                  'bg-blue-600 text-white hover:bg-blue-700',
                   'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
               >
-                <RefreshCw className={cn('w-4 h-4', isSyncing && 'animate-spin')} />
-                {isSyncing ? 'Syncing...' : 'Sync'}
+                <Download className={cn('w-4 h-4', isSyncing && 'animate-spin')} />
+                {isSyncing ? 'Syncing...' : 'Full Sync'}
               </button>
 
               <button

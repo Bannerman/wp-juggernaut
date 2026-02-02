@@ -511,6 +511,31 @@ ${changelog.length > 0 ? changelog.map(c =>
                     ))}
                   </select>
                 </div>
+
+                {/* Featured Image */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Featured Image URL</label>
+                  <input
+                    type="url"
+                    value={(metaBox.featured_image_url as string) || ''}
+                    onChange={(e) => updateMetaField('featured_image_url', e.target.value)}
+                    placeholder="https://plexkits.com/wp-content/uploads/..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  />
+                  {(metaBox.featured_image_url as string) && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-500 mb-1">Preview (hotlinked from server):</p>
+                      <img
+                        src={(metaBox.featured_image_url as string)}
+                        alt="Featured image preview"
+                        className="max-w-xs max-h-48 rounded-lg border border-gray-200 object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
