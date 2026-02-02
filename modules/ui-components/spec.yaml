@@ -1,0 +1,353 @@
+name: ui-components
+version: 1.0.0
+status: To Do
+description: React components for resource management interface
+
+purpose: |
+  Provides reusable React components for displaying and editing resources, including table view,
+  filter panel, edit modal, and create modal. Implements user interface following design patterns
+  and accessibility standards.
+
+dependencies:
+  external:
+    - react: ^18.3.0
+    - lucide-react: ^0.400.0
+    - "@tanstack/react-table": ^8.17.0
+    - date-fns: ^3.6.0
+    - clsx: ^2.1.1
+    - tailwind-merge: ^2.3.0
+  internal:
+    - api-routes (via fetch)
+
+interfaces:
+  exports:
+    - name: ResourceTable
+      type: component
+      props:
+        - resources: LocalResource[]
+        - terms: Record<TaxonomySlug, LocalTerm[]>
+        - onEdit: (id: number) => void
+        - onRefresh: () => void
+      description: Main table view for resources
+    
+    - name: FilterPanel
+      type: component
+      props:
+        - terms: Record<TaxonomySlug, LocalTerm[]>
+        - filters: ResourceFilters
+        - onFilterChange: (filters: ResourceFilters) => void
+        - showDirtyOnly: boolean
+        - onDirtyToggle: (show: boolean) => void
+      description: Filtering and search interface
+    
+    - name: EditModal
+      type: component
+      props:
+        - resource: LocalResource | null
+        - terms: Record<TaxonomySlug, LocalTerm[]>
+        - isOpen: boolean
+        - onClose: () => void
+        - onSave: (id: number, updates: UpdateResourceRequest) => Promise<void>
+      description: Modal for editing resource
+    
+    - name: CreateModal
+      type: component
+      props:
+        - terms: Record<TaxonomySlug, LocalTerm[]>
+        - isOpen: boolean
+        - onClose: () => void
+        - onCreate: (data: CreateResourceRequest) => Promise<void>
+      description: Modal for creating new resource (future)
+    
+    - name: StatsCard
+      type: component
+      props:
+        - label: string
+        - value: number | string
+        - icon: ReactNode
+      description: Dashboard statistics card
+
+businessLogic:
+  - name: ResourceTable Rendering
+    implementation: |
+      - Use @tanstack/react-table for table functionality
+      - Columns: checkbox, title, status, resource type, topics, modified date, dirty indicator
+      - Sortable by modified date (default desc)
+      - Row click handler opens edit modal
+      - Virtual scrolling if >1000 rows (future optimization)
+  
+  - name: FilterPanel Logic
+    implementation: |
+      - Search input with debounce (300ms)
+      - Status dropdown (all, publish, draft, pending, private)
+      - Expandable taxonomy filters (accordion)
+      - Multi-select for each taxonomy
+      - Dirty-only toggle
+      - Clear all filters button
+      - Filter state passed to parent via onFilterChange
+  
+  - name: EditModal Form Handling
+    implementation: |
+      - Controlled form inputs
+      - Validation on save
+      - Loading state during save
+      - Error display
+      - Organized in tabs or sections:
+        - Basic: title, status
+        - Taxonomies: all 9 taxonomies
+        - Content: intro_text, text_content, timer
+        - Features: group_features editor
+        - Downloads: download_sections editor
+        - Changelog: group_changelog editor
+  
+  - name: Taxonomy Selection
+    implementation: |
+      - Resource Type: Single-select dropdown
+      - Access Level: Single-select dropdown
+      - Topic: Multi-select with max 3, hierarchical display
+      - Intent: Multi-select with max 3
+      - Others: Multi-select, no limit
+      - Validation prevents saving invalid combinations
+  
+  - name: Meta Box Field Editors
+    implementation: |
+      - Simple fields: Text inputs, textareas
+      - Date/time: Date picker component
+      - Features: Add/remove/edit list items
+      - Downloads: Nested section/link editor
+      - Changelog: Add/remove entries with notes array
+
+errorHandling:
+  - error: Component render error
+    handling: Error boundary catches, displays user-friendly message
+    recovery: Page reload
+  
+  - error: API call failure
+    handling: Display error notification, maintain form state
+    recovery: User can retry
+  
+  - error: Validation error
+    handling: Show inline error messages on form fields
+    recovery: User corrects input
+  
+  - error: Network timeout
+    handling: Show timeout message, allow retry
+    recovery: true
+
+performance:
+  targets:
+    - metric: Table render (500 rows)
+      target: <500ms
+    
+    - metric: Filter update
+      target: <100ms
+    
+    - metric: Modal open
+      target: <300ms
+    
+    - metric: Search input response
+      target: <50ms (debounced)
+  
+  optimizations:
+    - React.memo for table rows
+    - useMemo for expensive calculations
+    - useCallback for event handlers
+    - Debounced search input
+    - Virtual scrolling for large tables (if needed)
+    - Lazy load modal content
+
+accessibility:
+  - Keyboard navigation (Tab, Enter, Escape)
+  - ARIA labels on interactive elements
+  - Focus management in modals
+  - Screen reader announcements for state changes
+  - Semantic HTML elements
+  - Sufficient color contrast (WCAG AA)
+
+testing:
+  strategy: |
+    Test components using React Testing Library.
+    Mock API calls and user interactions.
+  
+  unitTests:
+    - name: test_resource_table_renders
+      description: Verify table displays resources
+      setup:
+        - Mock resources array
+      assertions:
+        - Table renders with correct row count
+        - Columns display correct data
+    
+    - name: test_table_row_click
+      description: Verify row click triggers edit
+      setup:
+        - Mock onEdit handler
+      action:
+        - Click table row
+      assertions:
+        - onEdit called with resource ID
+    
+    - name: test_filter_panel_search
+      description: Verify search triggers filter change
+      action:
+        - Type in search input
+      assertions:
+        - onFilterChange called with search value
+        - Debounced (not immediate)
+    
+    - name: test_filter_panel_status
+      description: Verify status filter
+      action:
+        - Select status from dropdown
+      assertions:
+        - onFilterChange called with status
+    
+    - name: test_edit_modal_displays_data
+      description: Verify modal shows resource data
+      setup:
+        - Mock resource
+      assertions:
+        - Title field has correct value
+        - Status dropdown has correct selection
+        - Taxonomy selections match resource
+    
+    - name: test_edit_modal_save
+      description: Verify save calls handler
+      action:
+        - Change title
+        - Click save
+      assertions:
+        - onSave called with updates
+        - Loading state shown
+    
+    - name: test_edit_modal_validation
+      description: Verify validation prevents invalid save
+      action:
+        - Remove required Resource Type
+        - Click save
+      assertions:
+        - Error message shown
+        - onSave NOT called
+    
+    - name: test_taxonomy_multi_select
+      description: Verify topic multi-select enforces max 3
+      action:
+        - Select 4 topics
+      assertions:
+        - Only 3 selectable
+        - Or error shown on 4th selection
+  
+  integrationTests:
+    - name: test_full_edit_workflow
+      description: Complete edit from table to save
+      steps:
+        - Render table with resources
+        - Click resource row
+        - Modal opens
+        - Change fields
+        - Save
+        - Modal closes
+      assertions:
+        - API called with updates
+        - Table refreshes with new data
+  
+  coverage:
+    target: 85%
+    critical: 100% (validation, error handling)
+
+documentation:
+  readme: |
+    # UI Components Module
+    
+    React components for PlexKits API user interface.
+    
+    ## Components
+    
+    ### ResourceTable
+    Main table view for browsing resources.
+    
+    ### FilterPanel
+    Search and filter interface.
+    
+    ### EditModal
+    Edit resource fields and metadata.
+    
+    ### CreateModal
+    Create new resource (future).
+    
+    ## Usage
+    
+    See main app/page.tsx for integration example.
+  
+  storybook: |
+    Consider adding Storybook for component documentation (future)
+
+configuration:
+  constants:
+    - name: SEARCH_DEBOUNCE_MS
+      value: 300
+      description: Debounce delay for search input
+    
+    - name: MAX_TOPIC_TERMS
+      value: 3
+      description: Maximum topic terms per resource
+    
+    - name: MAX_INTENT_TERMS
+      value: 3
+      description: Maximum intent terms per resource
+
+styling:
+  approach: TailwindCSS utility classes
+  
+  colorPalette:
+    - primary: blue-500
+    - success: green-500
+    - error: red-500
+    - warning: yellow-500
+    - dirty: yellow-300
+  
+  spacing: Tailwind default scale (4px increments)
+  
+  typography:
+    - headings: font-bold
+    - body: font-normal
+    - code: font-mono
+
+logging:
+  - event: Component error
+    level: error
+    message: "Component error in {componentName}: {error}"
+  
+  - event: API call from component
+    level: debug
+    message: "API call: {method} {endpoint}"
+
+metadata:
+  owner: Technical Lead
+  reviewers:
+    - Content Manager
+  estimatedEffort: 13 story points
+  dependencies:
+    - api-routes (via HTTP)
+  blockedBy: []
+  relatedUserStories:
+    - US-2.1 (View Resources)
+    - US-2.2 (Search)
+    - US-2.3 (Status Filter)
+    - US-2.4 (Taxonomy Filter)
+    - US-2.5 (Dirty Filter)
+    - US-3.1 (Edit Basic)
+    - US-3.2 (Edit Taxonomies)
+    - US-3.3 (Edit Meta Fields)
+    - US-3.4 (Edit Features)
+    - US-3.5 (Edit Downloads)
+    - US-3.6 (Edit Changelog)
+    - US-6.1 (Error Notifications)
+    - US-6.2 (Success Notifications)
+  completionCriteria:
+    - All components implemented
+    - Responsive design works
+    - Accessibility requirements met
+    - Tests pass (85%+ coverage)
+    - No console errors
+    - Code reviewed

@@ -1,0 +1,411 @@
+name: wp-client
+version: 1.0.0
+status: To Do
+description: WordPress REST API client for fetching and updating resources and taxonomy terms
+
+purpose: |
+  Provides abstraction layer for all WordPress REST API interactions. Handles authentication,
+  pagination, error handling, and data transformation between WordPress and local formats.
+
+dependencies:
+  external:
+    - Node.js fetch API (built-in)
+  internal: []
+
+interfaces:
+  exports:
+    - name: fetchResources
+      type: function
+      signature: "(options?: FetchResourcesOptions) => Promise<FetchResourcesResult>"
+      description: Fetch resources with pagination support
+    
+    - name: fetchAllResources
+      type: function
+      signature: "(modifiedAfter?: string) => Promise<WPResource[]>"
+      description: Fetch all resources, handling pagination automatically
+    
+    - name: fetchResourceById
+      type: function
+      signature: "(id: number) => Promise<WPResource>"
+      description: Fetch single resource by ID
+    
+    - name: fetchResourceIds
+      type: function
+      signature: "() => Promise<number[]>"
+      description: Fetch only resource IDs (for deletion detection)
+    
+    - name: fetchTaxonomyTerms
+      type: function
+      signature: "(taxonomy: TaxonomySlug) => Promise<WPTerm[]>"
+      description: Fetch all terms for a specific taxonomy
+    
+    - name: fetchAllTaxonomies
+      type: function
+      signature: "() => Promise<Record<TaxonomySlug, WPTerm[]>>"
+      description: Fetch all 9 taxonomies in parallel
+    
+    - name: createResource
+      type: function
+      signature: "(payload: UpdateResourcePayload) => Promise<WPResource>"
+      description: Create new resource (Phase 2/Future)
+    
+    - name: updateResource
+      type: function
+      signature: "(id: number, payload: UpdateResourcePayload) => Promise<WPResource>"
+      description: Update existing resource
+    
+    - name: batchUpdate
+      type: function
+      signature: "(requests: BatchRequest[]) => Promise<BatchResponse>"
+      description: Batch update multiple resources (max 25 per batch)
+    
+    - name: testConnection
+      type: function
+      signature: "() => Promise<{ success: boolean; message: string }>"
+      description: Test WordPress connection and credentials
+  
+  constants:
+    - name: TAXONOMIES
+      type: "readonly string[]"
+      value: "['resource-type', 'topic', 'intent', 'audience', 'leagues', 'access_level', 'competition_format', 'bracket-size', 'file_format']"
+  
+  types:
+    - name: WPResource
+      description: WordPress resource post structure
+    
+    - name: WPTerm
+      description: WordPress taxonomy term structure
+    
+    - name: TaxonomySlug
+      description: Union type of all taxonomy slugs
+    
+    - name: FetchResourcesOptions
+      description: Options for paginated resource fetching
+    
+    - name: UpdateResourcePayload
+      description: Payload for creating/updating resources
+    
+    - name: BatchRequest
+      description: Single request in batch operation
+    
+    - name: BatchResponse
+      description: Response from batch API
+
+dataModels:
+  wordpress:
+    - name: WPResource
+      fields:
+        - name: id
+          type: number
+          required: true
+        - name: title
+          type: "{ rendered: string }"
+          required: true
+        - name: status
+          type: string
+          required: true
+        - name: modified_gmt
+          type: string (ISO 8601)
+          required: true
+        - name: meta_box
+          type: "Record<string, unknown>"
+          required: false
+        - name: "[taxonomy]"
+          type: "number[]"
+          required: false
+          description: Term IDs for each taxonomy
+    
+    - name: WPTerm
+      fields:
+        - name: id
+          type: number
+          required: true
+        - name: name
+          type: string
+          required: true
+        - name: slug
+          type: string
+          required: true
+        - name: taxonomy
+          type: string
+          required: true
+        - name: parent
+          type: number
+          required: true
+          description: "0 if no parent"
+
+businessLogic:
+  - name: Authentication
+    description: HTTP Basic Auth with Application Password
+    implementation: |
+      - Read WP_USERNAME and WP_APP_PASSWORD from env
+      - Create base64 encoded credentials
+      - Add Authorization header to all authenticated requests
+      - Public endpoints (taxonomies) don't require auth
+  
+  - name: Pagination Handling
+    description: Automatically handle WordPress pagination
+    implementation: |
+      - Check X-WP-TotalPages header
+      - Iterate through all pages
+      - Collect all results in single array
+      - Default: 100 items per page (max allowed)
+  
+  - name: Error Response Parsing
+    description: Parse WordPress error responses
+    implementation: |
+      - Check response.ok
+      - Parse error JSON
+      - Extract meaningful error message
+      - Throw Error with context
+  
+  - name: Meta Box Field Handling
+    description: Extract meta_box object from response
+    implementation: |
+      - MB REST API adds meta_box key to response
+      - Contains all Meta Box fields as nested object
+      - Preserve complex structures (arrays, nested objects)
+  
+  - name: Incremental Sync Support
+    description: Support modified_after parameter
+    implementation: |
+      - Accept modifiedAfter timestamp (ISO 8601)
+      - Add to query string: &modified_after={timestamp}
+      - WordPress returns only posts modified after that time
+
+errorHandling:
+  - error: Network error (fetch fails)
+    handling: Throw Error with "Network error" message
+    retry: Caller's responsibility
+  
+  - error: 401 Unauthorized
+    handling: Throw Error "Invalid credentials"
+    retry: false
+  
+  - error: 404 Not Found
+    handling: Throw Error "Resource not found"
+    retry: false
+  
+  - error: 500 Server Error
+    handling: Throw Error with server message
+    retry: Caller can retry
+  
+  - error: Timeout (30s)
+    handling: Abort request, throw timeout error
+    retry: true (with backoff)
+  
+  - error: Invalid JSON response
+    handling: Throw Error "Invalid WordPress response"
+    retry: false
+
+performance:
+  targets:
+    - metric: Single resource fetch
+      target: <2s
+    
+    - metric: Taxonomy fetch (all 9)
+      target: <5s (parallel)
+    
+    - metric: Full sync (500 resources)
+      target: <60s
+    
+    - metric: Batch update (25 resources)
+      target: <10s
+  
+  optimizations:
+    - Parallel taxonomy fetching (Promise.all)
+    - Large per_page (100) to minimize requests
+    - Connection pooling via HTTP/2
+    - Batch API for multiple updates
+  
+  rateLimit:
+    - Respect X-RateLimit headers (if present)
+    - 300ms delay between batches
+    - Exponential backoff on 429 responses
+
+security:
+  - concern: Credential exposure
+    mitigation: |
+      - Credentials only in environment variables
+      - Never log credentials
+      - Server-side only (not exposed to browser)
+  
+  - concern: HTTPS requirement
+    mitigation: |
+      - Production requires HTTPS
+      - Development allows HTTP (Local by Flywheel)
+      - Warn if using HTTP in production
+  
+  - concern: Response validation
+    mitigation: |
+      - Validate response structure
+      - TypeScript types for type safety
+      - Sanitize untrusted data from WordPress
+
+testing:
+  strategy: |
+    Mock WordPress API responses to test client without live server.
+    Use MSW (Mock Service Worker) or similar for HTTP mocking.
+  
+  unitTests:
+    - name: test_auth_header_construction
+      description: Verify Authorization header format
+      assertions:
+        - Header is "Basic " + base64(username:password)
+    
+    - name: test_pagination_handling
+      description: Verify multi-page fetching
+      assertions:
+        - All pages fetched
+        - Results concatenated correctly
+    
+    - name: test_error_parsing
+      description: Verify error messages extracted
+      assertions:
+        - 401 throws "Invalid credentials"
+        - 500 includes server error message
+    
+    - name: test_modified_after_parameter
+      description: Verify incremental sync parameter
+      assertions:
+        - modified_after added to query string
+        - ISO 8601 format preserved
+  
+  integrationTests:
+    - name: test_fetch_real_resources
+      description: Fetch from test WordPress instance
+      assertions:
+        - Returns array of WPResource
+        - meta_box field present
+    
+    - name: test_batch_update
+      description: Update multiple resources
+      assertions:
+        - Batch API accepts 25 requests
+        - Returns individual responses
+    
+    - name: test_taxonomy_parallel_fetch
+      description: Verify parallel fetching
+      assertions:
+        - All 9 taxonomies fetched
+        - Faster than sequential (5s vs 15s)
+  
+  mockData:
+    - description: Mock WordPress API responses
+      location: __mocks__/wordpress-api.ts
+      includes:
+        - Sample resources with meta_box
+        - Sample taxonomy terms
+        - Error responses (401, 404, 500)
+  
+  coverage:
+    target: 90%
+    critical: 100% (auth, error handling)
+
+documentation:
+  readme: |
+    # WordPress Client Module
+    
+    Abstraction layer for WordPress REST API.
+    
+    ## Usage
+    
+    ```typescript
+    import { fetchAllResources, updateResource } from './wp-client';
+    
+    // Fetch all resources
+    const resources = await fetchAllResources();
+    
+    // Update resource
+    const updated = await updateResource(123, {
+      title: 'New Title',
+      status: 'publish',
+      'resource-type': [45]
+    });
+    ```
+    
+    ## Authentication
+    
+    Requires environment variables:
+    - WP_BASE_URL
+    - WP_USERNAME  
+    - WP_APP_PASSWORD
+    
+    ## Error Handling
+    
+    All functions throw Error on failure. Caller must handle.
+  
+  apiDocs: |
+    Generated from JSDoc comments
+
+configuration:
+  environment:
+    - name: WP_BASE_URL
+      type: string
+      required: true
+      default: https://plexkits.com
+      description: WordPress site URL (no trailing slash)
+    
+    - name: WP_USERNAME
+      type: string
+      required: true
+      description: WordPress username
+    
+    - name: WP_APP_PASSWORD
+      type: string
+      required: true
+      description: WordPress Application Password
+  
+  constants:
+    - name: DEFAULT_PER_PAGE
+      value: 100
+      description: Maximum items per page
+    
+    - name: REQUEST_TIMEOUT
+      value: 30000
+      description: Request timeout in milliseconds
+    
+    - name: BATCH_SIZE
+      value: 25
+      description: Maximum requests per batch
+
+logging:
+  - event: Resource fetch started
+    level: info
+    message: "Fetching resources: page={page}, perPage={perPage}"
+  
+  - event: Resource fetch completed
+    level: info
+    message: "Fetched {count} resources"
+  
+  - event: API error
+    level: error
+    message: "WordPress API error: {status} - {message}"
+  
+  - event: Batch update started
+    level: info
+    message: "Batch updating {count} resources"
+
+metadata:
+  owner: Technical Lead
+  reviewers:
+    - Content Manager
+  estimatedEffort: 8 story points
+  dependencies:
+    - Environment configuration (US-5.3)
+  blockedBy: []
+  relatedUserStories:
+    - US-1.1 (Full Sync)
+    - US-1.2 (Incremental Sync)
+    - US-1.3 (Taxonomy Sync)
+    - US-4.1 (Push Single)
+    - US-4.2 (Batch Push)
+    - US-5.1 (Test Connection)
+  completionCriteria:
+    - All functions implemented
+    - Authentication works
+    - Pagination handled
+    - Error handling robust
+    - Tests pass (90%+ coverage)
+    - Code reviewed
+    - Can sync from live WordPress

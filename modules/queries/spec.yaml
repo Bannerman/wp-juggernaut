@@ -1,0 +1,394 @@
+name: queries
+version: 1.0.0
+status: To Do
+description: Database query functions for reading and updating local resource data
+
+purpose: |
+  Provides high-level query interface for accessing local database. Handles complex queries,
+  filtering, joins, and data transformation between database rows and application objects.
+
+dependencies:
+  external: []
+  internal:
+    - database
+
+interfaces:
+  exports:
+    - name: getResources
+      type: function
+      signature: "(filters?: ResourceFilters) => LocalResource[]"
+      description: Get resources with optional filtering
+    
+    - name: getResourceById
+      type: function
+      signature: "(id: number) => LocalResource | null"
+      description: Get single resource by ID
+    
+    - name: getDirtyResources
+      type: function
+      signature: "() => LocalResource[]"
+      description: Get all resources with unsaved changes
+    
+    - name: updateLocalResource
+      type: function
+      signature: "(id: number, updates: UpdateData) => void"
+      description: Update resource locally and mark as dirty
+    
+    - name: markResourceClean
+      type: function
+      signature: "(id: number) => void"
+      description: Clear dirty flag (after successful push)
+    
+    - name: getAllTerms
+      type: function
+      signature: "() => LocalTerm[]"
+      description: Get all taxonomy terms
+    
+    - name: getTermsByTaxonomy
+      type: function
+      signature: "(taxonomy: TaxonomySlug) => LocalTerm[]"
+      description: Get terms for specific taxonomy
+    
+    - name: getAllTermsGrouped
+      type: function
+      signature: "() => Record<TaxonomySlug, LocalTerm[]>"
+      description: Get all terms grouped by taxonomy
+    
+    - name: getSyncStats
+      type: function
+      signature: "() => SyncStats"
+      description: Get sync statistics (counts, last sync time)
+  
+  types:
+    - name: LocalResource
+      description: Complete resource object with meta and taxonomies
+    
+    - name: LocalTerm
+      description: Taxonomy term object
+    
+    - name: ResourceFilters
+      description: Filtering options for getResources
+    
+    - name: SyncStats
+      description: Sync statistics object
+
+dataModels:
+  input:
+    - source: database.resources
+      joins:
+        - resource_meta (1:N)
+        - resource_terms (N:M via terms)
+      description: Joined resource data
+  
+  output:
+    - destination: LocalResource
+      description: Hydrated resource object
+      fields:
+        - id, title, slug, status (from resources table)
+        - meta_box (from resource_meta, parsed JSON)
+        - taxonomies (from resource_terms + terms)
+        - is_dirty (boolean from integer)
+
+businessLogic:
+  - name: Resource Hydration
+    description: Build complete resource object from multiple tables
+    implementation: |
+      1. Query resources table with filters
+      2. For each resource:
+         - Query resource_meta to build meta_box object
+         - Query resource_terms joined with terms for taxonomies
+         - Parse JSON values
+         - Convert is_dirty integer to boolean
+      3. Return array of LocalResource objects
+  
+  - name: Taxonomy Filtering
+    description: Filter resources by taxonomy term assignments
+    implementation: |
+      - Apply taxonomy filters after main query (in memory)
+      - For each taxonomy filter:
+        - Check if resource has ANY of the specified terms
+        - AND logic: resource must match all taxonomy filters
+        - OR logic: within taxonomy, any term matches
+  
+  - name: Search Filtering
+    description: Case-insensitive title/slug search
+    implementation: |
+      - Use SQL LIKE with wildcards
+      - Search both title and slug fields
+      - Case-insensitive via SQLite collation
+  
+  - name: Update with Dirty Tracking
+    description: Update resource and mark as modified
+    implementation: |
+      1. Update resources table (title, status)
+      2. Update resource_meta (replace all fields)
+      3. Update resource_terms (delete old, insert new)
+      4. Set is_dirty = 1
+      5. Log change to change_log table
+  
+  - name: Change Logging
+    description: Audit trail of modifications
+    implementation: |
+      - Before update, capture old values
+      - After update, log to change_log
+      - Track field name, old/new values, timestamp
+      - Keep logs even after push (for audit)
+
+errorHandling:
+  - error: Resource not found
+    handling: Return null for getResourceById
+    recovery: Caller checks for null
+  
+  - error: Database query fails
+    handling: Throw Error with context
+    recovery: false
+  
+  - error: Invalid JSON in meta_box
+    handling: Log warning, return raw string
+    recovery: Partial (field accessible but not parsed)
+  
+  - error: Orphaned term reference
+    handling: Silently skip (term ID not in terms table)
+    recovery: true (prevents crash)
+
+performance:
+  targets:
+    - metric: getResources (no filters)
+      target: <50ms for 500 resources
+    
+    - metric: getResources (with filters)
+      target: <100ms for 500 resources
+    
+    - metric: getResourceById
+      target: <10ms
+    
+    - metric: updateLocalResource
+      target: <50ms
+  
+  optimizations:
+    - Indexes on resources(status, is_dirty, modified_gmt)
+    - Indexes on resource_terms(resource_id, taxonomy)
+    - Use prepared statements
+    - Cache grouped terms (expensive query)
+    - Lazy load meta_box and taxonomies only when needed
+  
+  caching:
+    - Consider caching getAllTermsGrouped result
+    - Terms change infrequently
+    - Invalidate cache on sync
+
+security:
+  - concern: SQL injection
+    mitigation: Prepared statements exclusively
+  
+  - concern: JSON parsing attacks
+    mitigation: Use JSON.parse with try-catch, no eval
+
+testing:
+  strategy: |
+    Test queries against real SQLite database (in-memory for speed).
+    Seed database with known test data, verify query results.
+  
+  unitTests:
+    - name: test_getResources_no_filters
+      description: Retrieve all resources
+      setup:
+        - Insert 5 test resources
+      assertions:
+        - Returns 5 resources
+        - Resources have all fields
+    
+    - name: test_getResources_status_filter
+      description: Filter by status
+      setup:
+        - 3 publish, 2 draft resources
+      action:
+        - getResources({ status: 'publish' })
+      assertions:
+        - Returns 3 resources
+        - All have status='publish'
+    
+    - name: test_getResources_search
+      description: Search by title/slug
+      setup:
+        - Resource with title "March Madness Bracket"
+      action:
+        - getResources({ search: 'march' })
+      assertions:
+        - Returns 1 resource
+        - Title contains "March"
+    
+    - name: test_getResources_taxonomy_filter
+      description: Filter by taxonomy terms
+      setup:
+        - Resource 1 has topic=[12, 34]
+        - Resource 2 has topic=[56]
+      action:
+        - getResources({ taxonomies: { topic: [12] } })
+      assertions:
+        - Returns resource 1 only
+    
+    - name: test_getResourceById_exists
+      description: Fetch resource by ID
+      setup:
+        - Resource 123 in database
+      assertions:
+        - Returns resource with id=123
+        - Has meta_box and taxonomies
+    
+    - name: test_getResourceById_not_found
+      description: Handle missing resource
+      assertions:
+        - Returns null
+    
+    - name: test_updateLocalResource
+      description: Update and mark dirty
+      setup:
+        - Resource 123 with is_dirty=0
+      action:
+        - updateLocalResource(123, { title: 'New Title' })
+      assertions:
+        - Title updated in database
+        - is_dirty set to 1
+        - change_log entry created
+    
+    - name: test_markResourceClean
+      description: Clear dirty flag
+      setup:
+        - Resource 123 with is_dirty=1
+      action:
+        - markResourceClean(123)
+      assertions:
+        - is_dirty set to 0
+    
+    - name: test_getAllTermsGrouped
+      description: Group terms by taxonomy
+      setup:
+        - 2 resource-type terms
+        - 3 topic terms
+      assertions:
+        - Returns object with 9 taxonomy keys
+        - 'resource-type' has 2 terms
+        - 'topic' has 3 terms
+    
+    - name: test_getSyncStats
+      description: Calculate statistics
+      setup:
+        - 10 resources (3 dirty)
+        - 50 terms
+        - last_sync_time set
+      assertions:
+        - totalResources = 10
+        - dirtyResources = 3
+        - totalTerms = 50
+        - lastSync is ISO string
+  
+  integrationTests:
+    - name: test_complex_filter_combination
+      description: Combine multiple filters
+      setup:
+        - Various resources with different states
+      action:
+        - getResources({ 
+            status: 'publish', 
+            search: 'bracket',
+            isDirty: true,
+            taxonomies: { 'resource-type': [45] }
+          })
+      assertions:
+        - Only matching resources returned
+        - All filters applied correctly
+    
+    - name: test_resource_hydration_performance
+      description: Verify hydration speed
+      setup:
+        - 100 resources with meta and terms
+      action:
+        - getResources()
+      assertions:
+        - Completes in <50ms
+        - All resources fully hydrated
+  
+  coverage:
+    target: 95%
+    critical: 100% (update functions, dirty tracking)
+
+documentation:
+  readme: |
+    # Queries Module
+    
+    High-level database query interface for PlexKits API.
+    
+    ## Usage
+    
+    ```typescript
+    import { getResources, updateLocalResource } from './queries';
+    
+    // Get all published resources
+    const published = getResources({ status: 'publish' });
+    
+    // Search and filter
+    const filtered = getResources({
+      search: 'bracket',
+      taxonomies: { 'resource-type': [45] }
+    });
+    
+    // Update resource
+    updateLocalResource(123, {
+      title: 'New Title',
+      taxonomies: { topic: [12, 34] }
+    });
+    ```
+    
+    ## Filtering
+    
+    ResourceFilters supports:
+    - status: Filter by publication status
+    - search: Search title/slug
+    - isDirty: Show only unsaved changes
+    - taxonomies: Filter by term assignments
+  
+  apiDocs: |
+    Generated from JSDoc comments
+
+configuration:
+  constants: []
+
+logging:
+  - event: Query executed
+    level: debug
+    message: "Query: {query}, Params: {params}, Results: {count}"
+  
+  - event: Resource updated
+    level: info
+    message: "Updated resource {id}, marked dirty"
+  
+  - event: Slow query detected
+    level: warn
+    message: "Slow query ({duration}ms): {query}"
+    threshold: 100ms
+
+metadata:
+  owner: Technical Lead
+  reviewers:
+    - Content Manager
+  estimatedEffort: 5 story points
+  dependencies:
+    - database module
+  blockedBy: []
+  relatedUserStories:
+    - US-2.1 (View Resources)
+    - US-2.2 (Search)
+    - US-2.3 (Status Filter)
+    - US-2.4 (Taxonomy Filter)
+    - US-2.5 (Dirty Filter)
+    - US-3.1 (Edit Basic)
+    - US-3.2 (Edit Taxonomies)
+    - US-5.2 (Stats)
+  completionCriteria:
+    - All query functions work
+    - Filtering works correctly
+    - Update marks resources dirty
+    - Performance targets met
+    - Tests pass (95%+ coverage)
+    - Code reviewed

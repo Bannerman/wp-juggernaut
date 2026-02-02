@@ -1,0 +1,370 @@
+name: api-routes
+version: 1.0.0
+status: To Do
+description: Next.js API routes providing HTTP interface to core modules
+
+purpose: |
+  Implements Next.js API routes that expose database and sync/push operations to the frontend.
+  Handles HTTP request/response, error handling, and coordination between modules.
+
+dependencies:
+  external:
+    - next: ^14.2.0
+  internal:
+    - database
+    - queries
+    - sync-engine
+    - push-engine
+    - wp-client
+
+interfaces:
+  routes:
+    - path: /api/resources
+      method: GET
+      handler: getResources
+      description: Fetch resources with optional filtering
+    
+    - path: /api/resources/[id]
+      method: GET
+      handler: getResourceById
+      description: Fetch single resource
+    
+    - path: /api/resources/[id]
+      method: PATCH
+      handler: updateResource
+      description: Update resource locally
+    
+    - path: /api/resources/create
+      method: POST
+      handler: createResource
+      description: Create new resource (future)
+    
+    - path: /api/terms
+      method: GET
+      handler: getTerms
+      description: Fetch all taxonomy terms grouped
+    
+    - path: /api/stats
+      method: GET
+      handler: getStats
+      description: Fetch sync statistics
+    
+    - path: /api/sync
+      method: POST
+      handler: syncData
+      description: Sync from WordPress (full or incremental)
+    
+    - path: /api/push
+      method: POST
+      handler: pushChanges
+      description: Push dirty resources to WordPress
+    
+    - path: /api/test-connection
+      method: GET
+      handler: testConnection
+      description: Test WordPress connection
+
+businessLogic:
+  - name: GET /api/resources
+    implementation: |
+      1. Parse query parameters (status, search, isDirty, taxonomies)
+      2. Build ResourceFilters object
+      3. Call queries.getResources(filters)
+      4. Return JSON response with resources array
+      5. Handle errors with 500 status
+  
+  - name: GET /api/resources/[id]
+    implementation: |
+      1. Extract id from URL params
+      2. Call queries.getResourceById(id)
+      3. If null, return 404
+      4. Return JSON response with resource
+      5. Handle errors with 500 status
+  
+  - name: PATCH /api/resources/[id]
+    implementation: |
+      1. Extract id from URL params
+      2. Parse request body (title, status, taxonomies, meta_box)
+      3. Validate inputs
+      4. Call queries.updateLocalResource(id, updates)
+      5. Return updated resource
+      6. Handle validation errors with 400
+      7. Handle not found with 404
+  
+  - name: GET /api/terms
+    implementation: |
+      1. Call queries.getAllTermsGrouped()
+      2. Return JSON response with grouped terms
+      3. Handle errors with 500
+  
+  - name: GET /api/stats
+    implementation: |
+      1. Call queries.getSyncStats()
+      2. Return JSON response with stats
+      3. Handle errors with 500
+  
+  - name: POST /api/sync
+    implementation: |
+      1. Parse request body ({ incremental?: boolean })
+      2. If incremental=true, call sync-engine.incrementalSync()
+      3. Else call sync-engine.fullSync()
+      4. Return SyncResult
+      5. If partial success (errors.length > 0), return 207 Multi-Status
+      6. Handle complete failure with 500
+  
+  - name: POST /api/push
+    implementation: |
+      1. Parse request body ({ skipConflictCheck?: boolean })
+      2. Call push-engine.pushAllDirty(skipConflictCheck)
+      3. Return { results, conflicts }
+      4. Always return 200 (results array shows per-item success/failure)
+      5. Handle complete failure with 500
+  
+  - name: GET /api/test-connection
+    implementation: |
+      1. Call wp-client.testConnection()
+      2. Return { success, message }
+      3. Always return 200 (success field indicates result)
+
+errorHandling:
+  - error: Request body parse failure
+    handling: Return 400 Bad Request
+    response: "{ error: 'Invalid request body' }"
+  
+  - error: Resource not found
+    handling: Return 404 Not Found
+    response: "{ error: 'Resource not found' }"
+  
+  - error: Validation error
+    handling: Return 400 Bad Request
+    response: "{ error: 'Validation failed', details: [...] }"
+  
+  - error: Database error
+    handling: Return 500 Internal Server Error
+    response: "{ error: 'Database error: {message}' }"
+  
+  - error: WordPress API error
+    handling: Return 500 Internal Server Error
+    response: "{ error: 'WordPress API error: {message}' }"
+  
+  - error: Unhandled exception
+    handling: Log error, return 500
+    response: "{ error: 'Internal server error' }"
+
+performance:
+  targets:
+    - metric: GET /api/resources
+      target: <100ms (500 resources)
+    
+    - metric: PATCH /api/resources/[id]
+      target: <100ms
+    
+    - metric: POST /api/sync (full)
+      target: <120s (500 resources)
+    
+    - metric: POST /api/push (100 resources)
+      target: <45s
+  
+  optimizations:
+    - Streaming responses for large datasets (future)
+    - Caching for GET /api/terms
+    - Connection pooling for database
+
+security:
+  - concern: Credentials in client-side code
+    mitigation: All WordPress API calls from API routes (server-side only)
+  
+  - concern: SQL injection via query params
+    mitigation: Prepared statements in queries module
+  
+  - concern: XSS via user input
+    mitigation: Sanitize inputs, React escapes by default
+  
+  - concern: CSRF
+    mitigation: Not needed for local app (same-origin), consider for future
+
+testing:
+  strategy: |
+    Test API routes as HTTP endpoints using supertest or similar.
+    Mock underlying modules (queries, sync-engine, etc.).
+  
+  unitTests:
+    - name: test_get_resources_success
+      description: Verify GET /api/resources returns data
+      mocks:
+        - queries.getResources returns mock resources
+      assertions:
+        - Status 200
+        - Response is array of resources
+    
+    - name: test_get_resources_with_filters
+      description: Verify query params parsed correctly
+      request:
+        - GET /api/resources?status=publish&search=bracket
+      mocks:
+        - queries.getResources called with correct filters
+      assertions:
+        - Filter object has status and search
+    
+    - name: test_get_resource_by_id_found
+      description: Verify GET /api/resources/[id] success
+      mocks:
+        - queries.getResourceById returns mock resource
+      assertions:
+        - Status 200
+        - Response is resource object
+    
+    - name: test_get_resource_by_id_not_found
+      description: Verify 404 when resource missing
+      mocks:
+        - queries.getResourceById returns null
+      assertions:
+        - Status 404
+        - Error message present
+    
+    - name: test_patch_resource_success
+      description: Verify PATCH /api/resources/[id]
+      request:
+        - PATCH /api/resources/123
+        - Body: { title: 'New Title' }
+      mocks:
+        - queries.updateLocalResource succeeds
+        - queries.getResourceById returns updated resource
+      assertions:
+        - Status 200
+        - Response includes updated resource
+    
+    - name: test_patch_resource_validation_error
+      description: Verify validation errors return 400
+      request:
+        - PATCH /api/resources/123
+        - Body: { invalid field }
+      assertions:
+        - Status 400
+        - Error message indicates validation failure
+    
+    - name: test_post_sync_full
+      description: Verify POST /api/sync (full)
+      request:
+        - POST /api/sync
+        - Body: { incremental: false }
+      mocks:
+        - sync-engine.fullSync returns SyncResult
+      assertions:
+        - Status 200
+        - Response includes resourcesUpdated count
+    
+    - name: test_post_sync_incremental
+      description: Verify POST /api/sync (incremental)
+      request:
+        - POST /api/sync
+        - Body: { incremental: true }
+      mocks:
+        - sync-engine.incrementalSync returns SyncResult
+      assertions:
+        - incrementalSync called (not fullSync)
+    
+    - name: test_post_sync_partial_failure
+      description: Verify 207 on partial success
+      mocks:
+        - sync-engine.fullSync returns { errors: ['Some error'] }
+      assertions:
+        - Status 207
+        - Response includes errors array
+    
+    - name: test_post_push_success
+      description: Verify POST /api/push
+      request:
+        - POST /api/push
+        - Body: { skipConflictCheck: false }
+      mocks:
+        - push-engine.pushAllDirty returns results and conflicts
+      assertions:
+        - Status 200
+        - Response includes results and conflicts arrays
+    
+    - name: test_get_test_connection
+      description: Verify GET /api/test-connection
+      mocks:
+        - wp-client.testConnection returns { success: true }
+      assertions:
+        - Status 200
+        - Response includes success and message
+  
+  integrationTests:
+    - name: test_full_workflow
+      description: End-to-end API workflow
+      steps:
+        - POST /api/sync (full sync)
+        - GET /api/resources (verify data)
+        - PATCH /api/resources/[id] (update)
+        - GET /api/stats (verify dirty count)
+        - POST /api/push (push changes)
+      assertions:
+        - All endpoints return expected data
+        - State changes propagate correctly
+  
+  coverage:
+    target: 90%
+    critical: 100% (error handling)
+
+documentation:
+  readme: |
+    # API Routes Module
+    
+    Next.js API routes for PlexKits API.
+    
+    ## Endpoints
+    
+    See api_contracts.md for complete documentation.
+    
+    ## Error Responses
+    
+    All errors return JSON: `{ error: string, details?: unknown }`
+    
+    HTTP Status Codes:
+    - 200: Success
+    - 201: Created
+    - 400: Bad Request (validation)
+    - 404: Not Found
+    - 207: Multi-Status (partial success)
+    - 500: Internal Server Error
+  
+  apiDocs: |
+    See docs/api_contracts.md for complete API documentation
+
+configuration:
+  environment:
+    - All variables inherited from dependent modules
+    - WP_BASE_URL, WP_USERNAME, WP_APP_PASSWORD for wp-client
+    - DATABASE_PATH for database
+
+logging:
+  - event: API request received
+    level: info
+    message: "{method} {path} - {ip}"
+  
+  - event: API request completed
+    level: info
+    message: "{method} {path} - {status} - {duration}ms"
+  
+  - event: API error
+    level: error
+    message: "{method} {path} - Error: {error}"
+
+metadata:
+  owner: Technical Lead
+  reviewers:
+    - Content Manager
+  estimatedEffort: 8 story points
+  dependencies:
+    - All core modules
+  blockedBy: []
+  relatedUserStories:
+    - All user stories (API layer for all features)
+  completionCriteria:
+    - All routes implemented
+    - All routes tested
+    - Error handling comprehensive
+    - Performance targets met
+    - Code reviewed

@@ -1,0 +1,300 @@
+name: database
+version: 1.0.0
+status: To Do
+description: SQLite database management module providing connection, schema initialization, and transaction support
+
+purpose: |
+  Manages the local SQLite database for storing synced WordPress resources, taxonomy terms, 
+  and application metadata. Provides singleton database connection and ensures schema integrity.
+
+dependencies:
+  external:
+    - better-sqlite3: ^11.0.0
+  internal: []
+
+interfaces:
+  exports:
+    - name: getDb
+      type: function
+      signature: "() => Database"
+      description: Returns singleton database instance, initializes if needed
+    
+    - name: closeDb
+      type: function
+      signature: "() => void"
+      description: Closes database connection
+  
+  types:
+    - name: Database
+      description: better-sqlite3 Database instance
+      source: better-sqlite3
+
+dataModels:
+  tables:
+    - name: sync_meta
+      description: Key-value store for sync metadata
+      schema: |
+        CREATE TABLE sync_meta (
+          key TEXT PRIMARY KEY,
+          value TEXT
+        )
+      indexes: []
+    
+    - name: terms
+      description: All taxonomy terms from WordPress
+      schema: |
+        CREATE TABLE terms (
+          id INTEGER PRIMARY KEY,
+          taxonomy TEXT NOT NULL,
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL,
+          parent_id INTEGER DEFAULT 0,
+          UNIQUE(id, taxonomy)
+        )
+      indexes:
+        - CREATE INDEX idx_terms_taxonomy ON terms(taxonomy)
+    
+    - name: resources
+      description: Core resource/post data
+      schema: |
+        CREATE TABLE resources (
+          id INTEGER PRIMARY KEY,
+          title TEXT,
+          slug TEXT,
+          status TEXT DEFAULT 'publish',
+          content TEXT,
+          excerpt TEXT,
+          featured_media INTEGER DEFAULT 0,
+          date_gmt TEXT,
+          modified_gmt TEXT,
+          synced_at TEXT,
+          is_dirty INTEGER DEFAULT 0
+        )
+      indexes:
+        - CREATE INDEX idx_resources_status ON resources(status)
+        - CREATE INDEX idx_resources_dirty ON resources(is_dirty)
+        - CREATE INDEX idx_resources_modified ON resources(modified_gmt)
+    
+    - name: resource_meta
+      description: Meta Box custom fields stored as JSON
+      schema: |
+        CREATE TABLE resource_meta (
+          resource_id INTEGER NOT NULL,
+          field_id TEXT NOT NULL,
+          value TEXT,
+          PRIMARY KEY (resource_id, field_id),
+          FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE
+        )
+      indexes:
+        - CREATE INDEX idx_resource_meta_resource ON resource_meta(resource_id)
+    
+    - name: resource_terms
+      description: Many-to-many resource-taxonomy assignments
+      schema: |
+        CREATE TABLE resource_terms (
+          resource_id INTEGER NOT NULL,
+          term_id INTEGER NOT NULL,
+          taxonomy TEXT NOT NULL,
+          PRIMARY KEY (resource_id, term_id),
+          FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE
+        )
+      indexes:
+        - CREATE INDEX idx_resource_terms_resource ON resource_terms(resource_id)
+        - CREATE INDEX idx_resource_terms_taxonomy ON resource_terms(taxonomy)
+    
+    - name: change_log
+      description: Audit trail of local modifications
+      schema: |
+        CREATE TABLE change_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          resource_id INTEGER NOT NULL,
+          field TEXT NOT NULL,
+          old_value TEXT,
+          new_value TEXT,
+          changed_at TEXT DEFAULT (datetime('now'))
+        )
+      indexes: []
+
+businessLogic:
+  - name: Singleton Pattern
+    description: Only one database connection exists per application instance
+    implementation: |
+      - Module-level variable holds database instance
+      - getDb() checks if instance exists before creating new
+      - Ensures all modules use same connection
+  
+  - name: Schema Initialization
+    description: Database schema created automatically on first access
+    implementation: |
+      - initializeSchema() runs on first getDb() call
+      - Uses CREATE TABLE IF NOT EXISTS for idempotency
+      - Creates all indexes after tables
+      - Enables WAL mode for better concurrency
+  
+  - name: WAL Mode
+    description: Write-Ahead Logging for concurrent reads
+    implementation: |
+      - db.pragma('journal_mode = WAL')
+      - Allows multiple readers while writer active
+      - Better performance for read-heavy workload
+
+errorHandling:
+  - error: Database file locked
+    handling: Retry with exponential backoff
+    maxRetries: 3
+  
+  - error: Database corruption
+    handling: Log error, suggest user restore from backup
+    recovery: false
+  
+  - error: Disk full
+    handling: Return clear error message to user
+    recovery: false
+  
+  - error: Schema migration needed (future)
+    handling: Auto-apply migrations on version mismatch
+    recovery: true
+
+performance:
+  targets:
+    - metric: Connection initialization
+      target: <100ms
+    
+    - metric: Schema creation (first run)
+      target: <500ms
+    
+    - metric: Database file size
+      target: <500MB for 5000 resources
+  
+  optimizations:
+    - WAL mode enabled by default
+    - Prepared statements cached by caller modules
+    - Indexes on frequently queried columns
+    - Foreign keys enforced for data integrity
+
+security:
+  - concern: SQL Injection
+    mitigation: Never used directly, only via prepared statements in query module
+  
+  - concern: File permissions
+    mitigation: Database file created with default user permissions
+  
+  - concern: Data encryption
+    mitigation: Not implemented in v1.0, consider for future
+
+testing:
+  strategy: |
+    Test database module in isolation using in-memory database for fast tests
+  
+  unitTests:
+    - name: test_getDb_returns_singleton
+      description: Verify same instance returned on multiple calls
+      assertions:
+        - getDb() === getDb()
+    
+    - name: test_schema_initialization
+      description: Verify all tables and indexes created
+      assertions:
+        - All 6 tables exist
+        - All indexes exist
+        - WAL mode enabled
+    
+    - name: test_closeDb_closes_connection
+      description: Verify connection closes properly
+      assertions:
+        - After closeDb(), next getDb() creates new instance
+  
+  integrationTests:
+    - name: test_concurrent_reads
+      description: Verify WAL mode allows concurrent reads
+      assertions:
+        - Multiple reads can occur simultaneously
+    
+    - name: test_foreign_key_cascade
+      description: Verify cascading deletes work
+      assertions:
+        - Deleting resource deletes associated meta and terms
+  
+  performanceTests:
+    - name: test_initialization_speed
+      description: Measure database initialization time
+      target: <100ms
+    
+    - name: test_schema_creation_speed
+      description: Measure schema creation time
+      target: <500ms
+  
+  coverage:
+    target: 95%
+    critical: 100%
+
+documentation:
+  readme: |
+    # Database Module
+    
+    Manages SQLite database connection and schema for PlexKits API.
+    
+    ## Usage
+    
+    ```typescript
+    import { getDb } from './db';
+    
+    const db = getDb();
+    const stmt = db.prepare('SELECT * FROM resources WHERE id = ?');
+    const resource = stmt.get(123);
+    ```
+    
+    ## Schema
+    
+    See spec.yaml for complete schema definition.
+    
+    ## Migrations
+    
+    v1.0: No migrations (initial schema)
+    Future: Migrations applied automatically via schema versioning
+  
+  apiDocs: |
+    Generated from JSDoc comments in source code
+
+configuration:
+  environment:
+    - name: DATABASE_PATH
+      type: string
+      required: false
+      default: ./data/plexkits.db
+      description: Path to SQLite database file
+  
+  constants:
+    - name: DB_PATH
+      value: process.env.DATABASE_PATH || './data/plexkits.db'
+      description: Resolved database file path
+
+logging:
+  - event: Database initialized
+    level: info
+    message: "Database initialized at {path}"
+  
+  - event: Schema created
+    level: info
+    message: "Database schema created successfully"
+  
+  - event: Database error
+    level: error
+    message: "Database error: {error}"
+
+metadata:
+  owner: Technical Lead
+  reviewers:
+    - Content Manager
+  estimatedEffort: 3 story points
+  dependencies: []
+  blockedBy: []
+  relatedUserStories:
+    - US-1.1
+    - US-5.3
+  completionCriteria:
+    - All tests pass
+    - Schema creates successfully
+    - Singleton pattern works
+    - WAL mode enabled
+    - Code reviewed
