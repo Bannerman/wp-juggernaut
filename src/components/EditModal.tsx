@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Save, AlertTriangle, Plus, Trash2, GripVertical } from 'lucide-react';
+import { X, Save, AlertTriangle, Plus, Trash2, GripVertical, Sparkles, Copy, Check, Wand2 } from 'lucide-react';
 import { cn, TAXONOMY_LABELS } from '@/lib/utils';
 
 interface Term {
@@ -64,6 +64,7 @@ const TABS = [
   { id: 'timer', label: 'Timer' },
   { id: 'downloads', label: 'Downloads' },
   { id: 'changelog', label: 'Changelog' },
+  { id: 'ai', label: 'AI Fill', icon: 'sparkles' },
 ];
 
 const STATUS_OPTIONS = ['publish', 'draft', 'pending', 'private'];
@@ -183,6 +184,234 @@ export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) 
     updateMetaField('download_sections', updated);
   };
 
+  // AI Fill state and helpers
+  const [aiPasteContent, setAiPasteContent] = useState('');
+  const [promptCopied, setPromptCopied] = useState(false);
+  const [parseStatus, setParseStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
+
+  const generatePrompt = () => {
+    const availableTaxonomies: Record<string, string[]> = {};
+    Object.keys(terms).forEach((taxonomy) => {
+      availableTaxonomies[taxonomy] = terms[taxonomy].map((t) => t.name);
+    });
+
+    return `Please provide content for a resource with the following fields. Use the EXACT format below with the field markers.
+
+---TITLE---
+${title || '[Enter a descriptive title]'}
+
+---INTRO_TEXT---
+${(metaBox.intro_text as string) || '[Enter a short introduction paragraph]'}
+
+---TEXT_CONTENT---
+${(metaBox.text_content as string) || '[Enter the main content/description]'}
+
+---FEATURES---
+${features.length > 0 ? features.map(f => `- ${f.feature_text}`).join('\n') : '[List features, one per line with - prefix]\n- Feature 1\n- Feature 2\n- Feature 3'}
+
+---TAXONOMIES---
+IMPORTANT: Do NOT repeat the options below. Only output the "Your selections" section with your chosen values.
+
+Available options for reference:
+${Object.entries(availableTaxonomies).map(([tax, names]) => 
+  `${TAXONOMY_LABELS[tax] || tax}: ${names.slice(0, 15).join(', ')}${names.length > 15 ? '...' : ''}`
+).join('\n')}
+
+Your selections (comma-separated, ONLY include the field name and your selections):
+resource-type: [e.g., Bracket, Spreadsheet]
+intent: [e.g., Compete, Track]
+topic: [e.g., Basketball, Events]
+audience: [e.g., Teachers, Students]
+league: [e.g., NCAA - only if sports-related]
+bracket-size: [e.g., 64 Team - only if bracket]
+file-format: [e.g., Google Sheets, PDF]
+competition-format: [e.g., Single Elimination - only if tournament]
+
+---TIMER---
+timer_enabled: ${timerEnabled ? 'yes' : 'no'}
+timer_title: ${(metaBox.timer_title as string) || '[e.g., EVENT STARTS]'}
+timer_datetime: ${(metaBox.timer_single_datetime as string) || '[YYYY-MM-DDTHH:MM format]'}
+
+---CHANGELOG---
+${changelog.length > 0 ? changelog.map(c => 
+  `version: ${c.changelog_version}\ndate: ${c.changelog_date}\nnotes:\n${(c.changelog_notes || []).map(n => `- ${n}`).join('\n')}`
+).join('\n\n') : 'version: 1.0\ndate: [YYYY-MM-DD]\nnotes:\n- Initial release'}
+
+---END---`;
+  };
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(generatePrompt());
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy prompt:', err);
+    }
+  };
+
+  const parseAiResponse = () => {
+    if (!aiPasteContent.trim()) {
+      setParseStatus({ type: 'error', message: 'Please paste AI response first' });
+      return;
+    }
+
+    try {
+      const content = aiPasteContent;
+      let fieldsUpdated = 0;
+      const updatedMeta = { ...metaBox };
+
+      // Parse Title
+      const titleMatch = content.match(/---TITLE---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
+      if (titleMatch && titleMatch[1].trim()) {
+        const newTitle = titleMatch[1].trim();
+        console.log('Parsed title:', newTitle);
+        setTitle(newTitle);
+        fieldsUpdated++;
+      }
+
+      // Parse Intro Text
+      const introMatch = content.match(/---INTRO_TEXT---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
+      if (introMatch && introMatch[1].trim()) {
+        const introText = introMatch[1].trim();
+        console.log('Parsed intro_text:', introText);
+        updatedMeta.intro_text = introText;
+        fieldsUpdated++;
+      }
+
+      // Parse Text Content
+      const textMatch = content.match(/---TEXT_CONTENT---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
+      if (textMatch && textMatch[1].trim()) {
+        const textContent = textMatch[1].trim();
+        console.log('Parsed text_content:', textContent);
+        updatedMeta.text_content = textContent;
+        fieldsUpdated++;
+      }
+
+      // Parse Features - handle both with and without dash prefix
+      const featuresMatch = content.match(/---FEATURES---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
+      if (featuresMatch && featuresMatch[1].trim()) {
+        const rawText = featuresMatch[1].trim();
+        // Remove any instruction text like "[List features...]"
+        const cleanedText = rawText.replace(/\[.*?\]/g, '');
+        const featureLines = cleanedText.split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0 && !line.startsWith('['))
+          .map(line => ({ feature_text: line.replace(/^[-•*]\s*/, '').trim() }))
+          .filter(f => f.feature_text && f.feature_text.length > 2);
+        if (featureLines.length > 0) {
+          console.log('Parsed features:', featureLines);
+          updatedMeta.group_features = featureLines;
+          fieldsUpdated++;
+        }
+      }
+
+      // Parse Taxonomies - comprehensive patterns
+      const taxMatch = content.match(/---TAXONOMIES---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
+      if (taxMatch) {
+        const taxContent = taxMatch[1];
+        const newTaxonomies = { ...taxonomies };
+        
+        const taxPatterns = [
+          { key: 'resource-type', pattern: /resource-type:\s*(.+)/i },
+          { key: 'intent', pattern: /intent:\s*(.+)/i },
+          { key: 'topic', pattern: /topic:\s*(.+)/i },
+          { key: 'audience', pattern: /audience:\s*(.+)/i },
+          { key: 'leagues', pattern: /league:\s*(.+)/i },
+          { key: 'bracket-size', pattern: /bracket[\s-]*size:\s*(.+)/i },
+          { key: 'file-format', pattern: /file[\s-]*format:\s*(.+)/i },
+          { key: 'competition_format', pattern: /competition[\s-]*format:\s*(.+)/i },
+        ];
+
+        taxPatterns.forEach(({ key, pattern }) => {
+          const match = taxContent.match(pattern);
+          if (match && match[1]) {
+            const selectedNames = match[1].split(',').map(s => s.trim().toLowerCase());
+            const matchedIds = (terms[key] || [])
+              .filter(t => selectedNames.includes(t.name.toLowerCase()))
+              .map(t => t.id);
+            if (matchedIds.length > 0) {
+              newTaxonomies[key] = matchedIds;
+              fieldsUpdated++;
+            }
+          }
+        });
+
+        setTaxonomies(newTaxonomies);
+      }
+
+      // Parse Timer
+      const timerMatch = content.match(/---TIMER---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
+      if (timerMatch) {
+        const timerContent = timerMatch[1];
+        
+        const enabledMatch = timerContent.match(/timer_enabled:\s*(yes|no)/i);
+        if (enabledMatch) {
+          updatedMeta.timer_enable = enabledMatch[1].toLowerCase() === 'yes';
+          fieldsUpdated++;
+        }
+        
+        const titleTimerMatch = timerContent.match(/timer_title:\s*(.+)/i);
+        if (titleTimerMatch && titleTimerMatch[1].trim() && !titleTimerMatch[1].includes('[')) {
+          updatedMeta.timer_title = titleTimerMatch[1].trim();
+          fieldsUpdated++;
+        }
+        
+        const datetimeMatch = timerContent.match(/timer_datetime:\s*(\d{4}-\d{2}-\d{2}T?\d{2}:\d{2})/i);
+        if (datetimeMatch) {
+          updatedMeta.timer_single_datetime = datetimeMatch[1];
+          fieldsUpdated++;
+        }
+      }
+
+      // Parse Changelog - handle notes with or without dash prefix
+      const changelogMatch = content.match(/---CHANGELOG---\s*([\s\S]*?)(?=---END---|$)/);
+      if (changelogMatch && changelogMatch[1].trim()) {
+        const changelogContent = changelogMatch[1].trim();
+        const entries: ChangelogItem[] = [];
+        
+        const versionBlocks = changelogContent.split(/(?=version:)/i).filter(Boolean);
+        versionBlocks.forEach(block => {
+          const versionMatch = block.match(/version:\s*(.+)/i);
+          const dateMatch = block.match(/date:\s*(\d{4}-\d{2}-\d{2})/i);
+          const notesMatch = block.match(/notes:\s*([\s\S]*?)(?=version:|$)/i);
+          
+          if (versionMatch) {
+            let notes: string[] = [];
+            if (notesMatch) {
+              notes = notesMatch[1].split('\n')
+                .map(l => l.replace(/^[-•*]\s*/, '').trim())
+                .filter(l => l.length > 0 && !l.startsWith('['));
+            }
+            entries.push({
+              changelog_version: versionMatch[1].trim(),
+              changelog_date: dateMatch ? dateMatch[1] : '',
+              changelog_notes: notes,
+            });
+          }
+        });
+        
+        if (entries.length > 0) {
+          updatedMeta.group_changelog = entries;
+          fieldsUpdated++;
+        }
+      }
+
+      // Apply all metaBox updates at once
+      setMetaBox(updatedMeta);
+
+      if (fieldsUpdated > 0) {
+        setParseStatus({ type: 'success', message: `Successfully updated ${fieldsUpdated} field(s)! Review the other tabs.` });
+        setAiPasteContent('');
+      } else {
+        setParseStatus({ type: 'error', message: 'No fields could be parsed. Check the format.' });
+      }
+    } catch (err) {
+      setParseStatus({ type: 'error', message: 'Error parsing response. Check format.' });
+      console.error('Parse error:', err);
+    }
+  };
+
   // Taxonomy renderer with conditional visibility
   const renderTaxonomy = (taxonomy: string, label: string, required = false) => {
     const taxonomyTerms = terms[taxonomy] || [];
@@ -243,12 +472,13 @@ export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) 
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'py-3 px-1 text-sm font-medium border-b-2 whitespace-nowrap transition-colors',
+                    'py-3 px-1 text-sm font-medium border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5',
                     activeTab === tab.id
-                      ? 'border-brand-500 text-brand-600'
+                      ? tab.id === 'ai' ? 'border-purple-500 text-purple-600' : 'border-brand-500 text-brand-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700'
                   )}
                 >
+                  {tab.id === 'ai' && <Sparkles className="w-4 h-4" />}
                   {tab.label}
                 </button>
               ))}
@@ -564,6 +794,90 @@ export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) 
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* AI Fill Tab */}
+            {activeTab === 'ai' && (
+              <div className="space-y-6">
+                {/* Instructions */}
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h3 className="font-medium text-purple-900">Quick AI-Assisted Editing</h3>
+                      <p className="text-sm text-purple-700 mt-1">
+                        1. Copy the prompt below → 2. Paste into ChatGPT/Claude → 3. Paste the response back here → 4. Click Apply
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Generated Prompt */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-gray-700">Structured Prompt</label>
+                    <button
+                      onClick={copyPrompt}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
+                        promptCopied
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                      )}
+                    >
+                      {promptCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {promptCopied ? 'Copied!' : 'Copy Prompt'}
+                    </button>
+                  </div>
+                  <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-xs overflow-auto max-h-64 whitespace-pre-wrap font-mono">
+                    {generatePrompt()}
+                  </pre>
+                </div>
+
+                {/* Paste Response */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Paste AI Response
+                  </label>
+                  <textarea
+                    value={aiPasteContent}
+                    onChange={(e) => {
+                      setAiPasteContent(e.target.value);
+                      setParseStatus({ type: null, message: '' });
+                    }}
+                    placeholder="Paste the AI-generated response here..."
+                    rows={10}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm"
+                  />
+                </div>
+
+                {/* Parse Status */}
+                {parseStatus.type && (
+                  <div className={cn(
+                    'p-3 rounded-lg text-sm',
+                    parseStatus.type === 'success' 
+                      ? 'bg-green-50 text-green-700 border border-green-200'
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                  )}>
+                    {parseStatus.message}
+                  </div>
+                )}
+
+                {/* Apply Button */}
+                <button
+                  onClick={parseAiResponse}
+                  disabled={!aiPasteContent.trim()}
+                  className={cn(
+                    'w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-colors',
+                    aiPasteContent.trim()
+                      ? 'bg-purple-600 text-white hover:bg-purple-700'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  )}
+                >
+                  <Wand2 className="w-4 h-4" />
+                  Apply AI Response to Fields
+                </button>
               </div>
             )}
           </div>

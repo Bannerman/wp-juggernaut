@@ -1,6 +1,6 @@
-# EXAMPLE Resource Manager
+# EXAMPLE API Pusher
 
-A local Next.js application for syncing, editing, and pushing WordPress Resource posts from EXAMPLE.com via the REST API, enables bulk editing of Resource posts, and pushes changes back.
+A local Next.js application for syncing, editing, and pushing WordPress Resource posts from EXAMPLE.com via the REST API. Enables bulk editing of Resource posts and pushes changes back efficiently.
 
 ## Features
 
