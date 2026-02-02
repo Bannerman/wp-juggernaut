@@ -6,6 +6,9 @@ const DB_PATH = process.env.DATABASE_PATH || './data/plexkits.db';
 
 let db: Database.Database | null = null;
 
+/**
+ * Database module for PLEXKITS Resource Manager
+ */
 export function getDb(): Database.Database {
   if (!db) {
     const dbPath = path.resolve(process.cwd(), DB_PATH);

@@ -224,9 +224,7 @@ export function ResourceTable({
                         </span>
                       ))}
                     {(resource.taxonomies['topic']?.length || 0) > 3 && (
-                      <span className="text-xs text-gray-500">
-                        +{(resource.taxonomies['topic']?.length || 0) - 3}
-                      </span>
+                      <p className="text-sm text-gray-500">No resources found. Sync from PLEXKITS to get started.</p>
                     )}
                   </div>
                 </td>

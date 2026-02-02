@@ -1,7 +1,7 @@
 {
   "name": "plexkits-resource-manager",
   "version": "1.0.0",
-  "description": "PlexKits Resource Management App - Sync, edit, and push WordPress resources",
+  "description": "PLEXKITS Resource Management App - Sync, edit, and push WordPress resources",
   "private": true,
   "scripts": {
     "dev": "next dev",

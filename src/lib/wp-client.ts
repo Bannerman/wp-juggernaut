@@ -261,7 +261,7 @@ export async function testConnection(): Promise<{ success: boolean; message: str
     });
     
     if (response.ok) {
-      return { success: true, message: 'Connected to WordPress API' };
+      return { success: true, message: 'Connected to WordPress REST API client for PLEXKITS' };
     }
     return { success: false, message: `HTTP ${response.status}` };
   } catch (error) {
