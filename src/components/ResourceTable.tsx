@@ -184,7 +184,11 @@ export function ResourceTable({
                     {resource.is_dirty && (
                       <span className="w-2 h-2 bg-yellow-400 rounded-full flex-shrink-0" title="Unsaved changes" />
                     )}
-                    <span className="font-medium text-gray-900 truncate max-w-xs" title={resource.title}>
+                    <span 
+                      className="font-medium text-gray-900 truncate max-w-xs cursor-pointer hover:text-brand-600" 
+                      title={resource.title}
+                      onClick={() => onEdit(resource)}
+                    >
                       {truncate(resource.title, 50)}
                     </span>
                   </div>
