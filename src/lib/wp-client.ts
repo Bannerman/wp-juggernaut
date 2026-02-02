@@ -146,6 +146,9 @@ export async function fetchResources(
 
   const { data, headers } = await wpFetch<WPResource[]>(endpoint, {}, needsAuth);
   
+  console.log(`[wp-client] Received ${data.length} resources from WordPress:`);
+  data.forEach(r => console.log(`  - ID: ${r.id}, Title: ${r.title.rendered}, Status: ${r.status}`));
+  
   return {
     resources: data,
     total: parseInt(headers.get('X-WP-Total') || '0', 10),
@@ -176,11 +179,12 @@ export async function fetchResourceById(id: number): Promise<WPResource> {
 }
 
 export async function fetchResourceIds(): Promise<number[]> {
-  // Fetch only published resources without auth
+  // Fetch all resources with auth to include drafts
+  const hasAuth = Boolean(WP_USERNAME && WP_APP_PASSWORD);
   const { data } = await wpFetch<{ id: number }[]>(
-    '/resource?per_page=100&_fields=id&status=publish',
+    '/resource?per_page=100&_fields=id&status=any',
     {},
-    false
+    hasAuth
   );
   return data.map((r) => r.id);
 }
