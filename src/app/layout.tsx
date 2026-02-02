@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Example Resource Manager',
+  title: 'EXAMPLE Resource Manager',
   description: 'Sync, edit, and push WordPress resources',
 };
 

@@ -1,7 +1,7 @@
 {
   "name": "example-resource-manager",
   "version": "1.0.0",
-  "description": "Example Resource Management App - Sync, edit, and push WordPress resources",
+  "description": "EXAMPLE Resource Management App - Sync, edit, and push WordPress resources",
   "private": true,
   "scripts": {
     "dev": "next dev",

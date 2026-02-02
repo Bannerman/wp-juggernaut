@@ -6,6 +6,9 @@ const DB_PATH = process.env.DATABASE_PATH || './data/example.db';
 
 let db: Database.Database | null = null;
 
+/**
+ * Database module for EXAMPLE Resource Manager
+ */
 export function getDb(): Database.Database {
   if (!db) {
     const dbPath = path.resolve(process.cwd(), DB_PATH);
