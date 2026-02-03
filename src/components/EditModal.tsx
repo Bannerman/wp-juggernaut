@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Save, AlertTriangle, Plus, Trash2, GripVertical, Sparkles, Copy, Check, Wand2, Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { cn, TAXONOMY_LABELS } from '@/lib/utils';
 import { imagePipeline, createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
@@ -25,10 +25,12 @@ interface Resource {
 }
 
 interface EditModalProps {
-  resource: Resource;
+  resource: Resource | null;
   terms: Record<string, Term[]>;
   onClose: () => void;
   onSave: (updates: Partial<Resource>) => void;
+  onCreate?: (data: { title: string; status: string; taxonomies: Record<string, number[]>; meta_box: Record<string, unknown> }) => void;
+  isCreating?: boolean;
 }
 
 interface FeatureItem {
@@ -74,15 +76,31 @@ const STATUS_OPTIONS = ['publish', 'draft', 'pending', 'private'];
 const BRACKET_RESOURCE_TYPE_ID = 417;
 const SPORTS_TOPIC_ID = 432;
 
-export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) {
+export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreating = false }: EditModalProps) {
+  const isCreateMode = resource === null;
+
+  // Default empty resource for create mode
+  const defaultResource: Resource = {
+    id: 0,
+    title: '',
+    slug: '',
+    status: 'draft',
+    modified_gmt: '',
+    is_dirty: false,
+    taxonomies: {},
+    meta_box: {},
+  };
+
+  const effectiveResource = resource || defaultResource;
+
   const [activeTab, setActiveTab] = useState('basic');
-  const [title, setTitle] = useState(resource.title);
-  const [status, setStatus] = useState(resource.status);
+  const [title, setTitle] = useState(effectiveResource.title);
+  const [status, setStatus] = useState(effectiveResource.status);
   const [taxonomies, setTaxonomies] = useState<Record<string, number[]>>(() =>
-    JSON.parse(JSON.stringify(resource.taxonomies))
+    JSON.parse(JSON.stringify(effectiveResource.taxonomies))
   );
   const [metaBox, setMetaBox] = useState<Record<string, unknown>>(() =>
-    JSON.parse(JSON.stringify(resource.meta_box))
+    JSON.parse(JSON.stringify(effectiveResource.meta_box))
   );
   const [isSaving, setIsSaving] = useState(false);
 
@@ -91,13 +109,30 @@ export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) 
   const hasSportsTopic = (taxonomies['topic'] || []).includes(SPORTS_TOPIC_ID);
   const timerEnabled = Boolean(metaBox.timer_enable);
 
-  const hasChanges =
-    title !== resource.title ||
-    status !== resource.status ||
-    JSON.stringify(taxonomies) !== JSON.stringify(resource.taxonomies) ||
-    JSON.stringify(metaBox) !== JSON.stringify(resource.meta_box);
+  const hasChanges = isCreateMode
+    ? title.trim().length > 0  // For create mode, just need a title
+    : title !== effectiveResource.title ||
+      status !== effectiveResource.status ||
+      JSON.stringify(taxonomies) !== JSON.stringify(effectiveResource.taxonomies) ||
+      JSON.stringify(metaBox) !== JSON.stringify(effectiveResource.meta_box);
 
   const handleSave = async () => {
+    if (isCreateMode) {
+      if (!title.trim() || !onCreate) return;
+      setIsSaving(true);
+      try {
+        await onCreate({
+          title,
+          status,
+          taxonomies,
+          meta_box: metaBox,
+        });
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
     if (!hasChanges) {
       onClose();
       return;
@@ -200,6 +235,15 @@ export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) 
   const [aiPasteContent, setAiPasteContent] = useState('');
   const [promptCopied, setPromptCopied] = useState(false);
   const [parseStatus, setParseStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
+  const [promptTemplate, setPromptTemplate] = useState<string | null>(null);
+
+  // Fetch prompt template from settings
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => setPromptTemplate(data.settings.ai_prompt_template))
+      .catch(() => setPromptTemplate(null));
+  }, []);
 
   // Featured Image Upload state
   const [isUploading, setIsUploading] = useState(false);
@@ -209,54 +253,102 @@ export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const generatePrompt = () => {
+    // Build taxonomy options dynamically from synced terms
+    const getTaxonomyExamples = (taxonomy: string, maxExamples = 3): string => {
+      const taxTerms = terms[taxonomy] || [];
+      if (taxTerms.length === 0) return '[none available]';
+      return taxTerms.slice(0, maxExamples).map(t => t.name).join(', ');
+    };
+
+    const taxonomyLines = [
+      { key: 'resource-type', label: 'resource-type', examples: getTaxonomyExamples('resource-type') },
+      { key: 'intent', label: 'intent', examples: getTaxonomyExamples('intent') },
+      { key: 'topic', label: 'topic', examples: getTaxonomyExamples('topic') },
+      { key: 'audience', label: 'audience', examples: getTaxonomyExamples('audience') },
+      { key: 'leagues', label: 'leagues', examples: getTaxonomyExamples('leagues'), note: 'only if sports-related' },
+      { key: 'bracket-size', label: 'bracket-size', examples: getTaxonomyExamples('bracket-size'), note: 'only if bracket' },
+      { key: 'file_format', label: 'file-format', examples: getTaxonomyExamples('file_format') },
+      { key: 'competition_format', label: 'competition-format', examples: getTaxonomyExamples('competition_format'), note: 'only if tournament' },
+    ];
+
+    const taxonomySelectionsBlock = taxonomyLines
+      .filter(t => (terms[t.key]?.length || 0) > 0)
+      .map(t => `${t.label}: [e.g., ${t.examples}${t.note ? ` - ${t.note}` : ''}]`)
+      .join('\n');
+
     const availableTaxonomies: Record<string, string[]> = {};
     Object.keys(terms).forEach((taxonomy) => {
       availableTaxonomies[taxonomy] = terms[taxonomy].map((t) => t.name);
     });
 
-    return `Please provide content for a resource with the following fields. Use the EXACT format below with the field markers.
+    const availableTaxonomiesBlock = Object.entries(availableTaxonomies)
+      .map(([tax, names]) => `${TAXONOMY_LABELS[tax] || tax}: ${names.slice(0, 15).join(', ')}${names.length > 15 ? '...' : ''}`)
+      .join('\n');
+
+    const featuresBlock = features.length > 0
+      ? features.map(f => `- ${f.feature_text}`).join('\n')
+      : '[List features, one per line with - prefix]\n- Feature 1\n- Feature 2\n- Feature 3';
+
+    const changelogBlock = changelog.length > 0
+      ? changelog.map(c =>
+          `version: ${c.changelog_version}\ndate: ${c.changelog_date}\nnotes:\n${(c.changelog_notes || []).map(n => `- ${n}`).join('\n')}`
+        ).join('\n\n')
+      : 'version: 1.0\ndate: [YYYY-MM-DD]\nnotes:\n- Initial release';
+
+    // Build placeholder replacements
+    const replacements: Record<string, string> = {
+      '{{title}}': title || '[Enter a descriptive title]',
+      '{{intro_text}}': (metaBox.intro_text as string) || '[Enter a short introduction paragraph]',
+      '{{text_content}}': (metaBox.text_content as string) || '[Enter the main content/description]',
+      '{{features}}': featuresBlock,
+      '{{available_taxonomies}}': availableTaxonomiesBlock,
+      '{{taxonomy_selections}}': taxonomySelectionsBlock,
+      '{{timer_enabled}}': timerEnabled ? 'yes' : 'no',
+      '{{timer_title}}': (metaBox.timer_title as string) || '[e.g., EVENT STARTS]',
+      '{{timer_datetime}}': (metaBox.timer_single_datetime as string) || '[YYYY-MM-DDTHH:MM format]',
+      '{{changelog}}': changelogBlock,
+    };
+
+    // Use template from settings if available, otherwise use default
+    let template = promptTemplate || `Please provide content for a resource titled "{{title}}" with the following fields. Use the EXACT format below with the field markers.
 
 ---TITLE---
-${title || '[Enter a descriptive title]'}
+{{title}}
 
 ---INTRO_TEXT---
-${(metaBox.intro_text as string) || '[Enter a short introduction paragraph]'}
+{{intro_text}}
 
 ---TEXT_CONTENT---
-${(metaBox.text_content as string) || '[Enter the main content/description]'}
+{{text_content}}
 
 ---FEATURES---
-${features.length > 0 ? features.map(f => `- ${f.feature_text}`).join('\n') : '[List features, one per line with - prefix]\n- Feature 1\n- Feature 2\n- Feature 3'}
+{{features}}
 
 ---TAXONOMIES---
 IMPORTANT: Do NOT repeat the options below. Only output the "Your selections" section with your chosen values.
 
 Available options for reference:
-${Object.entries(availableTaxonomies).map(([tax, names]) => 
-  `${TAXONOMY_LABELS[tax] || tax}: ${names.slice(0, 15).join(', ')}${names.length > 15 ? '...' : ''}`
-).join('\n')}
+{{available_taxonomies}}
 
 Your selections (comma-separated, ONLY include the field name and your selections):
-resource-type: [e.g., Bracket, Spreadsheet]
-intent: [e.g., Compete, Track]
-topic: [e.g., Basketball, Events]
-audience: [e.g., Teachers, Students]
-league: [e.g., NCAA - only if sports-related]
-bracket-size: [e.g., 64 Team - only if bracket]
-file-format: [e.g., Google Sheets, PDF]
-competition-format: [e.g., Single Elimination - only if tournament]
+{{taxonomy_selections}}
 
 ---TIMER---
-timer_enabled: ${timerEnabled ? 'yes' : 'no'}
-timer_title: ${(metaBox.timer_title as string) || '[e.g., EVENT STARTS]'}
-timer_datetime: ${(metaBox.timer_single_datetime as string) || '[YYYY-MM-DDTHH:MM format]'}
+timer_enabled: {{timer_enabled}}
+timer_title: {{timer_title}}
+timer_datetime: {{timer_datetime}}
 
 ---CHANGELOG---
-${changelog.length > 0 ? changelog.map(c => 
-  `version: ${c.changelog_version}\ndate: ${c.changelog_date}\nnotes:\n${(c.changelog_notes || []).map(n => `- ${n}`).join('\n')}`
-).join('\n\n') : 'version: 1.0\ndate: [YYYY-MM-DD]\nnotes:\n- Initial release'}
+{{changelog}}
 
 ---END---`;
+
+    // Replace all placeholders
+    for (const [placeholder, value] of Object.entries(replacements)) {
+      template = template.split(placeholder).join(value);
+    }
+
+    return template;
   };
 
   const copyPrompt = async () => {
@@ -557,10 +649,16 @@ ${changelog.length > 0 ? changelog.map(c =>
       <div className="relative min-h-full flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div className={cn(
+            "flex items-center justify-between px-6 py-4 border-b border-gray-200",
+            isCreateMode && "bg-green-50"
+          )}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Edit Resource</h2>
-              <p className="text-sm text-gray-500">ID: {resource.id}</p>
+              <h2 className="text-lg font-semibold text-gray-900 line-clamp-1">
+                {isCreateMode ? (title || 'New Resource') : title}
+              </h2>
+              {!isCreateMode && <p className="text-sm text-gray-500">ID: {effectiveResource.id}</p>}
+              {isCreateMode && <p className="text-sm text-green-600">Creating new resource</p>}
             </div>
             <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
               <X className="w-5 h-5" />
@@ -1112,14 +1210,19 @@ ${changelog.length > 0 ? changelog.map(c =>
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className={cn(
+            "flex items-center justify-between px-6 py-4 border-t border-gray-200",
+            isCreateMode ? "bg-green-50" : "bg-gray-50"
+          )}>
             <div className="flex items-center gap-2">
-              {hasChanges && (
+              {isCreateMode ? (
+                <span className="text-sm text-gray-500">Resource will be created in WordPress immediately</span>
+              ) : hasChanges ? (
                 <>
                   <AlertTriangle className="w-4 h-4 text-yellow-500" />
                   <span className="text-sm text-yellow-700">Unsaved changes</span>
                 </>
-              )}
+              ) : null}
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -1130,16 +1233,20 @@ ${changelog.length > 0 ? changelog.map(c =>
               </button>
               <button
                 onClick={handleSave}
-                disabled={!hasChanges || isSaving}
+                disabled={!hasChanges || isSaving || isCreating}
                 className={cn(
                   'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
                   hasChanges
-                    ? 'bg-brand-600 text-white hover:bg-brand-700'
+                    ? isCreateMode
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-brand-600 text-white hover:bg-brand-700'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 )}
               >
                 <Save className="w-4 h-4" />
-                {isSaving ? 'Saving...' : 'Save Changes'}
+                {isSaving || isCreating
+                  ? (isCreateMode ? 'Creating...' : 'Saving...')
+                  : (isCreateMode ? 'Create Resource' : 'Save Changes')}
               </button>
             </div>
           </div>

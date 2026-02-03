@@ -33,8 +33,6 @@ const KNOWN_CONTENT_FIELDS: string[] = [
   'timer_enable',
   'timer_title',
   'timer_single_datetime',
-  'featured_image_url',
-  'featured_media_id',
 ];
 
 const KNOWN_CONTENT_FIELDS_SET = new Set(KNOWN_CONTENT_FIELDS);
