@@ -1,6 +1,6 @@
-const WP_BASE_URL = process.env.WP_BASE_URL || 'https://plexkits.com';
-const WP_USERNAME = process.env.WP_USERNAME || '';
-const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
+export const WP_BASE_URL = process.env.WP_BASE_URL || 'https://plexkits.com';
+export const WP_USERNAME = process.env.WP_USERNAME || '';
+export const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
 
 export const TAXONOMIES = [
   'resource-type',
@@ -8,13 +8,26 @@ export const TAXONOMIES = [
   'intent',
   'audience',
   'leagues',
-  'access_level',
   'competition_format',
   'bracket-size',
   'file_format',
 ] as const;
 
 export type TaxonomySlug = typeof TAXONOMIES[number];
+
+// Mapping from taxonomy REST slug to the Meta Box field ID used for updates.
+// Some taxonomies (like file_format) don't have a Meta Box field and only
+// work via the top-level REST field.
+export const TAXONOMY_META_FIELD: Partial<Record<TaxonomySlug, string>> = {
+  'resource-type': 'tax_resource_type',
+  'topic': 'tax_topic',
+  'intent': 'tax_intent',
+  'audience': 'tax_audience',
+  'leagues': 'tax_league',
+  'bracket-size': 'tax_bracket_size',
+  'competition_format': 'taax_competition_format', // typo is in the WP Meta Box config
+  // file_format has no Meta Box field - only works via top-level REST field
+};
 
 export interface WPTerm {
   id: number;
@@ -42,7 +55,6 @@ export interface WPResource {
   intent: number[];
   audience: number[];
   leagues: number[];
-  access_level: number[];
   competition_format: number[];
   'bracket-size': number[];
   file_format: number[];
@@ -203,12 +215,12 @@ export interface UpdateResourcePayload {
   title?: string;
   status?: string;
   content?: string;
+  featured_media?: number;
   'resource-type'?: number[];
   topic?: number[];
   intent?: number[];
   audience?: number[];
   leagues?: number[];
-  access_level?: number[];
   competition_format?: number[];
   'bracket-size'?: number[];
   file_format?: number[];
@@ -219,15 +231,31 @@ export async function updateResource(
   id: number,
   payload: UpdateResourcePayload
 ): Promise<WPResource> {
+  console.log(`[wp-client] Updating resource ${id}, payload keys:`, Object.keys(payload));
+  console.log(`[wp-client] Full payload:`, JSON.stringify(payload, null, 2));
+
   const { data } = await wpFetch<WPResource>(`/resource/${id}`, {
-    method: 'PUT',
+    method: 'POST',
     body: JSON.stringify(payload),
   });
+
+  // Verify taxonomy data in response
+  for (const taxonomy of TAXONOMIES) {
+    const sent = (payload as Record<string, unknown>)[taxonomy] as number[] | undefined;
+    const received = data[taxonomy as keyof WPResource] as number[] | undefined;
+    if (sent && sent.length > 0) {
+      const match = JSON.stringify(sent) === JSON.stringify(received);
+      if (!match) {
+        console.warn(`[wp-client] TAXONOMY MISMATCH for ${taxonomy} on resource ${id}: sent=${JSON.stringify(sent)}, received=${JSON.stringify(received)}`);
+      }
+    }
+  }
+
   return data;
 }
 
 export interface BatchRequest {
-  method: 'PUT' | 'POST' | 'DELETE';
+  method: 'POST' | 'PUT' | 'DELETE';
   path: string;
   body?: Record<string, unknown>;
 }
@@ -241,7 +269,9 @@ export interface BatchResponse {
 
 export async function batchUpdate(requests: BatchRequest[]): Promise<BatchResponse> {
   const url = `${WP_BASE_URL}/wp-json/batch/v1`;
-  
+
+  console.log(`[wp-client] Batch update: ${requests.length} requests`);
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -256,7 +286,38 @@ export async function batchUpdate(requests: BatchRequest[]): Promise<BatchRespon
     throw new Error(`Batch API Error: ${response.status} - ${error}`);
   }
 
-  return response.json();
+  const result = await response.json();
+
+  // WordPress batch API may return responses as an object keyed by path, not an array
+  // Normalize to array format
+  if (result.responses && !Array.isArray(result.responses)) {
+    console.log(`[wp-client] Batch response is object-keyed, converting to array`);
+    const responseArray: Array<{ status: number; body: unknown }> = [];
+    for (const req of requests) {
+      const key = req.path;
+      const resp = result.responses[key];
+      if (resp) {
+        responseArray.push({
+          status: resp.status ?? 200,
+          body: resp.body ?? resp,
+        });
+      } else {
+        console.warn(`[wp-client] No batch response for path: ${key}`);
+        responseArray.push({ status: 500, body: { error: 'No response for path' } });
+      }
+    }
+    result.responses = responseArray;
+  }
+
+  console.log(`[wp-client] Batch response: ${result.responses?.length ?? 0} responses`);
+  if (Array.isArray(result.responses)) {
+    result.responses.forEach((r: { status: number; body: unknown }, i: number) => {
+      const body = r.body as Record<string, unknown>;
+      console.log(`[wp-client]   [${i}] status=${r.status}, id=${body?.id}, title=${(body?.title as Record<string, string>)?.rendered ?? 'N/A'}`);
+    });
+  }
+
+  return result;
 }
 
 export async function testConnection(): Promise<{ success: boolean; message: string }> {

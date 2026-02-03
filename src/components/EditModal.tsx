@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Save, AlertTriangle, Plus, Trash2, GripVertical, Sparkles, Copy, Check, Wand2 } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { X, Save, AlertTriangle, Plus, Trash2, GripVertical, Sparkles, Copy, Check, Wand2, Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { cn, TAXONOMY_LABELS } from '@/lib/utils';
+import { imagePipeline, createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
 
 interface Term {
   id: number;
@@ -77,8 +78,12 @@ export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) 
   const [activeTab, setActiveTab] = useState('basic');
   const [title, setTitle] = useState(resource.title);
   const [status, setStatus] = useState(resource.status);
-  const [taxonomies, setTaxonomies] = useState<Record<string, number[]>>(resource.taxonomies);
-  const [metaBox, setMetaBox] = useState<Record<string, unknown>>(resource.meta_box);
+  const [taxonomies, setTaxonomies] = useState<Record<string, number[]>>(() =>
+    JSON.parse(JSON.stringify(resource.taxonomies))
+  );
+  const [metaBox, setMetaBox] = useState<Record<string, unknown>>(() =>
+    JSON.parse(JSON.stringify(resource.meta_box))
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   // Derived state for conditional visibility
@@ -106,6 +111,7 @@ export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) 
         taxonomies,
         meta_box: metaBox,
       });
+      onClose();
     } finally {
       setIsSaving(false);
     }
@@ -121,7 +127,7 @@ export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) 
   };
 
   const updateMetaField = (field: string, value: unknown) => {
-    setMetaBox({ ...metaBox, [field]: value });
+    setMetaBox(prev => ({ ...prev, [field]: value }));
   };
 
   // Features helpers
@@ -167,20 +173,26 @@ export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) 
   };
   const addDownloadLink = (sectionIndex: number) => {
     const updated = [...downloadSections];
-    const links = updated[sectionIndex].download_links || [];
-    updated[sectionIndex].download_links = [...links, { link_text: '', download_link_type: 'link' }];
+    const section = { ...updated[sectionIndex] };
+    const links = section.download_links || [];
+    section.download_links = [...links, { link_text: '', download_link_type: 'link' }];
+    updated[sectionIndex] = section;
     updateMetaField('download_sections', updated);
   };
   const updateDownloadLink = (sectionIndex: number, linkIndex: number, field: keyof DownloadLink, value: unknown) => {
     const updated = [...downloadSections];
-    const links = [...(updated[sectionIndex].download_links || [])];
+    const section = { ...updated[sectionIndex] };
+    const links = [...(section.download_links || [])];
     links[linkIndex] = { ...links[linkIndex], [field]: value };
-    updated[sectionIndex].download_links = links;
+    section.download_links = links;
+    updated[sectionIndex] = section;
     updateMetaField('download_sections', updated);
   };
   const removeDownloadLink = (sectionIndex: number, linkIndex: number) => {
     const updated = [...downloadSections];
-    updated[sectionIndex].download_links = updated[sectionIndex].download_links.filter((_, i) => i !== linkIndex);
+    const section = { ...updated[sectionIndex] };
+    section.download_links = section.download_links.filter((_, i) => i !== linkIndex);
+    updated[sectionIndex] = section;
     updateMetaField('download_sections', updated);
   };
 
@@ -188,6 +200,13 @@ export function EditModal({ resource, terms, onClose, onSave }: EditModalProps) 
   const [aiPasteContent, setAiPasteContent] = useState('');
   const [promptCopied, setPromptCopied] = useState(false);
   const [parseStatus, setParseStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
+
+  // Featured Image Upload state
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showTitlePrompt, setShowTitlePrompt] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const generatePrompt = () => {
     const availableTaxonomies: Record<string, string[]> = {};
@@ -412,6 +431,90 @@ ${changelog.length > 0 ? changelog.map(c =>
     }
   };
 
+  // Featured Image Upload handlers
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadError(null);
+
+    // Check if title exists, if not show prompt
+    if (!title.trim()) {
+      setPendingFile(file);
+      setShowTitlePrompt(true);
+      return;
+    }
+
+    await processAndUploadImage(file, title);
+  };
+
+  const processAndUploadImage = async (file: File, imageTitle: string) => {
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      // Configure the image processing pipeline
+      const pipeline = new ImageProcessingPipeline()
+        .addProcessor(createValidationProcessor(10, ['image/jpeg', 'image/png', 'image/webp', 'image/gif']))
+        .addProcessor(seoDataProcessor)
+        .addProcessor(shortpixelProcessor)
+        .addProcessor(createFilenameProcessor(() => imageTitle));
+
+      // Process the image
+      const processed = await pipeline.process({
+        file,
+        filename: file.name,
+        title: imageTitle,
+        altText: imageTitle,
+      });
+
+      // Upload to WordPress
+      const formData = new FormData();
+      formData.append('file', processed.file);
+      formData.append('filename', processed.filename);
+      formData.append('title', processed.title);
+      formData.append('alt_text', processed.altText);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+
+      const result = await response.json();
+
+      // Update the featured image URL and media ID
+      updateMetaField('featured_image_url', result.url);
+      updateMetaField('featured_media_id', result.id);
+
+    } catch (err) {
+      console.error('Upload error:', err);
+      setUploadError(String(err));
+    } finally {
+      setIsUploading(false);
+      setPendingFile(null);
+    }
+  };
+
+  const handleTitlePromptSubmit = async (promptTitle: string) => {
+    if (!promptTitle.trim()) return;
+    
+    // Set the title for the resource
+    setTitle(promptTitle);
+    
+    // Close the prompt
+    setShowTitlePrompt(false);
+    
+    // Process and upload the pending file
+    if (pendingFile) {
+      await processAndUploadImage(pendingFile, promptTitle);
+    }
+  };
+
   // Taxonomy renderer with conditional visibility
   const renderTaxonomy = (taxonomy: string, label: string, required = false) => {
     const taxonomyTerms = terms[taxonomy] || [];
@@ -514,17 +617,62 @@ ${changelog.length > 0 ? changelog.map(c =>
 
                 {/* Featured Image */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Featured Image URL</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Featured Image</label>
+                  
+                  {/* URL Input */}
                   <input
                     type="url"
                     value={(metaBox.featured_image_url as string) || ''}
                     onChange={(e) => updateMetaField('featured_image_url', e.target.value)}
                     placeholder="https://plexkits.com/wp-content/uploads/..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 mb-2"
                   />
+                  
+                  {/* Upload Button */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className={cn(
+                        'flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',
+                        isUploading
+                          ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                          : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                      )}
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Upload Image
+                        </>
+                      )}
+                    </button>
+                    <span className="text-xs text-gray-500">
+                      Max 10MB. JPG, PNG, WebP, GIF
+                    </span>
+                  </div>
+                  
+                  {/* Error Display */}
+                  {uploadError && (
+                    <p className="mt-2 text-sm text-red-600">{uploadError}</p>
+                  )}
+                  
+                  {/* Image Preview */}
                   {(metaBox.featured_image_url as string) && (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-500 mb-1">Preview (hotlinked from server):</p>
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-500 mb-1">Preview:</p>
                       <img
                         src={(metaBox.featured_image_url as string)}
                         alt="Featured image preview"
@@ -536,6 +684,49 @@ ${changelog.length > 0 ? changelog.map(c =>
                     </div>
                   )}
                 </div>
+
+                {/* Title Prompt Modal */}
+                {showTitlePrompt && (
+                  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Post Title Required</h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Please enter a post title to name the image file. This will also be used as the page title.
+                      </p>
+                      <input
+                        type="text"
+                        placeholder="Enter post title..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 mb-4"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleTitlePromptSubmit((e.target as HTMLInputElement).value);
+                          }
+                        }}
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-3">
+                        <button
+                          onClick={() => {
+                            setShowTitlePrompt(false);
+                            setPendingFile(null);
+                          }}
+                          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => {
+                            const input = document.querySelector('input[placeholder="Enter post title..."]') as HTMLInputElement;
+                            handleTitlePromptSubmit(input?.value || '');
+                          }}
+                          className="px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700"
+                        >
+                          Continue
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -760,6 +951,19 @@ ${changelog.length > 0 ? changelog.map(c =>
                                     {link.download_link_type === 'upload' && (
                                       <span className="text-xs text-gray-500 italic">File upload managed in WordPress</span>
                                     )}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <label className="text-xs text-gray-500 whitespace-nowrap">File Format:</label>
+                                    <select
+                                      value={link.download_file_format || ''}
+                                      onChange={(e) => updateDownloadLink(sectionIndex, linkIndex, 'download_file_format', e.target.value ? Number(e.target.value) : undefined)}
+                                      className="text-xs px-2 py-1 border border-gray-300 rounded flex-1"
+                                    >
+                                      <option value="">None</option>
+                                      {(terms['file_format'] || []).map((term) => (
+                                        <option key={term.id} value={term.id}>{term.name}</option>
+                                      ))}
+                                    </select>
                                   </div>
                                 </div>
                               ))}

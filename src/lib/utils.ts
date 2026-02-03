@@ -48,7 +48,6 @@ export const TAXONOMY_LABELS: Record<string, string> = {
   intent: 'Intent',
   audience: 'Audience',
   leagues: 'League',
-  access_level: 'Access Level',
   competition_format: 'Competition Format',
   'bracket-size': 'Bracket Size',
   file_format: 'File Format',

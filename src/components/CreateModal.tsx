@@ -30,7 +30,6 @@ const EDITABLE_TAXONOMIES = [
   'intent',
   'audience',
   'leagues',
-  'access_level',
   'competition_format',
   'bracket-size',
   'file_format',

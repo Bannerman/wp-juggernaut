@@ -1,18 +1,20 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  RefreshCw, 
-  Upload, 
-  Download, 
-  Search, 
+import Link from 'next/link';
+import {
+  RefreshCw,
+  Upload,
+  Download,
+  Search,
   Filter,
   AlertCircle,
   CheckCircle,
   Clock,
   Database,
   Plus,
-  ChevronDown
+  ChevronDown,
+  Activity
 } from 'lucide-react';
 import { ResourceTable } from '@/components/ResourceTable';
 import { FilterPanel } from '@/components/FilterPanel';
@@ -66,6 +68,7 @@ export default function Home() {
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [showSyncDropdown, setShowSyncDropdown] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -99,6 +102,32 @@ export default function Home() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Close sync dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.sync-dropdown')) {
+        setShowSyncDropdown(false);
+      }
+    };
+
+    if (showSyncDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showSyncDropdown]);
+
+  // Auto-dismiss toast notifications after 5 seconds
+  useEffect(() => {
+    if (error || success) {
+      const timer = setTimeout(() => {
+        setError(null);
+        setSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, success]);
 
   const handleSync = async (incremental: boolean = false) => {
     setIsSyncing(true);
@@ -151,14 +180,19 @@ export default function Home() {
       }
 
       const successCount = result.results.filter((r: { success: boolean }) => r.success).length;
-      const failCount = result.results.length - successCount;
+      const failedResults = result.results.filter((r: { success: boolean }) => !r.success);
 
-      if (result.conflicts?.length > 0) {
-        setError(`${result.conflicts.length} conflict(s) detected`);
+      if (failedResults.length > 0) {
+        const errors = failedResults.map((r: { resourceId: number; error?: string }) =>
+          `Resource ${r.resourceId}: ${r.error || 'unknown error'}`
+        );
+        setError(errors.join('; '));
+      } else if (result.conflicts?.length > 0) {
+        setError(`${result.conflicts.length} conflict(s) detected (pushed anyway)`);
       }
 
       setSuccess(
-        `Pushed ${successCount} resources${failCount > 0 ? `, ${failCount} failed` : ''}`
+        `Pushed ${successCount} resources${failedResults.length > 0 ? `, ${failedResults.length} failed` : ''}`
       );
       await fetchData();
     } catch (err) {
@@ -181,8 +215,13 @@ export default function Home() {
         throw new Error(error.error || 'Update failed');
       }
 
+      const updated = await res.json();
       await fetchData();
-      setEditingResource(null);
+      
+      // Update editingResource with the fresh data so hasChanges recalculates correctly
+      if (editingResource && editingResource.id === id) {
+        setEditingResource(updated);
+      }
     } catch (err) {
       setError(String(err));
     }
@@ -252,6 +291,13 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <Database className="w-8 h-8 text-brand-600" />
               <h1 className="text-xl font-bold text-gray-900">PLEXKITS Resource Manager</h1>
+              <Link
+                href="/diagnostics"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <Activity className="w-4 h-4" />
+                Diagnostics
+              </Link>
             </div>
 
             <div className="flex items-center gap-4">
@@ -264,73 +310,86 @@ export default function Home() {
 
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors min-w-[120px]"
               >
                 <Plus className="w-4 h-4" />
                 New Resource
               </button>
 
-              <div className="relative inline-block">
+              <div className="relative flex items-center sync-dropdown">
                 <button
                   onClick={() => handleSync(true)}
                   disabled={isSyncing}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                    'flex items-center justify-center gap-2 px-4 py-2 rounded-l-lg text-sm font-medium transition-colors min-w-[100px]',
                     'bg-gray-100 text-gray-700 hover:bg-gray-200',
                     'disabled:opacity-50 disabled:cursor-not-allowed'
                   )}
                 >
                   <RefreshCw className={cn('w-4 h-4', isSyncing && 'animate-spin')} />
-                  {isSyncing ? 'Syncing...' : 'Incremental Sync'}
+                  Sync
                 </button>
-              </div>
-
-              <button
-                onClick={() => handleSync(false)}
-                disabled={isSyncing}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-                  'bg-blue-600 text-white hover:bg-blue-700',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                <button
+                  onClick={() => setShowSyncDropdown(!showSyncDropdown)}
+                  disabled={isSyncing}
+                  className={cn(
+                    'flex items-center px-2 py-2 rounded-r-lg text-sm font-medium transition-colors border-l border-gray-300',
+                    'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                    'disabled:opacity-50 disabled:cursor-not-allowed'
+                  )}
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                {showSyncDropdown && (
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                    <button
+                      onClick={() => {
+                        setShowSyncDropdown(false);
+                        handleSync(false);
+                      }}
+                      disabled={isSyncing}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Force Full Sync
+                    </button>
+                  </div>
                 )}
-              >
-                <Download className={cn('w-4 h-4', isSyncing && 'animate-spin')} />
-                {isSyncing ? 'Syncing...' : 'Full Sync'}
-              </button>
+              </div>
 
               <button
                 onClick={handlePush}
                 disabled={isPushing || (stats?.dirtyResources === 0)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                  'flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors min-w-[140px]',
                   'bg-brand-600 text-white hover:bg-brand-700',
                   'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
               >
                 <Upload className={cn('w-4 h-4', isPushing && 'animate-pulse')} />
-                {isPushing ? 'Pushing...' : `Push Changes${stats?.dirtyResources ? ` (${stats.dirtyResources})` : ''}`}
+                {isPushing ? 'Pushing...' : `Push${stats?.dirtyResources ? ` (${stats.dirtyResources})` : ''}`}
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Alerts */}
+      {/* Toast Notifications */}
       {(error || success) && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
           {error && (
-            <div className="flex items-center gap-2 p-4 rounded-lg bg-red-50 text-red-700 mb-4">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 text-red-700 shadow-lg border border-red-200 animate-in slide-in-from-right fade-in">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <span>{error}</span>
+              <span className="text-sm">{error}</span>
               <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">
                 ×
               </button>
             </div>
           )}
           {success && (
-            <div className="flex items-center gap-2 p-4 rounded-lg bg-green-50 text-green-700 mb-4">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 text-green-700 shadow-lg border border-green-200 animate-in slide-in-from-right fade-in">
               <CheckCircle className="w-5 h-5 flex-shrink-0" />
-              <span>{success}</span>
+              <span className="text-sm">{success}</span>
               <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700">
                 ×
               </button>

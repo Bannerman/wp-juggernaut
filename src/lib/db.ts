@@ -86,6 +86,19 @@ function initializeSchema(database: Database.Database) {
       changed_at TEXT DEFAULT (datetime('now'))
     );
 
+    -- Field audit results from sync
+    CREATE TABLE IF NOT EXISTS field_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      audit_run_at TEXT NOT NULL,
+      field_name TEXT NOT NULL,
+      source TEXT NOT NULL,
+      category TEXT NOT NULL,
+      status TEXT NOT NULL,
+      detail TEXT,
+      affected_resources TEXT,
+      UNIQUE(audit_run_at, field_name)
+    );
+
     -- Indexes for performance
     CREATE INDEX IF NOT EXISTS idx_terms_taxonomy ON terms(taxonomy);
     CREATE INDEX IF NOT EXISTS idx_resource_terms_resource ON resource_terms(resource_id);

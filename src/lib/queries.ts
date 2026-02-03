@@ -249,9 +249,13 @@ export function updateLocalResource(
         for (const termId of termIds) {
           termStmt.run(id, termId, taxonomy);
         }
+
+        if (termIds.length > 0) {
+          console.log(`[queries] Saved ${taxonomy} = [${termIds.join(', ')}] for resource ${id}`);
+        }
       }
     }
-    
+
     db.prepare('UPDATE resources SET is_dirty = 1 WHERE id = ?').run(id);
   }
 

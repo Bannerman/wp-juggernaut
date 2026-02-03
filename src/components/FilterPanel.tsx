@@ -23,7 +23,6 @@ const FILTERABLE_TAXONOMIES = [
   'topic',
   'intent',
   'audience',
-  'access_level',
   'file_format',
 ];
 
