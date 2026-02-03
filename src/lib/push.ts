@@ -6,6 +6,7 @@ import {
   type UpdateResourcePayload,
   type BatchRequest,
   TAXONOMIES,
+  TAXONOMY_META_FIELD,
   type TaxonomySlug,
 } from './wp-client';
 import { getResourceById, markResourceClean, getDirtyResources } from './queries';
@@ -21,6 +22,54 @@ export interface ConflictInfo {
   title: string;
   localModified: string;
   serverModified: string;
+}
+
+interface DownloadLink {
+  link_text: string;
+  download_link_type: string;
+  download_file_format?: number | string;
+  download_link_url?: string;
+  download_link_upload?: string;
+  [key: string]: unknown;
+}
+
+interface DownloadSection {
+  download_section_heading: string;
+  download_section_color?: string;
+  download_archive?: boolean;
+  download_links?: DownloadLink[];
+  [key: string]: unknown;
+}
+
+/**
+ * Normalize download_sections to ensure download_file_format is always a number.
+ * WordPress expects term IDs as numbers, not strings.
+ */
+function normalizeDownloadSections(sections: unknown[]): DownloadSection[] {
+  return sections.map((section) => {
+    const s = section as DownloadSection;
+    if (!s.download_links || !Array.isArray(s.download_links)) {
+      return s;
+    }
+
+    return {
+      ...s,
+      download_links: s.download_links.map((link) => {
+        const normalized = { ...link };
+        // Convert download_file_format to number if it's a string
+        if (normalized.download_file_format !== undefined) {
+          const val = normalized.download_file_format;
+          if (typeof val === 'string' && /^\d+$/.test(val)) {
+            normalized.download_file_format = parseInt(val, 10);
+          } else if (typeof val !== 'number') {
+            // Remove invalid values
+            delete normalized.download_file_format;
+          }
+        }
+        return normalized;
+      }),
+    };
+  });
 }
 
 export async function checkForConflicts(resourceIds: number[]): Promise<ConflictInfo[]> {
@@ -57,22 +106,60 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
   const resource = getResourceById(resourceId);
   if (!resource) throw new Error(`Resource ${resourceId} not found`);
 
+  // Get featured_media from meta_box if available, otherwise fall back to the column
+  const featuredMediaId = (resource.meta_box?.featured_media_id as number) || resource.featured_media || 0;
+
   const payload: UpdateResourcePayload = {
     title: resource.title,
     status: resource.status,
+    featured_media: featuredMediaId,
   };
 
-  // Add taxonomy assignments
-  for (const taxonomy of TAXONOMIES) {
-    const termIds = resource.taxonomies[taxonomy];
-    if (termIds && termIds.length > 0) {
-      (payload as Record<string, unknown>)[taxonomy] = termIds;
+  // Build meta_box: start with existing meta fields, filtering out synthetic ones
+  const metaBox: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(resource.meta_box)) {
+    // Skip synthetic fields that aren't real Meta Box fields
+    if (key === 'featured_image_url' || key === 'featured_media_id') continue;
+    // Skip taxonomy meta fields — we'll set them from local taxonomy data below
+    if (key.startsWith('tax_') || key === 'taax_competition_format') continue;
+
+    // Normalize download_sections to ensure download_file_format is always a number
+    if (key === 'download_sections' && Array.isArray(value)) {
+      metaBox[key] = normalizeDownloadSections(value);
+    } else {
+      metaBox[key] = value;
     }
   }
 
-  // Add meta_box fields
-  if (Object.keys(resource.meta_box).length > 0) {
-    payload.meta_box = resource.meta_box;
+  // Add taxonomy assignments via BOTH:
+  // 1. Top-level REST fields (standard WP REST API way)
+  // 2. Meta Box field names (in case Meta Box intercepts these)
+  // This ensures the assignment works regardless of how the CPT is configured.
+  // Note: file_format is auto-synced from download_file_format in download links, so skip it.
+  const taxSummary: Record<string, number[]> = {};
+  for (const taxonomy of TAXONOMIES) {
+    // Skip file_format - WP auto-syncs it from download_file_format in download links
+    if (taxonomy === 'file_format') continue;
+
+    const termIds = resource.taxonomies[taxonomy] || [];
+    if (termIds.length > 0) {
+      // Top-level taxonomy field (e.g., 'topic', 'resource-type')
+      (payload as Record<string, unknown>)[taxonomy] = termIds;
+
+      // Meta Box field (e.g., 'tax_topic', 'tax_resource_type')
+      const metaField = TAXONOMY_META_FIELD[taxonomy];
+      if (metaField) {
+        metaBox[metaField] = termIds;
+      }
+
+      taxSummary[taxonomy] = termIds;
+    }
+  }
+
+  console.log(`[push] Payload for resource ${resourceId}: taxonomies =`, JSON.stringify(taxSummary));
+
+  if (Object.keys(metaBox).length > 0) {
+    payload.meta_box = metaBox;
   }
 
   return payload;
@@ -107,6 +194,7 @@ export async function pushResource(
 
     return { success: true, resourceId };
   } catch (error) {
+    console.error(`[push] FAILED resource ${resourceId}:`, error);
     return {
       success: false,
       resourceId,
@@ -128,33 +216,31 @@ export async function pushAllDirty(
     return { results: [], conflicts: [] };
   }
 
-  // Check for conflicts first
+  // Check for conflicts (warn but don't block — this is a single-user local tool
+  // and stale modified_gmt from previous partial pushes shouldn't prevent retries)
   let conflicts: ConflictInfo[] = [];
   if (!skipConflictCheck) {
     conflicts = await checkForConflicts(resourceIds);
     if (conflicts.length > 0) {
-      // Filter out conflicting resources
-      const conflictIds = new Set(conflicts.map((c) => c.resourceId));
-      const safeIds = resourceIds.filter((id) => !conflictIds.has(id));
-      
-      if (safeIds.length === 0) {
-        return { results: [], conflicts };
+      console.warn(`[push] ${conflicts.length} conflict(s) detected — pushing anyway`);
+      for (const c of conflicts) {
+        console.warn(`[push]   Resource ${c.resourceId} "${c.title}": local=${c.localModified}, server=${c.serverModified}`);
       }
     }
   }
 
-  // Use batch updates for efficiency (max 25 per batch)
+  // Push resources individually to ensure all WP hooks fire correctly
+  // (batch API can silently skip taxonomy assignments)
   const results: PushResult[] = [];
-  const BATCH_SIZE = 25;
 
-  for (let i = 0; i < resourceIds.length; i += BATCH_SIZE) {
-    const batch = resourceIds.slice(i, i + BATCH_SIZE);
-    const batchResults = await pushBatch(batch, conflicts);
-    results.push(...batchResults);
+  for (let i = 0; i < resourceIds.length; i++) {
+    const id = resourceIds[i];
+    const result = await pushResource(id, true);
+    results.push(result);
 
-    // Small delay between batches to avoid rate limiting
-    if (i + BATCH_SIZE < resourceIds.length) {
-      await new Promise((resolve) => setTimeout(resolve, 300));
+    // Small delay between requests to avoid rate limiting
+    if (i < resourceIds.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
     }
   }
 
@@ -183,7 +269,7 @@ async function pushBatch(
     const requests: BatchRequest[] = safeIds.map((id) => {
       const payload = buildUpdatePayload(id);
       return {
-        method: 'PUT' as const,
+        method: 'POST' as const,
         path: `/wp/v2/resource/${id}`,
         body: payload as unknown as Record<string, unknown>,
       };
