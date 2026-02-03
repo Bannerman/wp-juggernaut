@@ -14,12 +14,12 @@ import {
   Database,
   Plus,
   ChevronDown,
-  Activity
+  Activity,
+  Settings
 } from 'lucide-react';
 import { ResourceTable } from '@/components/ResourceTable';
 import { FilterPanel } from '@/components/FilterPanel';
 import { EditModal } from '@/components/EditModal';
-import { CreateModal } from '@/components/CreateModal';
 import { cn, formatRelativeTime } from '@/lib/utils';
 
 interface SyncStats {
@@ -298,6 +298,13 @@ export default function Home() {
                 <Activity className="w-4 h-4" />
                 Diagnostics
               </Link>
+              <Link
+                href="/settings"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                Settings
+              </Link>
             </div>
 
             <div className="flex items-center gap-4">
@@ -531,12 +538,14 @@ export default function Home() {
         />
       )}
 
-      {/* Create Modal */}
+      {/* Create Modal (uses EditModal in create mode) */}
       {showCreateModal && (
-        <CreateModal
+        <EditModal
+          resource={null}
           terms={terms}
           onClose={() => setShowCreateModal(false)}
-          onSave={handleCreateResource}
+          onSave={() => {}}
+          onCreate={handleCreateResource}
           isCreating={isCreating}
         />
       )}
