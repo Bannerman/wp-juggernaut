@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Save, AlertTriangle, Plus, Trash2, GripVertical, Sparkles, Copy, Check, Wand2, Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { X, Save, AlertTriangle, Plus, Trash2, GripVertical, Sparkles, Copy, Check, Wand2, Upload, Image as ImageIcon, Loader2, Search, Globe, Share2 } from 'lucide-react';
 import { cn, TAXONOMY_LABELS } from '@/lib/utils';
 import { imagePipeline, createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
 
@@ -59,8 +59,42 @@ interface DownloadSection {
   download_links: DownloadLink[];
 }
 
+interface SEOData {
+  title: string;
+  description: string;
+  canonical: string;
+  targetKeywords: string;
+  og: {
+    title: string;
+    description: string;
+    image: string;
+  };
+  twitter: {
+    title: string;
+    description: string;
+    image: string;
+  };
+  robots: {
+    noindex: boolean;
+    nofollow: boolean;
+    nosnippet: boolean;
+    noimageindex: boolean;
+  };
+}
+
+const DEFAULT_SEO: SEOData = {
+  title: '',
+  description: '',
+  canonical: '',
+  targetKeywords: '',
+  og: { title: '', description: '', image: '' },
+  twitter: { title: '', description: '', image: '' },
+  robots: { noindex: false, nofollow: false, nosnippet: false, noimageindex: false },
+};
+
 const TABS = [
   { id: 'basic', label: 'Basic' },
+  { id: 'seo', label: 'SEO' },
   { id: 'content', label: 'Content' },
   { id: 'features', label: 'Features' },
   { id: 'classification', label: 'Classification' },
@@ -70,7 +104,7 @@ const TABS = [
   { id: 'ai', label: 'AI Fill', icon: 'sparkles' },
 ];
 
-const STATUS_OPTIONS = ['publish', 'draft', 'pending', 'private'];
+const STATUS_OPTIONS = ['publish', 'draft'];
 
 // Conditional visibility constants from PHP
 const BRACKET_RESOURCE_TYPE_ID = 417;
@@ -84,7 +118,7 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
     id: 0,
     title: '',
     slug: '',
-    status: 'draft',
+    status: 'publish',
     modified_gmt: '',
     is_dirty: false,
     taxonomies: {},
@@ -110,13 +144,77 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
   const hasSportsTopic = (taxonomies['topic'] || []).includes(SPORTS_TOPIC_ID);
   const timerEnabled = Boolean(metaBox.timer_enable);
 
-  const hasChanges = isCreateMode
+  const resourceHasChanges = isCreateMode
     ? title.trim().length > 0  // For create mode, just need a title
     : title !== effectiveResource.title ||
       slug !== effectiveResource.slug ||
       status !== effectiveResource.status ||
       JSON.stringify(taxonomies) !== JSON.stringify(effectiveResource.taxonomies) ||
       JSON.stringify(metaBox) !== JSON.stringify(effectiveResource.meta_box);
+
+  // SEO state
+  const [seoData, setSeoData] = useState<SEOData>(DEFAULT_SEO);
+  const [originalSeoData, setOriginalSeoData] = useState<SEOData>(DEFAULT_SEO);
+  const [seoLoading, setSeoLoading] = useState(false);
+  const [seoError, setSeoError] = useState<string | null>(null);
+  const [seoSaving, setSeoSaving] = useState(false);
+
+  const seoHasChanges = JSON.stringify(seoData) !== JSON.stringify(originalSeoData);
+
+  // Fetch SEO data when editing an existing resource
+  useEffect(() => {
+    if (isCreateMode || !effectiveResource.id) return;
+
+    setSeoLoading(true);
+    setSeoError(null);
+
+    fetch(`/api/seo/${effectiveResource.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.seo) {
+          setSeoData(data.seo);
+          setOriginalSeoData(data.seo);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch SEO data:', err);
+        setSeoError('Failed to load SEO data');
+      })
+      .finally(() => setSeoLoading(false));
+  }, [isCreateMode, effectiveResource.id]);
+
+  const saveSeoData = async () => {
+    if (!effectiveResource.id || !seoHasChanges) return;
+
+    setSeoSaving(true);
+    try {
+      const res = await fetch(`/api/seo/${effectiveResource.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(seoData),
+      });
+
+      if (!res.ok) throw new Error('Failed to save SEO data');
+
+      setOriginalSeoData(seoData);
+    } catch (err) {
+      console.error('Failed to save SEO data:', err);
+      throw err;
+    } finally {
+      setSeoSaving(false);
+    }
+  };
+
+  const updateSeoField = (field: keyof SEOData, value: unknown) => {
+    setSeoData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateSeoNestedField = (parent: 'og' | 'twitter' | 'robots', field: string, value: unknown) => {
+    setSeoData(prev => ({
+      ...prev,
+      [parent]: { ...prev[parent], [field]: value },
+    }));
+  };
 
   const handleSave = async () => {
     if (isCreateMode) {
@@ -136,25 +234,37 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
       return;
     }
 
-    if (!hasChanges) {
+    if (!resourceHasChanges && !seoHasChanges) {
       onClose();
       return;
     }
 
     setIsSaving(true);
     try {
-      await onSave({
-        title,
-        slug,
-        status,
-        taxonomies,
-        meta_box: metaBox,
-      });
+      // Save resource changes
+      if (resourceHasChanges) {
+        await onSave({
+          title,
+          slug,
+          status,
+          taxonomies,
+          meta_box: metaBox,
+        });
+      }
+
+      // Save SEO changes
+      if (seoHasChanges) {
+        await saveSeoData();
+      }
+
       onClose();
     } finally {
       setIsSaving(false);
     }
   };
+
+  // Combined hasChanges for UI (defined after seoHasChanges is available)
+  const hasChanges = resourceHasChanges || seoHasChanges;
 
   const toggleTerm = (taxonomy: string, termId: number) => {
     const current = taxonomies[taxonomy] || [];
@@ -809,7 +919,24 @@ timer_datetime: {{timer_datetime}}
               <h2 className="text-lg font-semibold text-gray-900 line-clamp-1">
                 {isCreateMode ? (title || 'New Resource') : title}
               </h2>
-              {!isCreateMode && <p className="text-sm text-gray-500">ID: {effectiveResource.id}</p>}
+              {!isCreateMode && (
+                <p className="text-sm text-gray-500">
+                  ID: {effectiveResource.id}
+                  {slug && (
+                    <>
+                      <span className="mx-2">·</span>
+                      <a
+                        href={`https://plexkits.com/resource/${slug}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-brand-600 hover:underline"
+                      >
+                        plexkits.com/resource/{slug}/
+                      </a>
+                    </>
+                  )}
+                </p>
+              )}
               {isCreateMode && <p className="text-sm text-green-600">Creating new resource</p>}
             </div>
             <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
@@ -857,33 +984,13 @@ timer_datetime: {{timer_datetime}}
                     URL Slug
                     {isCreateMode && <span className="text-gray-400 font-normal ml-1">(optional - auto-generated from title if empty)</span>}
                   </label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500 flex-shrink-0">plexkits.com/resource/</span>
-                    <input
-                      type="text"
-                      value={slug}
-                      onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'))}
-                      placeholder={isCreateMode ? 'auto-generated' : ''}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
-                    />
-                  </div>
-                  {slug && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Full URL: <a href={`https://plexkits.com/resource/${slug}/`} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline">https://plexkits.com/resource/{slug}/</a>
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                  >
-                    {STATUS_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>
-                    ))}
-                  </select>
+                  <input
+                    type="text"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'))}
+                    placeholder={isCreateMode ? 'auto-generated' : ''}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
+                  />
                 </div>
 
                 {/* Featured Image */}
@@ -997,6 +1104,239 @@ timer_datetime: {{timer_datetime}}
                       </div>
                     </div>
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* SEO Tab */}
+            {activeTab === 'seo' && (
+              <div className="space-y-6">
+                {isCreateMode ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <p className="text-sm text-amber-700">
+                      SEO settings will be available after the resource is created.
+                    </p>
+                  </div>
+                ) : seoLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    <span className="ml-2 text-gray-500">Loading SEO data...</span>
+                  </div>
+                ) : seoError ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-sm text-red-700">{seoError}</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Basic SEO */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <Search className="w-4 h-4" />
+                        Search Engine Optimization
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          SEO Title
+                          <span className="text-gray-400 font-normal ml-2">
+                            {seoData.title.length}/60
+                          </span>
+                        </label>
+                        <input
+                          type="text"
+                          value={seoData.title}
+                          onChange={(e) => updateSeoField('title', e.target.value)}
+                          placeholder="Custom title for search engines..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Meta Description
+                          <span className="text-gray-400 font-normal ml-2">
+                            {seoData.description.length}/160
+                          </span>
+                        </label>
+                        <textarea
+                          value={seoData.description}
+                          onChange={(e) => updateSeoField('description', e.target.value)}
+                          placeholder="Brief description for search results..."
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Target Keywords
+                        </label>
+                        <input
+                          type="text"
+                          value={seoData.targetKeywords}
+                          onChange={(e) => updateSeoField('targetKeywords', e.target.value)}
+                          placeholder="keyword1, keyword2, keyword3..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Comma-separated list of target keywords</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Canonical URL
+                        </label>
+                        <input
+                          type="url"
+                          value={seoData.canonical}
+                          onChange={(e) => updateSeoField('canonical', e.target.value)}
+                          placeholder="https://..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Leave empty to use default URL</p>
+                      </div>
+                    </div>
+
+                    {/* Social Media */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <Share2 className="w-4 h-4" />
+                        Social Media
+                      </div>
+
+                      {/* Facebook/OG */}
+                      <div className="border-l-4 border-blue-500 pl-4 space-y-3">
+                        <h4 className="text-sm font-medium text-blue-700">Facebook / Open Graph</h4>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                          <input
+                            type="text"
+                            value={seoData.og.title}
+                            onChange={(e) => updateSeoNestedField('og', 'title', e.target.value)}
+                            placeholder="Facebook share title..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                          <textarea
+                            value={seoData.og.description}
+                            onChange={(e) => updateSeoNestedField('og', 'description', e.target.value)}
+                            placeholder="Facebook share description..."
+                            rows={2}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Image URL</label>
+                          <input
+                            type="url"
+                            value={seoData.og.image}
+                            onChange={(e) => updateSeoNestedField('og', 'image', e.target.value)}
+                            placeholder="https://..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Twitter */}
+                      <div className="border-l-4 border-sky-500 pl-4 space-y-3">
+                        <h4 className="text-sm font-medium text-sky-700">Twitter / X</h4>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                          <input
+                            type="text"
+                            value={seoData.twitter.title}
+                            onChange={(e) => updateSeoNestedField('twitter', 'title', e.target.value)}
+                            placeholder="Twitter share title..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                          <textarea
+                            value={seoData.twitter.description}
+                            onChange={(e) => updateSeoNestedField('twitter', 'description', e.target.value)}
+                            placeholder="Twitter share description..."
+                            rows={2}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Image URL</label>
+                          <input
+                            type="url"
+                            value={seoData.twitter.image}
+                            onChange={(e) => updateSeoNestedField('twitter', 'image', e.target.value)}
+                            placeholder="https://..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Robots / Indexing */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <Globe className="w-4 h-4" />
+                        Indexing & Robots
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={seoData.robots.noindex}
+                            onChange={(e) => updateSeoNestedField('robots', 'noindex', e.target.checked)}
+                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                          />
+                          <span className="text-sm text-gray-700">No Index</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={seoData.robots.nofollow}
+                            onChange={(e) => updateSeoNestedField('robots', 'nofollow', e.target.checked)}
+                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                          />
+                          <span className="text-sm text-gray-700">No Follow</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={seoData.robots.nosnippet}
+                            onChange={(e) => updateSeoNestedField('robots', 'nosnippet', e.target.checked)}
+                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                          />
+                          <span className="text-sm text-gray-700">No Snippet</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={seoData.robots.noimageindex}
+                            onChange={(e) => updateSeoNestedField('robots', 'noimageindex', e.target.checked)}
+                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                          />
+                          <span className="text-sm text-gray-700">No Image Index</span>
+                        </label>
+                      </div>
+
+                      <p className="text-xs text-gray-500">
+                        Check these options to prevent search engines from indexing or following links on this page.
+                      </p>
+                    </div>
+
+                    {seoHasChanges && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <p className="text-sm text-yellow-700 flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4" />
+                          SEO changes will be saved when you click Save Changes
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -1410,15 +1750,25 @@ timer_datetime: {{timer_datetime}}
             "flex items-center justify-between px-6 py-4 border-t border-gray-200",
             isCreateMode ? "bg-green-50" : "bg-gray-50"
           )}>
-            <div className="flex items-center gap-2">
-              {isCreateMode ? (
-                <span className="text-sm text-gray-500">Resource will be created in WordPress immediately</span>
-              ) : hasChanges ? (
-                <>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Status:</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white"
+                >
+                  {STATUS_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+              {hasChanges && !isCreateMode && (
+                <div className="flex items-center gap-1.5 text-yellow-700">
                   <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                  <span className="text-sm text-yellow-700">Unsaved changes</span>
-                </>
-              ) : null}
+                  <span className="text-sm">Unsaved changes</span>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <button

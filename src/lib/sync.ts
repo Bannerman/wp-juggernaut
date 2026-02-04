@@ -10,6 +10,7 @@ import {
   type TaxonomySlug,
 } from './wp-client';
 import { collectMetaBoxKeys, runFieldAudit, saveAuditResults } from './field-audit';
+import { decodeHtmlEntities } from './utils';
 
 // Cache for media URLs to avoid duplicate requests during sync
 const mediaUrlCache = new Map<number, string>();
@@ -86,8 +87,8 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string) {
   const db = getDb();
   const now = new Date().toISOString();
 
-  // Handle potentially missing rendered fields
-  const title = resource.title?.rendered || '';
+  // Handle potentially missing rendered fields and decode HTML entities
+  const title = decodeHtmlEntities(resource.title?.rendered || '');
   const content = resource.content?.rendered || '';
   const excerpt = resource.excerpt?.rendered || '';
 
