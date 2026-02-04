@@ -115,6 +115,7 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
 
   const payload: UpdateResourcePayload = {
     title: resource.title,
+    slug: resource.slug,
     status: resource.status,
     featured_media: featuredMediaId,
   };

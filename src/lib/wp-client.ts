@@ -213,6 +213,7 @@ export async function createResource(
 
 export interface UpdateResourcePayload {
   title?: string;
+  slug?: string;
   status?: string;
   content?: string;
   featured_media?: number;

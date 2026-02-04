@@ -29,7 +29,7 @@ interface EditModalProps {
   terms: Record<string, Term[]>;
   onClose: () => void;
   onSave: (updates: Partial<Resource>) => void;
-  onCreate?: (data: { title: string; status: string; taxonomies: Record<string, number[]>; meta_box: Record<string, unknown> }) => void;
+  onCreate?: (data: { title: string; slug?: string; status: string; taxonomies: Record<string, number[]>; meta_box: Record<string, unknown> }) => void;
   isCreating?: boolean;
 }
 
@@ -95,6 +95,7 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
 
   const [activeTab, setActiveTab] = useState('basic');
   const [title, setTitle] = useState(effectiveResource.title);
+  const [slug, setSlug] = useState(effectiveResource.slug);
   const [status, setStatus] = useState(effectiveResource.status);
   const [taxonomies, setTaxonomies] = useState<Record<string, number[]>>(() =>
     JSON.parse(JSON.stringify(effectiveResource.taxonomies))
@@ -112,6 +113,7 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
   const hasChanges = isCreateMode
     ? title.trim().length > 0  // For create mode, just need a title
     : title !== effectiveResource.title ||
+      slug !== effectiveResource.slug ||
       status !== effectiveResource.status ||
       JSON.stringify(taxonomies) !== JSON.stringify(effectiveResource.taxonomies) ||
       JSON.stringify(metaBox) !== JSON.stringify(effectiveResource.meta_box);
@@ -123,6 +125,7 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
       try {
         await onCreate({
           title,
+          slug: slug || undefined,
           status,
           taxonomies,
           meta_box: metaBox,
@@ -142,6 +145,7 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
     try {
       await onSave({
         title,
+        slug,
         status,
         taxonomies,
         meta_box: metaBox,
@@ -233,16 +237,23 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
 
   // AI Fill state and helpers
   const [aiPasteContent, setAiPasteContent] = useState('');
-  const [promptCopied, setPromptCopied] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
   const [parseStatus, setParseStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
-  const [promptTemplate, setPromptTemplate] = useState<string | null>(null);
+  const [promptTemplates, setPromptTemplates] = useState<Record<string, string>>({});
 
-  // Fetch prompt template from prompt-templates API
+  // Fetch prompt templates from prompt-templates API
   useEffect(() => {
-    fetch('/api/prompt-templates/ai-fill')
-      .then(res => res.json())
-      .then(data => setPromptTemplate(data.template?.content || null))
-      .catch(() => setPromptTemplate(null));
+    Promise.all([
+      fetch('/api/prompt-templates/ai-fill').then(res => res.json()),
+      fetch('/api/prompt-templates/featured-image').then(res => res.json()),
+    ])
+      .then(([aiFill, featuredImage]) => {
+        setPromptTemplates({
+          'ai-fill': aiFill.template?.content || '',
+          'featured-image': featuredImage.template?.content || '',
+        });
+      })
+      .catch(() => setPromptTemplates({}));
   }, []);
 
   // Featured Image Upload state
@@ -252,7 +263,7 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const generatePrompt = () => {
+  const generatePrompt = (templateId: 'ai-fill' | 'featured-image') => {
     // Build taxonomy options dynamically from synced terms
     const getTaxonomyExamples = (taxonomy: string, maxExamples = 3): string => {
       const taxTerms = terms[taxonomy] || [];
@@ -309,8 +320,12 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
       '{{changelog}}': changelogBlock,
     };
 
-    // Use template from settings if available, otherwise use default
-    let template = promptTemplate || `Please provide content for a resource titled "{{title}}" with the following fields. Use the EXACT format below with the field markers.
+    // Get template content
+    let template = promptTemplates[templateId] || '';
+
+    // Fallback for ai-fill if not loaded
+    if (!template && templateId === 'ai-fill') {
+      template = `Please provide content for a resource titled "{{title}}" with the following fields. Use the EXACT format below with the field markers.
 
 ---TITLE---
 {{title}}
@@ -342,6 +357,7 @@ timer_datetime: {{timer_datetime}}
 {{changelog}}
 
 ---END---`;
+    }
 
     // Replace all placeholders
     for (const [placeholder, value] of Object.entries(replacements)) {
@@ -351,11 +367,11 @@ timer_datetime: {{timer_datetime}}
     return template;
   };
 
-  const copyPrompt = async () => {
+  const copyPrompt = async (templateId: 'ai-fill' | 'featured-image') => {
     try {
-      await navigator.clipboard.writeText(generatePrompt());
-      setPromptCopied(true);
-      setTimeout(() => setPromptCopied(false), 2000);
+      await navigator.clipboard.writeText(generatePrompt(templateId));
+      setCopiedPrompt(templateId);
+      setTimeout(() => setCopiedPrompt(null), 2000);
     } catch (err) {
       console.error('Failed to copy prompt:', err);
     }
@@ -837,6 +853,27 @@ timer_datetime: {{timer_datetime}}
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    URL Slug
+                    {isCreateMode && <span className="text-gray-400 font-normal ml-1">(optional - auto-generated from title if empty)</span>}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500 flex-shrink-0">plexkits.com/resource/</span>
+                    <input
+                      type="text"
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'))}
+                      placeholder={isCreateMode ? 'auto-generated' : ''}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
+                    />
+                  </div>
+                  {slug && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Full URL: <a href={`https://plexkits.com/resource/${slug}/`} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline">https://plexkits.com/resource/{slug}/</a>
+                    </p>
+                  )}
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                   <select
                     value={status}
@@ -1267,39 +1304,58 @@ timer_datetime: {{timer_datetime}}
             {/* AI Fill Tab */}
             {activeTab === 'ai' && (
               <div className="space-y-6">
-                {/* Instructions */}
-                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <h3 className="font-medium text-purple-900">Quick AI-Assisted Editing</h3>
-                      <p className="text-sm text-purple-700 mt-1">
-                        1. Copy the prompt below → 2. Paste into ChatGPT/Claude → 3. Paste the response back here → 4. Click Apply
-                      </p>
+                {/* Copy Prompt Buttons */}
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => copyPrompt('ai-fill')}
+                    className={cn(
+                      'flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 transition-all',
+                      copiedPrompt === 'ai-fill'
+                        ? 'bg-green-50 border-green-300 text-green-700'
+                        : 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-400 hover:shadow-md'
+                    )}
+                  >
+                    {copiedPrompt === 'ai-fill' ? (
+                      <Check className="w-8 h-8" />
+                    ) : (
+                      <Sparkles className="w-8 h-8 text-purple-600" />
+                    )}
+                    <div className="text-center">
+                      <span className="block font-semibold text-gray-900">
+                        {copiedPrompt === 'ai-fill' ? 'Copied!' : 'Copy AI Fill Prompt'}
+                      </span>
+                      <span className="text-xs text-gray-500 mt-1">Generate all content fields</span>
                     </div>
-                  </div>
+                  </button>
+
+                  <button
+                    onClick={() => copyPrompt('featured-image')}
+                    className={cn(
+                      'flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 transition-all',
+                      copiedPrompt === 'featured-image'
+                        ? 'bg-green-50 border-green-300 text-green-700'
+                        : 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 hover:border-amber-400 hover:shadow-md'
+                    )}
+                  >
+                    {copiedPrompt === 'featured-image' ? (
+                      <Check className="w-8 h-8" />
+                    ) : (
+                      <ImageIcon className="w-8 h-8 text-amber-600" />
+                    )}
+                    <div className="text-center">
+                      <span className="block font-semibold text-gray-900">
+                        {copiedPrompt === 'featured-image' ? 'Copied!' : 'Copy Image Prompt'}
+                      </span>
+                      <span className="text-xs text-gray-500 mt-1">Generate featured image ideas</span>
+                    </div>
+                  </button>
                 </div>
 
-                {/* Generated Prompt */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-medium text-gray-700">Structured Prompt</label>
-                    <button
-                      onClick={copyPrompt}
-                      className={cn(
-                        'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors',
-                        promptCopied
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                      )}
-                    >
-                      {promptCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      {promptCopied ? 'Copied!' : 'Copy Prompt'}
-                    </button>
-                  </div>
-                  <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-xs overflow-auto max-h-64 whitespace-pre-wrap font-mono">
-                    {generatePrompt()}
-                  </pre>
+                {/* Instructions */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-sm text-gray-600 text-center">
+                    Copy a prompt above → Paste into ChatGPT/Claude → Paste the response below → Click Apply
+                  </p>
                 </div>
 
                 {/* Paste Response */}
@@ -1314,7 +1370,7 @@ timer_datetime: {{timer_datetime}}
                       setParseStatus({ type: null, message: '' });
                     }}
                     placeholder="Paste the AI-generated response here..."
-                    rows={10}
+                    rows={12}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm"
                   />
                 </div>
@@ -1323,7 +1379,7 @@ timer_datetime: {{timer_datetime}}
                 {parseStatus.type && (
                   <div className={cn(
                     'p-3 rounded-lg text-sm',
-                    parseStatus.type === 'success' 
+                    parseStatus.type === 'success'
                       ? 'bg-green-50 text-green-700 border border-green-200'
                       : 'bg-red-50 text-red-700 border border-red-200'
                   )}>

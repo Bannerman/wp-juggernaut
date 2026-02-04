@@ -44,6 +44,7 @@ export async function PATCH(
     
     updateLocalResource(id, {
       title: body.title,
+      slug: body.slug,
       status: body.status,
       taxonomies: body.taxonomies,
       meta_box: body.meta_box,
