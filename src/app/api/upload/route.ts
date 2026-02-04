@@ -57,10 +57,11 @@ export async function POST(request: NextRequest) {
     }
 
     const mediaData = await wpResponse.json();
+    console.log('[upload] WordPress media response:', JSON.stringify(mediaData, null, 2));
 
     // Update media metadata if title or alt text provided
     if (title || altText) {
-      await fetch(`${url}/${mediaData.id}`, {
+      const metaResponse = await fetch(`${url}/${mediaData.id}`, {
         method: 'POST',
         headers: {
           'Authorization': authHeader,
@@ -71,11 +72,25 @@ export async function POST(request: NextRequest) {
           alt_text: altText || '',
         }),
       });
+      console.log('[upload] Media metadata update status:', metaResponse.status);
     }
+
+    // Get the URL - prefer source_url, fall back to guid.rendered
+    const imageUrl = mediaData.source_url || mediaData.guid?.rendered;
+
+    if (!imageUrl) {
+      console.error('[upload] No URL found in WordPress response. Keys:', Object.keys(mediaData));
+      return NextResponse.json(
+        { error: 'WordPress did not return an image URL' },
+        { status: 500 }
+      );
+    }
+
+    console.log('[upload] Returning: id=%d, url=%s', mediaData.id, imageUrl);
 
     return NextResponse.json({
       id: mediaData.id,
-      url: mediaData.source_url,
+      url: imageUrl,
       filename: filename || file.name,
       title: title || filename || file.name,
     });

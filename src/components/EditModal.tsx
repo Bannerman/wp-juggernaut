@@ -237,11 +237,11 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
   const [parseStatus, setParseStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
   const [promptTemplate, setPromptTemplate] = useState<string | null>(null);
 
-  // Fetch prompt template from settings
+  // Fetch prompt template from prompt-templates API
   useEffect(() => {
-    fetch('/api/settings')
+    fetch('/api/prompt-templates/ai-fill')
       .then(res => res.json())
-      .then(data => setPromptTemplate(data.settings.ai_prompt_template))
+      .then(data => setPromptTemplate(data.template?.content || null))
       .catch(() => setPromptTemplate(null));
   }, []);
 
@@ -613,6 +613,11 @@ timer_datetime: {{timer_datetime}}
     const selectedIds = taxonomies[taxonomy] || [];
     if (taxonomyTerms.length === 0) return null;
 
+    // For topic taxonomy, use hierarchical rendering
+    if (taxonomy === 'topic') {
+      return renderHierarchicalTaxonomy(taxonomyTerms, selectedIds, label, required);
+    }
+
     return (
       <div key={taxonomy}>
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -642,12 +647,143 @@ timer_datetime: {{timer_datetime}}
     );
   };
 
+  // Get topic hierarchy data for use in rendering
+  const getTopicHierarchy = () => {
+    const taxonomyTerms = terms['topic'] || [];
+    const selectedIds = taxonomies['topic'] || [];
+
+    const topLevel = taxonomyTerms.filter(t => t.parent_id === 0);
+    const childrenByParent = new Map<number, Term[]>();
+
+    taxonomyTerms.forEach(term => {
+      if (term.parent_id !== 0) {
+        const siblings = childrenByParent.get(term.parent_id) || [];
+        siblings.push(term);
+        childrenByParent.set(term.parent_id, siblings);
+      }
+    });
+
+    const hasSelectedChild = (parentId: number) => {
+      const children = childrenByParent.get(parentId) || [];
+      return children.some(c => selectedIds.includes(c.id));
+    };
+
+    // Parents that are selected or have selected children
+    const expandedParents = topLevel.filter(
+      p => (selectedIds.includes(p.id) || hasSelectedChild(p.id)) && childrenByParent.has(p.id)
+    );
+
+    return { topLevel, childrenByParent, selectedIds, expandedParents };
+  };
+
+  // Render just the top-level topic categories
+  const renderHierarchicalTaxonomy = (
+    taxonomyTerms: Term[],
+    selectedIds: number[],
+    label: string,
+    required: boolean
+  ) => {
+    const { topLevel, childrenByParent } = getTopicHierarchy();
+
+    const hasSelectedChild = (parentId: number) => {
+      const children = childrenByParent.get(parentId) || [];
+      return children.some(c => selectedIds.includes(c.id));
+    };
+
+    return (
+      <div key="topic">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
+          {topLevel.map((term) => {
+            const isSelected = selectedIds.includes(term.id);
+            const hasChildren = childrenByParent.has(term.id);
+            const childSelected = hasSelectedChild(term.id);
+            return (
+              <button
+                key={term.id}
+                type="button"
+                onClick={() => toggleTerm('topic', term.id)}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-sm border transition-colors',
+                  isSelected
+                    ? 'bg-brand-600 border-brand-600 text-white font-medium'
+                    : childSelected
+                      ? 'bg-brand-50 border-brand-300 text-brand-700'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
+                )}
+              >
+                {term.name}
+                {hasChildren && (
+                  <span className={cn(
+                    'ml-1 text-xs',
+                    isSelected ? 'text-brand-200' : 'text-gray-400'
+                  )}>
+                    ({(childrenByParent.get(term.id) || []).length})
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // Render subtopics as a separate section (like League/Competition Format)
+  const renderTopicSubtopics = () => {
+    const { childrenByParent, selectedIds, expandedParents } = getTopicHierarchy();
+
+    if (expandedParents.length === 0) return null;
+
+    return (
+      <div key="topic-subtopics">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Topic Subtopics
+        </label>
+        <div className="space-y-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+          {expandedParents.map((parent) => {
+            const children = childrenByParent.get(parent.id) || [];
+            if (children.length === 0) return null;
+
+            return (
+              <div key={`children-${parent.id}`}>
+                <p className="text-xs text-gray-600 mb-2 font-medium uppercase tracking-wide">{parent.name}</p>
+                <div className="flex flex-wrap gap-2">
+                  {children.map((term) => {
+                    const isSelected = selectedIds.includes(term.id);
+                    return (
+                      <button
+                        key={term.id}
+                        type="button"
+                        onClick={() => toggleTerm('topic', term.id)}
+                        className={cn(
+                          'px-3 py-1 rounded-full text-sm border transition-colors',
+                          isSelected
+                            ? 'bg-brand-100 border-brand-300 text-brand-700'
+                            : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
+                        )}
+                      >
+                        {term.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onClose} />
 
       <div className="relative min-h-full flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div className="relative bg-white rounded-xl shadow-xl w-[900px] h-[85vh] flex flex-col overflow-hidden">
           {/* Header */}
           <div className={cn(
             "flex items-center justify-between px-6 py-4 border-b border-gray-200",
@@ -687,7 +823,7 @@ timer_datetime: {{timer_datetime}}
           </div>
 
           {/* Content */}
-          <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-12rem)]">
+          <div className="px-6 py-4 overflow-y-auto flex-1">
             {/* Basic Tab */}
             {activeTab === 'basic' && (
               <div className="space-y-4">
@@ -903,11 +1039,15 @@ timer_datetime: {{timer_datetime}}
                 {renderTaxonomy('resource-type', 'Resource Type', true)}
                 {renderTaxonomy('intent', 'Intent')}
                 {renderTaxonomy('topic', 'Topic')}
+
+                {/* Conditional: Topic Subtopics (appears when a parent topic with children is selected) */}
+                {renderTopicSubtopics()}
+
                 {renderTaxonomy('audience', 'Audience')}
-                
+
                 {/* Conditional: Bracket Size (visible when resource-type = 417) */}
                 {isBracketType && renderTaxonomy('bracket-size', 'Bracket Size', true)}
-                
+
                 {/* Conditional: League & Competition Format (visible when topic contains 432) */}
                 {hasSportsTopic && (
                   <>

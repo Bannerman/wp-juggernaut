@@ -28,7 +28,6 @@ const KNOWN_CONTENT_FIELDS: string[] = [
   'text_',
   'group_features',
   'group_changelog',
-  'version',
   'download_sections',
   'timer_enable',
   'timer_title',

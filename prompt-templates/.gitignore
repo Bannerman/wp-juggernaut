@@ -1,0 +1,2 @@
+# Ignore timestamped backup versions (keep only template.md)
+**/template-*.md
