@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
     // Create on WordPress
     const resource = await createResource({
       title: body.title,
+      slug: body.slug,
       status: body.status || 'draft',
       content: body.content || '',
       ...body.taxonomies,

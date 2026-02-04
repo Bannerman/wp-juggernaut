@@ -42,6 +42,7 @@ interface Resource {
   title: string;
   slug: string;
   status: string;
+  date_gmt: string;
   modified_gmt: string;
   is_dirty: boolean;
   taxonomies: Record<string, number[]>;
@@ -69,6 +70,8 @@ export default function Home() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showSyncDropdown, setShowSyncDropdown] = useState(false);
+  
+  const [viewMode, setViewMode] = useState<'general' | 'power'>('general');
 
   const fetchData = useCallback(async () => {
     try {
@@ -409,21 +412,48 @@ export default function Home() {
       {stats && (
         <div className="bg-white border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-            <div className="flex items-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Total:</span>
-                <span className="font-medium text-gray-900">{stats.totalResources} resources</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Terms:</span>
-                <span className="font-medium text-gray-900">{stats.totalTerms}</span>
-              </div>
-              {stats.dirtyResources > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
-                  <span className="font-medium text-yellow-700">{stats.dirtyResources} unsaved changes</span>
+                  <span className="text-gray-500">Total:</span>
+                  <span className="font-medium text-gray-900">{stats.totalResources} resources</span>
                 </div>
-              )}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Terms:</span>
+                  <span className="font-medium text-gray-900">{stats.totalTerms}</span>
+                </div>
+                {stats.dirtyResources > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
+                    <span className="font-medium text-yellow-700">{stats.dirtyResources} unsaved changes</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                <button
+                  onClick={() => setViewMode('general')}
+                  className={cn(
+                    'px-3 py-1 rounded-md text-xs font-medium transition-colors',
+                    viewMode === 'general'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  )}
+                >
+                  General
+                </button>
+                <button
+                  onClick={() => setViewMode('power')}
+                  className={cn(
+                    'px-3 py-1 rounded-md text-xs font-medium transition-colors',
+                    viewMode === 'power'
+                      ? 'bg-white text-brand-700 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  )}
+                >
+                  Power
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -521,6 +551,7 @@ export default function Home() {
             resources={filteredResources}
             terms={terms}
             selectedIds={selectedResources}
+            viewMode={viewMode}
             onSelect={setSelectedResources}
             onEdit={setEditingResource}
             onUpdate={handleUpdateResource}

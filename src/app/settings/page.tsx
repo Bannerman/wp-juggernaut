@@ -255,10 +255,10 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="grid grid-cols-4 gap-6">
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 h-[calc(100vh-4rem-1px)] flex flex-col">
+          <div className="grid grid-cols-4 gap-6 flex-1 min-h-0">
             {/* Sidebar - Version List */}
-            <div className="col-span-1">
+            <div className="col-span-1 overflow-y-auto">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Versions</p>
               <div className="space-y-1">
                 {versions.map((v) => (
@@ -291,10 +291,10 @@ export default function SettingsPage() {
             </div>
 
             {/* Main Content - Version Preview */}
-            <div className="col-span-3">
+            <div className="col-span-3 flex flex-col min-h-0">
               {selectedVersion && versionContent !== null ? (
-                <div className="bg-white rounded-lg border border-gray-200">
-                  <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div className="bg-white rounded-lg border border-gray-200 flex flex-col flex-1 min-h-0">
+                  <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
                     <div>
                       <h2 className="text-lg font-semibold text-gray-900">Previous Version</h2>
                       <p className="text-sm text-gray-500">
@@ -310,15 +310,15 @@ export default function SettingsPage() {
                       {isSaving ? 'Restoring...' : 'Restore This Version'}
                     </button>
                   </div>
-                  <div className="p-6">
+                  <div className="p-6 flex-1 min-h-0 overflow-y-auto">
                     <pre className="font-mono text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg border border-gray-200">
                       {versionContent}
                     </pre>
                   </div>
                 </div>
               ) : (
-                <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-                  <History className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <div className="bg-white rounded-lg border border-gray-200 p-12 text-center flex-1 flex flex-col items-center justify-center">
+                  <History className="w-12 h-12 text-gray-300 mb-4" />
                   <p className="text-gray-500">Select a version from the sidebar to preview it</p>
                   <p className="text-sm text-gray-400 mt-2">Or click "Current Version" to return to the editor</p>
                 </div>
@@ -389,10 +389,10 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-4 gap-6">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 h-[calc(100vh-4rem-1px)] flex flex-col">
+        <div className="grid grid-cols-4 gap-6 flex-1 min-h-0">
           {/* Sidebar - Template List & Placeholders */}
-          <div className="col-span-1 space-y-2">
+          <div className="col-span-1 space-y-2 overflow-y-auto">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Templates</p>
             {templates.map((template) => (
               <button
@@ -433,10 +433,10 @@ export default function SettingsPage() {
           </div>
 
           {/* Main Content - Template Editor */}
-          <div className="col-span-3">
+          <div className="col-span-3 flex flex-col min-h-0">
             {activeTemplate && (
-              <div className="bg-white rounded-lg border border-gray-200">
-                <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div className="bg-white rounded-lg border border-gray-200 flex flex-col flex-1 min-h-0">
+                <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">{activeTemplate.name}</h2>
                     <p className="text-sm text-gray-500">{activeTemplate.description}</p>
@@ -450,17 +450,16 @@ export default function SettingsPage() {
                   </button>
                 </div>
 
-                <div className="p-6">
+                <div className="p-6 flex-1 flex flex-col min-h-0">
                   <textarea
                     value={editedContent[activeTemplateId!] || ''}
                     onChange={(e) => setEditedContent(prev => ({ ...prev, [activeTemplateId!]: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 resize-none"
-                    style={{ minHeight: '500px' }}
+                    className="w-full flex-1 px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 resize-none"
                     placeholder="Enter your prompt template..."
                   />
 
                   {hasChanges && (
-                    <p className="text-sm text-yellow-600 mt-3 flex items-center gap-1">
+                    <p className="text-sm text-yellow-600 mt-3 flex items-center gap-1 flex-shrink-0">
                       <AlertCircle className="w-4 h-4" />
                       You have unsaved changes
                     </p>

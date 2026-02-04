@@ -191,6 +191,7 @@ export function updateLocalResource(
   id: number,
   updates: {
     title?: string;
+    slug?: string;
     status?: string;
     taxonomies?: Partial<Record<TaxonomySlug, number[]>>;
     meta_box?: Record<string, unknown>;
@@ -201,13 +202,17 @@ export function updateLocalResource(
   if (!resource) throw new Error(`Resource ${id} not found`);
 
   // Update basic fields
-  if (updates.title !== undefined || updates.status !== undefined) {
+  if (updates.title !== undefined || updates.slug !== undefined || updates.status !== undefined) {
     const fields: string[] = ['is_dirty = 1'];
     const params: unknown[] = [];
 
     if (updates.title !== undefined) {
       fields.push('title = ?');
       params.push(updates.title);
+    }
+    if (updates.slug !== undefined) {
+      fields.push('slug = ?');
+      params.push(updates.slug);
     }
     if (updates.status !== undefined) {
       fields.push('status = ?');
