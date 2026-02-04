@@ -107,7 +107,11 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
   if (!resource) throw new Error(`Resource ${resourceId} not found`);
 
   // Get featured_media from meta_box if available, otherwise fall back to the column
-  const featuredMediaId = (resource.meta_box?.featured_media_id as number) || resource.featured_media || 0;
+  const metaMediaId = resource.meta_box?.featured_media_id;
+  const featuredMediaId = (typeof metaMediaId === 'number' ? metaMediaId : 0) || resource.featured_media || 0;
+
+  console.log(`[push] Resource ${resourceId} featured_media: meta_box.featured_media_id=${metaMediaId}, resource.featured_media=${resource.featured_media}, using=${featuredMediaId}`);
+  console.log(`[push] Resource ${resourceId} featured_image_url: ${resource.meta_box?.featured_image_url}`);
 
   const payload: UpdateResourcePayload = {
     title: resource.title,

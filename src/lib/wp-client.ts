@@ -239,12 +239,25 @@ export async function updateResource(
     body: JSON.stringify(payload),
   });
 
+  // Log what WordPress returned
+  console.log(`[wp-client] Response from WP: id=${data.id}, title="${data.title.rendered}", status=${data.status}, modified_gmt=${data.modified_gmt}`);
+
+  // Verify title was updated
+  if (payload.title !== undefined && data.title.rendered !== payload.title) {
+    console.warn(`[wp-client] TITLE MISMATCH for resource ${id}: sent="${payload.title}", received="${data.title.rendered}"`);
+    console.warn(`[wp-client] WordPress may not be accepting title updates. Check if the title field is protected by a plugin or theme.`);
+  } else if (payload.title !== undefined) {
+    console.log(`[wp-client] Title verified: "${data.title.rendered}"`);
+  }
+
   // Verify taxonomy data in response
   for (const taxonomy of TAXONOMIES) {
     const sent = (payload as Record<string, unknown>)[taxonomy] as number[] | undefined;
     const received = data[taxonomy as keyof WPResource] as number[] | undefined;
     if (sent && sent.length > 0) {
-      const match = JSON.stringify(sent) === JSON.stringify(received);
+      const sentSorted = [...sent].sort();
+      const receivedSorted = received ? [...received].sort() : [];
+      const match = JSON.stringify(sentSorted) === JSON.stringify(receivedSorted);
       if (!match) {
         console.warn(`[wp-client] TAXONOMY MISMATCH for ${taxonomy} on resource ${id}: sent=${JSON.stringify(sent)}, received=${JSON.stringify(received)}`);
       }
