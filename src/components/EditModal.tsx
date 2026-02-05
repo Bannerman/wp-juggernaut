@@ -428,6 +428,14 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
       '{{timer_title}}': (metaBox.timer_title as string) || '[e.g., EVENT STARTS]',
       '{{timer_datetime}}': (metaBox.timer_single_datetime as string) || '[YYYY-MM-DDTHH:MM format]',
       '{{changelog}}': changelogBlock,
+      // SEO fields
+      '{{seo_title}}': seoData.title || '[SEO title - max 60 characters]',
+      '{{seo_description}}': seoData.description || '[Meta description - max 160 characters]',
+      '{{seo_keywords}}': seoData.targetKeywords || '[keyword1, keyword2, keyword3]',
+      '{{og_title}}': seoData.og.title || '[Facebook share title]',
+      '{{og_description}}': seoData.og.description || '[Facebook share description]',
+      '{{twitter_title}}': seoData.twitter.title || '[Twitter share title]',
+      '{{twitter_description}}': seoData.twitter.description || '[Twitter share description]',
     };
 
     // Get template content
@@ -632,6 +640,66 @@ timer_datetime: {{timer_datetime}}
           updatedMeta.group_changelog = entries;
           fieldsUpdated++;
         }
+      }
+
+      // Parse SEO fields
+      const seoMatch = content.match(/---SEO---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
+      if (seoMatch) {
+        const seoContent = seoMatch[1];
+        const updatedSeo = { ...seoData };
+
+        const seoTitleMatch = seoContent.match(/seo_title:\s*(.+)/i);
+        if (seoTitleMatch && seoTitleMatch[1].trim() && !seoTitleMatch[1].includes('[')) {
+          updatedSeo.title = seoTitleMatch[1].trim();
+          fieldsUpdated++;
+        }
+
+        const seoDescMatch = seoContent.match(/seo_description:\s*(.+)/i);
+        if (seoDescMatch && seoDescMatch[1].trim() && !seoDescMatch[1].includes('[')) {
+          updatedSeo.description = seoDescMatch[1].trim();
+          fieldsUpdated++;
+        }
+
+        const seoKeywordsMatch = seoContent.match(/seo_keywords:\s*(.+)/i);
+        if (seoKeywordsMatch && seoKeywordsMatch[1].trim() && !seoKeywordsMatch[1].includes('[')) {
+          updatedSeo.targetKeywords = seoKeywordsMatch[1].trim();
+          fieldsUpdated++;
+        }
+
+        setSeoData(updatedSeo);
+      }
+
+      // Parse Social fields
+      const socialMatch = content.match(/---SOCIAL---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
+      if (socialMatch) {
+        const socialContent = socialMatch[1];
+        const updatedSeo = { ...seoData };
+
+        const ogTitleMatch = socialContent.match(/og_title:\s*(.+)/i);
+        if (ogTitleMatch && ogTitleMatch[1].trim() && !ogTitleMatch[1].includes('[')) {
+          updatedSeo.og = { ...updatedSeo.og, title: ogTitleMatch[1].trim() };
+          fieldsUpdated++;
+        }
+
+        const ogDescMatch = socialContent.match(/og_description:\s*(.+)/i);
+        if (ogDescMatch && ogDescMatch[1].trim() && !ogDescMatch[1].includes('[')) {
+          updatedSeo.og = { ...updatedSeo.og, description: ogDescMatch[1].trim() };
+          fieldsUpdated++;
+        }
+
+        const twitterTitleMatch = socialContent.match(/twitter_title:\s*(.+)/i);
+        if (twitterTitleMatch && twitterTitleMatch[1].trim() && !twitterTitleMatch[1].includes('[')) {
+          updatedSeo.twitter = { ...updatedSeo.twitter, title: twitterTitleMatch[1].trim() };
+          fieldsUpdated++;
+        }
+
+        const twitterDescMatch = socialContent.match(/twitter_description:\s*(.+)/i);
+        if (twitterDescMatch && twitterDescMatch[1].trim() && !twitterDescMatch[1].includes('[')) {
+          updatedSeo.twitter = { ...updatedSeo.twitter, description: twitterDescMatch[1].trim() };
+          fieldsUpdated++;
+        }
+
+        setSeoData(updatedSeo);
       }
 
       // Apply all metaBox updates at once

@@ -13,12 +13,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Extract featured_media from meta_box if present (WordPress expects it at top level)
+    const featuredMediaId = body.meta_box?.featured_media_id as number | undefined;
+
     // Create on WordPress
     const resource = await createResource({
       title: body.title,
       slug: body.slug,
       status: body.status || 'draft',
       content: body.content || '',
+      featured_media: featuredMediaId,
       ...body.taxonomies,
       meta_box: body.meta_box,
     });

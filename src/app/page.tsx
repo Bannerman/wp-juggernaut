@@ -14,7 +14,6 @@ import {
   Database,
   Plus,
   ChevronDown,
-  Activity,
   Settings
 } from 'lucide-react';
 import { ResourceTable } from '@/components/ResourceTable';
@@ -295,18 +294,11 @@ export default function Home() {
               <Database className="w-8 h-8 text-brand-600" />
               <h1 className="text-xl font-bold text-gray-900">PLEXKITS Resource Manager</h1>
               <Link
-                href="/diagnostics"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                <Activity className="w-4 h-4" />
-                Diagnostics
-              </Link>
-              <Link
                 href="/settings"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
               >
                 <Settings className="w-4 h-4" />
-                Prompts
+                Settings
               </Link>
             </div>
 

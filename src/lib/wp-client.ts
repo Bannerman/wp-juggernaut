@@ -1,3 +1,11 @@
+import { getActiveBaseUrl } from './site-config';
+
+// Use getter function to allow dynamic switching
+export function getWpBaseUrl(): string {
+  return getActiveBaseUrl();
+}
+
+// Legacy export for backwards compatibility (reads at import time)
 export const WP_BASE_URL = process.env.WP_BASE_URL || 'https://plexkits.com';
 export const WP_USERNAME = process.env.WP_USERNAME || '';
 export const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
@@ -71,7 +79,7 @@ async function wpFetch<T>(
   options: RequestInit = {},
   requiresAuth: boolean = true
 ): Promise<{ data: T; headers: Headers }> {
-  const url = `${WP_BASE_URL}/wp-json/wp/v2${endpoint}`;
+  const url = `${getWpBaseUrl()}/wp-json/wp/v2${endpoint}`;
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -282,7 +290,7 @@ export interface BatchResponse {
 }
 
 export async function batchUpdate(requests: BatchRequest[]): Promise<BatchResponse> {
-  const url = `${WP_BASE_URL}/wp-json/batch/v1`;
+  const url = `${getWpBaseUrl()}/wp-json/batch/v1`;
 
   console.log(`[wp-client] Batch update: ${requests.length} requests`);
 
@@ -336,7 +344,7 @@ export async function batchUpdate(requests: BatchRequest[]): Promise<BatchRespon
 
 export async function testConnection(): Promise<{ success: boolean; message: string }> {
   try {
-    const response = await fetch(`${WP_BASE_URL}/wp-json/wp/v2/`, {
+    const response = await fetch(`${getWpBaseUrl()}/wp-json/wp/v2/`, {
       headers: {
         Authorization: getAuthHeader(),
       },
