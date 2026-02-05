@@ -88,6 +88,17 @@ timer_datetime: {{timer_datetime}}
 ---CHANGELOG---
 {{changelog}}
 
+---SEO---
+seo_title: {{seo_title}}
+seo_description: {{seo_description}}
+seo_keywords: {{seo_keywords}}
+
+---SOCIAL---
+og_title: {{og_title}}
+og_description: {{og_description}}
+twitter_title: {{twitter_title}}
+twitter_description: {{twitter_description}}
+
 ---END---`;
   }
 
@@ -319,4 +330,11 @@ export const PLACEHOLDER_TAGS = [
   { tag: '{{timer_title}}', description: 'Timer title text' },
   { tag: '{{timer_datetime}}', description: 'Timer date/time' },
   { tag: '{{changelog}}', description: 'Changelog entries (formatted)' },
+  { tag: '{{seo_title}}', description: 'SEO title (max 60 chars)' },
+  { tag: '{{seo_description}}', description: 'Meta description (max 160 chars)' },
+  { tag: '{{seo_keywords}}', description: 'Target keywords (comma-separated)' },
+  { tag: '{{og_title}}', description: 'Facebook/OG title' },
+  { tag: '{{og_description}}', description: 'Facebook/OG description' },
+  { tag: '{{twitter_title}}', description: 'Twitter/X title' },
+  { tag: '{{twitter_description}}', description: 'Twitter/X description' },
 ];
