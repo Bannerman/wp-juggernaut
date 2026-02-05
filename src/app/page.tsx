@@ -229,7 +229,7 @@ export default function Home() {
     }
   };
 
-  const handleCreateResource = async (data: { title: string; status: string; taxonomies: Record<string, number[]>; meta_box: Record<string, unknown> }) => {
+  const handleCreateResource = async (data: { title: string; slug?: string; status: string; taxonomies: Record<string, number[]>; meta_box: Record<string, unknown>; seoData?: Record<string, unknown> }) => {
     setIsCreating(true);
     setError(null);
 
@@ -243,6 +243,22 @@ export default function Home() {
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || 'Create failed');
+      }
+
+      const createdResource = await res.json();
+
+      // Save SEO data if provided (after resource is created)
+      if (data.seoData && createdResource.id) {
+        try {
+          await fetch(`/api/seo/${createdResource.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data.seoData),
+          });
+        } catch (seoErr) {
+          console.error('Failed to save SEO data:', seoErr);
+          // Don't fail the whole operation, just log it
+        }
       }
 
       setSuccess('Resource created successfully');
