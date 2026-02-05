@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getActiveBaseUrl } from '@/lib/site-config';
 
-const WP_BASE_URL = process.env.WP_BASE_URL || 'https://plexkits.com';
 const WP_USERNAME = process.env.WP_USERNAME || '';
 const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
 
 const authHeader = 'Basic ' + Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
+
+function getBaseUrl(): string {
+  return getActiveBaseUrl();
+}
 
 export interface SEOData {
   title: string;
@@ -43,7 +47,7 @@ export async function GET(
   try {
     const postId = params.id;
 
-    const response = await fetch(`${WP_BASE_URL}/wp-json/seopress/v1/posts/${postId}`, {
+    const response = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}`, {
       method: 'GET',
       headers: {
         'Authorization': authHeader,
@@ -127,7 +131,7 @@ export async function PATCH(
       if (body.title !== undefined) titleDescPayload.title = body.title;
       if (body.description !== undefined) titleDescPayload.description = body.description;
 
-      const res = await fetch(`${WP_BASE_URL}/wp-json/seopress/v1/posts/${postId}/title-description-metas`, {
+      const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/title-description-metas`, {
         method: 'PUT',
         headers: {
           'Authorization': authHeader,
@@ -145,7 +149,7 @@ export async function PATCH(
 
     // Update target keywords
     if (body.targetKeywords !== undefined) {
-      const res = await fetch(`${WP_BASE_URL}/wp-json/seopress/v1/posts/${postId}/target-keywords`, {
+      const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/target-keywords`, {
         method: 'PUT',
         headers: {
           'Authorization': authHeader,
@@ -180,7 +184,7 @@ export async function PATCH(
       }
 
       if (Object.keys(socialPayload).length > 0) {
-        const res = await fetch(`${WP_BASE_URL}/wp-json/seopress/v1/posts/${postId}/social-settings`, {
+        const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/social-settings`, {
           method: 'PUT',
           headers: {
             'Authorization': authHeader,
@@ -220,7 +224,7 @@ export async function PATCH(
       }
 
       if (Object.keys(robotsPayload).length > 0) {
-        const res = await fetch(`${WP_BASE_URL}/wp-json/seopress/v1/posts/${postId}/meta-robot-settings`, {
+        const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/meta-robot-settings`, {
           method: 'PUT',
           headers: {
             'Authorization': authHeader,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { WP_BASE_URL, WP_USERNAME, WP_APP_PASSWORD } from '@/lib/wp-client';
+import { getWpBaseUrl, WP_USERNAME, WP_APP_PASSWORD } from '@/lib/wp-client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     // Prepare WordPress media endpoint
-    const url = `${WP_BASE_URL}/wp-json/wp/v2/media`;
+    const url = `${getWpBaseUrl()}/wp-json/wp/v2/media`;
     
     // Create auth header
     const credentials = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');

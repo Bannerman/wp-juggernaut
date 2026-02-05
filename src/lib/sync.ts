@@ -22,11 +22,11 @@ async function fetchMediaUrl(mediaId: number): Promise<string | null> {
   }
 
   try {
-    const { WP_BASE_URL, WP_USERNAME, WP_APP_PASSWORD } = await import('./wp-client');
+    const { getWpBaseUrl, WP_USERNAME, WP_APP_PASSWORD } = await import('./wp-client');
     const credentials = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
-    
+
     const response = await fetch(
-      `${WP_BASE_URL}/wp-json/wp/v2/media/${mediaId}`,
+      `${getWpBaseUrl()}/wp-json/wp/v2/media/${mediaId}`,
       {
         headers: {
           Authorization: `Basic ${credentials}`,
