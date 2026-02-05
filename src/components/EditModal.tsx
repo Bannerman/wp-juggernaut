@@ -29,7 +29,7 @@ interface EditModalProps {
   terms: Record<string, Term[]>;
   onClose: () => void;
   onSave: (updates: Partial<Resource>) => void;
-  onCreate?: (data: { title: string; slug?: string; status: string; taxonomies: Record<string, number[]>; meta_box: Record<string, unknown> }) => void;
+  onCreate?: (data: { title: string; slug?: string; status: string; taxonomies: Record<string, number[]>; meta_box: Record<string, unknown>; seoData?: SEOData }) => void;
   isCreating?: boolean;
 }
 
@@ -131,6 +131,50 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
   const [title, setTitle] = useState(effectiveResource.title);
   const [slug, setSlug] = useState(effectiveResource.slug);
   const [status, setStatus] = useState(effectiveResource.status);
+
+  // Track whether slug and SEO title have been manually edited (breaks auto-population)
+  // In edit mode, start as "manually edited" to preserve existing values
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(!isCreateMode || effectiveResource.slug !== '');
+  const [seoTitleManuallyEdited, setSeoTitleManuallyEdited] = useState(!isCreateMode);
+
+  // Helper to generate slug from title
+  const generateSlugFromTitle = (titleText: string): string => {
+    return titleText
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-')          // Replace spaces with hyphens
+      .replace(/-+/g, '-')           // Replace multiple hyphens with single
+      .replace(/^-|-$/g, '');        // Remove leading/trailing hyphens
+  };
+
+  // Handle title change with auto-population of connected fields
+  const handleTitleChange = (newTitle: string) => {
+    setTitle(newTitle);
+
+    // Auto-populate slug if not manually edited
+    if (!slugManuallyEdited) {
+      setSlug(generateSlugFromTitle(newTitle));
+    }
+
+    // Auto-populate SEO title if not manually edited
+    if (!seoTitleManuallyEdited) {
+      setSeoData(prev => ({ ...prev, title: newTitle }));
+    }
+  };
+
+  // Handle direct slug edit (breaks auto-population)
+  const handleSlugChange = (newSlug: string) => {
+    const sanitizedSlug = newSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+    setSlug(sanitizedSlug);
+    setSlugManuallyEdited(true);
+  };
+
+  // Handle direct SEO title edit (breaks auto-population)
+  const handleSeoTitleChange = (newSeoTitle: string) => {
+    setSeoData(prev => ({ ...prev, title: newSeoTitle }));
+    setSeoTitleManuallyEdited(true);
+  };
   const [taxonomies, setTaxonomies] = useState<Record<string, number[]>>(() =>
     JSON.parse(JSON.stringify(effectiveResource.taxonomies))
   );
@@ -221,12 +265,18 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
       if (!title.trim() || !onCreate) return;
       setIsSaving(true);
       try {
+        // Include SEO data if any fields were filled
+        const hasSeoData = seoData.title || seoData.description || seoData.targetKeywords ||
+                           seoData.og.title || seoData.og.description ||
+                           seoData.twitter.title || seoData.twitter.description;
+
         await onCreate({
           title,
           slug: slug || undefined,
           status,
           taxonomies,
           meta_box: metaBox,
+          seoData: hasSeoData ? seoData : undefined,
         });
       } finally {
         setIsSaving(false);
@@ -1043,19 +1093,20 @@ timer_datetime: {{timer_datetime}}
                   <input
                     type="text"
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
+                    onChange={(e) => handleTitleChange(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     URL Slug
-                    {isCreateMode && <span className="text-gray-400 font-normal ml-1">(optional - auto-generated from title if empty)</span>}
+                    {isCreateMode && !slugManuallyEdited && <span className="text-green-600 font-normal ml-1">(auto-synced from title)</span>}
+                    {isCreateMode && slugManuallyEdited && <span className="text-gray-400 font-normal ml-1">(manually edited)</span>}
                   </label>
                   <input
                     type="text"
                     value={slug}
-                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'))}
+                    onChange={(e) => handleSlugChange(e.target.value)}
                     placeholder={isCreateMode ? 'auto-generated' : ''}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
                   />
@@ -1179,18 +1230,19 @@ timer_datetime: {{timer_datetime}}
             {/* SEO Tab */}
             {activeTab === 'seo' && (
               <div className="space-y-6">
-                {isCreateMode ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <p className="text-sm text-amber-700">
-                      SEO settings will be available after the resource is created.
+                {isCreateMode && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm text-blue-700">
+                      SEO settings will be saved automatically after the resource is created.
                     </p>
                   </div>
-                ) : seoLoading ? (
+                )}
+                {!isCreateMode && seoLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                     <span className="ml-2 text-gray-500">Loading SEO data...</span>
                   </div>
-                ) : seoError ? (
+                ) : !isCreateMode && seoError ? (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                     <p className="text-sm text-red-700">{seoError}</p>
                   </div>
@@ -1209,11 +1261,13 @@ timer_datetime: {{timer_datetime}}
                           <span className="text-gray-400 font-normal ml-2">
                             {seoData.title.length}/60
                           </span>
+                          {isCreateMode && !seoTitleManuallyEdited && <span className="text-green-600 font-normal ml-2">(auto-synced from title)</span>}
+                          {isCreateMode && seoTitleManuallyEdited && <span className="text-gray-400 font-normal ml-2">(manually edited)</span>}
                         </label>
                         <input
                           type="text"
                           value={seoData.title}
-                          onChange={(e) => updateSeoField('title', e.target.value)}
+                          onChange={(e) => handleSeoTitleChange(e.target.value)}
                           placeholder="Custom title for search engines..."
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                         />
@@ -1396,7 +1450,7 @@ timer_datetime: {{timer_datetime}}
                       </p>
                     </div>
 
-                    {seoHasChanges && (
+                    {seoHasChanges && !isCreateMode && (
                       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                         <p className="text-sm text-yellow-700 flex items-center gap-2">
                           <AlertTriangle className="w-4 h-4" />
