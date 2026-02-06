@@ -1,6 +1,6 @@
 {
   "name": "juggernaut",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Juggernaut - A modular WordPress content management platform with plugin support",
   "private": true,
   "main": "electron/dist/main.js",
@@ -39,7 +39,8 @@
     "@tanstack/react-table": "^8.17.0",
     "date-fns": "^3.6.0",
     "clsx": "^2.1.1",
-    "tailwind-merge": "^2.3.0"
+    "tailwind-merge": "^2.3.0",
+    "electron-updater": "^6.2.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.10",
@@ -59,7 +60,6 @@
     "eslint-config-next": "^14.2.0",
     "electron": "^31.0.0",
     "electron-builder": "^24.13.0",
-    "electron-updater": "^6.2.0",
     "electron-squirrel-startup": "^1.0.1",
     "@electron/notarize": "^2.3.0"
   },
