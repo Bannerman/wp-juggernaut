@@ -5,7 +5,7 @@
  * Configuration (taxonomies, post types) comes from the active profile.
  */
 
-import { getActiveBaseUrl } from './site-config';
+import { getActiveBaseUrl, getCredentials } from './site-config';
 import { getProfileManager, ensureProfileLoaded } from './profiles';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
@@ -15,7 +15,20 @@ export function getWpBaseUrl(): string {
   return getActiveBaseUrl();
 }
 
-// Legacy export for backwards compatibility (reads at import time)
+// Get credentials from site-config (UI-editable) or fall back to env vars
+export function getWpCredentials(): { username: string; appPassword: string } {
+  const configCreds = getCredentials();
+  if (configCreds) {
+    return configCreds;
+  }
+  // Fallback to environment variables for backwards compatibility
+  return {
+    username: process.env.WP_USERNAME || '',
+    appPassword: process.env.WP_APP_PASSWORD || '',
+  };
+}
+
+// Legacy exports for backwards compatibility (now read dynamically)
 export const WP_BASE_URL = process.env.WP_BASE_URL || 'https://plexkits.com';
 export const WP_USERNAME = process.env.WP_USERNAME || '';
 export const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
@@ -101,8 +114,14 @@ export interface UpdateResourcePayload {
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 function getAuthHeader(): string {
-  const credentials = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
+  const creds = getWpCredentials();
+  const credentials = Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
   return `Basic ${credentials}`;
+}
+
+function hasValidCredentials(): boolean {
+  const creds = getWpCredentials();
+  return Boolean(creds.username && creds.appPassword);
 }
 
 // ─── Core Fetch ──────────────────────────────────────────────────────────────
@@ -120,7 +139,7 @@ async function wpFetch<T>(
   };
 
   // Only add auth if credentials are configured and auth is required
-  if (requiresAuth && WP_USERNAME && WP_APP_PASSWORD) {
+  if (requiresAuth && hasValidCredentials()) {
     headers.Authorization = getAuthHeader();
   }
 
@@ -217,7 +236,7 @@ export async function fetchResources(
   const restBase = postType || getPrimaryPostTypeRestBase();
 
   // Use auth if we have credentials and need non-public statuses
-  const hasAuth = Boolean(WP_USERNAME && WP_APP_PASSWORD);
+  const hasAuth = hasValidCredentials();
   const needsAuth = hasAuth && status !== 'publish';
 
   console.log(`[wp-client] fetchResources - postType: ${restBase}, status: ${status}, hasAuth: ${hasAuth}`);
@@ -269,7 +288,7 @@ export async function fetchResourceById(
 
 export async function fetchResourceIds(postType?: string): Promise<number[]> {
   const restBase = postType || getPrimaryPostTypeRestBase();
-  const hasAuth = Boolean(WP_USERNAME && WP_APP_PASSWORD);
+  const hasAuth = hasValidCredentials();
   const { data } = await wpFetch<{ id: number }[]>(
     `/${restBase}?per_page=100&_fields=id&status=any`,
     {},

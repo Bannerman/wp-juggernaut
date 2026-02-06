@@ -34,6 +34,10 @@ export const SITE_TARGETS: SiteTarget[] = [
 
 interface SiteConfig {
   activeTarget: string;
+  credentials?: {
+    username: string;
+    appPassword: string;
+  };
 }
 
 export function getConfig(): SiteConfig {
@@ -73,4 +77,22 @@ export function getActiveTarget(): SiteTarget {
 export function getActiveBaseUrl(): string {
   // Use the active target from config file (allows UI switching)
   return getActiveTarget().url;
+}
+
+export function getCredentials(): { username: string; appPassword: string } | null {
+  const config = getConfig();
+  if (config.credentials?.username && config.credentials?.appPassword) {
+    return config.credentials;
+  }
+  return null;
+}
+
+export function setCredentials(username: string, appPassword: string): SiteConfig {
+  const config = getConfig();
+  const newConfig: SiteConfig = {
+    ...config,
+    credentials: { username, appPassword },
+  };
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2));
+  return newConfig;
 }
