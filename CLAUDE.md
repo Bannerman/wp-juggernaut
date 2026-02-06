@@ -6,56 +6,72 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Juggernaut is a modular, plugin-based WordPress content management platform. It's a local-first desktop application (Electron + Next.js) for syncing, bulk editing, and pushing WordPress posts. It uses a local SQLite database for offline editing with conflict detection when pushing changes back.
 
+**Repository**: https://github.com/Bannerman/wp-juggernaut
+
 ## Common Commands
 
 All commands run from the `src/` directory:
 
 ```bash
 cd src
-npm run dev          # Start dev server (http://localhost:3000)
-npm run build        # Production build
-npm run lint         # ESLint (next/core-web-vitals)
-npm run test         # Jest test suite
-npm run test:watch   # Tests in watch mode
-npm run test:coverage # Coverage report (80% threshold)
-npm run db:init      # Initialize SQLite database
-npm run electron:dev        # Run Electron in development
-npm run electron:build:mac  # Build Mac app
+
+# Development
+npm run dev              # Start Next.js dev server (http://localhost:3000)
+npm run electron:dev     # Run Electron in development (start dev server first)
+npm run lint             # ESLint check
+npm run test             # Jest test suite
+npm run test:watch       # Tests in watch mode
+
+# Building
+npm run build            # Build Next.js for production
+npm run build:electron   # Compile Electron TypeScript
+npm run electron:build:mac  # Build macOS app locally
+
+# Database
+npm run db:init          # Initialize SQLite database
 ```
 
 ## Architecture
 
 **Stack**: Electron 31 + Next.js 14 (App Router) + React 18 + TypeScript 5.4 (strict) + TailwindCSS 3.4 + SQLite (better-sqlite3)
 
-The app is structured in layers:
+### Layers
 
-1. **UI Components** (`src/components/`) - Client-side React components using `'use client'` directive. ResourceTable uses @tanstack/react-table. EditModal and CreateModal handle resource editing. FilterPanel provides taxonomy/status filtering.
+1. **UI Components** (`src/components/`)
+   - Client-side React with `'use client'` directive
+   - ResourceTable (tanstack/react-table), EditModal, CreateModal, FilterPanel
+   - UpdateNotifier for Electron auto-updates
 
-2. **API Routes** (`src/app/api/`) - Next.js route handlers that bridge UI to business logic. Key routes: `/api/sync` (POST), `/api/push` (POST), `/api/resources` (GET/PATCH), `/api/resources/[id]` (GET/PATCH), `/api/resources/create` (POST), `/api/terms` (GET), `/api/stats` (GET), `/api/test-connection` (GET).
+2. **API Routes** (`src/app/api/`)
+   - `/api/sync` - Sync from WordPress
+   - `/api/push` - Push changes to WordPress
+   - `/api/resources` - CRUD operations
+   - `/api/terms` - Taxonomy terms
+   - `/api/profile` - Site configuration
+   - `/api/plugins` - Plugin management
 
-3. **Business Logic** (`src/lib/`) - Core modules:
-   - `wp-client.ts` - WordPress REST API client with Basic auth (Application Passwords). Handles paginated fetches and batch updates via `/wp-json/batch/v1`.
-   - `sync.ts` - Full sync (all resources) and incremental sync (modified since last sync via `modified_after`). Handles deletion detection.
-   - `push.ts` - Pushes dirty resources in batches of 25. Conflict detection compares local `modified_gmt` with server. 300ms delay between batches.
-   - `queries.ts` - Local database query abstraction with filtering support. Tracks dirty resources via `is_dirty` flag.
-   - `db.ts` - SQLite singleton connection with WAL mode. Schema: `resources`, `resource_meta`, `resource_terms`, `terms`, `sync_meta`, `change_log`.
-   - `utils.ts` - `cn()` class merge utility (clsx + tailwind-merge), date formatting, HTML stripping.
-   - `plugins/` - Modular plugin system with bundled MetaBox and SEOPress plugins.
-   - `profiles/` - Site-specific configurations for taxonomies, fields, and UI.
+3. **Business Logic** (`src/lib/`)
+   - `wp-client.ts` - WordPress REST API client
+   - `sync.ts` - Full/incremental sync engine
+   - `push.ts` - Batch push with conflict detection
+   - `queries.ts` - SQLite query abstraction
+   - `db.ts` - Database singleton (WAL mode)
+   - `plugins/` - Plugin system with hooks
+   - `profiles/` - Site-specific configurations
 
-4. **Electron** (`src/electron/`) - Desktop app wrapper with auto-updates via GitHub Releases.
-
-5. **Dashboard** (`src/app/page.tsx`) - Main page orchestrating all components. Manages state with React hooks, handles sync/push/edit/filter operations.
+4. **Electron** (`src/electron/`)
+   - `main.ts` - Main process, window management, auto-updater
+   - `preload.ts` - Secure IPC bridge
+   - `server.ts` - Production Next.js server
 
 ## Key Patterns
 
-- **Database singleton**: `getDb()` in `db.ts` lazily initializes one connection with WAL mode
-- **Dirty flag tracking**: Resources marked `is_dirty = 1` on local edit, cleared after successful push
-- **Conflict detection**: Compares `modified_gmt` timestamps to detect server-side changes since last sync
-- **Batch push**: Groups of 25 via WP batch API, with individual fallback on batch failure
-- **Plugin system**: Extensible architecture with hook system for data transformation
-- **Profile system**: Site-specific configurations loaded from JSON files
-- **Meta Box fields**: Custom fields via MB REST API plugin
+- **Database singleton**: `getDb()` lazily initializes one connection with WAL mode
+- **Dirty flag tracking**: `is_dirty = 1` on local edit, cleared after push
+- **Conflict detection**: Compares `modified_gmt` timestamps
+- **Batch push**: Groups of 25 via WP batch API
+- **Plugin system**: Hook-based extensibility
+- **Profile system**: JSON configurations per site
 
 ## Environment Setup
 
@@ -67,61 +83,112 @@ WP_APP_PASSWORD=<application-password>
 DATABASE_PATH=./data/juggernaut.db
 ```
 
-WordPress requires: REST API enabled, Resource CPT with `show_in_rest`, MB REST API plugin active, Application Password created.
-
 ## Coding Standards
 
-Defined in `docs/standards/coding_standards.md`. Key points:
-
-- **TypeScript strict mode** — use `unknown` if type unknown
-- **`interface`** for extensible objects, **`type`** for unions/intersections
-- **Import order**: external libs → `@/` absolute imports → relative → type imports → CSS
-- **Use `@/`** path alias for cross-directory imports (maps to `src/`)
-- **Functions**: max 50 lines, max 3 params (use object for more), explicit return types
-- **React**: arrow functions for components, `handle*` for handlers, `on*` for props
-- **API routes**: one handler per HTTP method, always return `NextResponse`, try-catch with status codes
-- **Database**: always use prepared statements, transactions for multi-statement ops
-- **Styling**: TailwindCSS utilities, use `cn()` for conditional classes, no static inline styles
-- **Git commits**: Conventional Commits format (`feat(scope): description`)
-- **`better-sqlite3`** is in `serverComponentsExternalPackages` in next.config.js to avoid bundling issues
+- **TypeScript strict mode** — use `unknown` not `any`
+- **Import order**: external → `@/` absolute → relative → types → CSS
+- **Functions**: max 50 lines, max 3 params, explicit return types
+- **React**: arrow functions, `handle*` handlers, `on*` props
+- **API routes**: one handler per method, always `NextResponse`, try-catch
+- **Database**: prepared statements, transactions for multi-ops
+- **Git commits**: Conventional Commits (`feat(scope): description`)
 
 ## Electron Desktop App
 
-Juggernaut is packaged as a native Mac app using Electron with auto-updates via GitHub Releases.
+### Development Workflow
+```bash
+# Terminal 1: Start Next.js
+npm run dev
 
-### Auto-Updates
+# Terminal 2: Start Electron (after Next.js is ready)
+npm run electron:dev
+```
 
-The app checks for updates on startup and notifies users when a new version is available. Updates are downloaded from GitHub Releases.
+### Local Build
+```bash
+npm run electron:build:mac
+# Output: src/dist-electron/
+```
+
+### Release Process
 
 **To release a new version:**
-1. Update `version` in `package.json`
-2. Create a git tag: `git tag v1.0.0`
-3. Push the tag: `git push origin v1.0.0`
-4. GitHub Actions will automatically build and publish the release
 
-### Code Signing & Notarization (macOS)
+1. **Update version** in `src/package.json`:
+   ```json
+   { "version": "1.1.0" }
+   ```
 
-Set these secrets in GitHub repository settings:
-- `MAC_CERTIFICATE` - Base64-encoded .p12 certificate
+2. **Commit and push**:
+   ```bash
+   git add src/package.json
+   git commit -m "Release v1.1.0"
+   git push origin main
+   ```
+
+3. **Create and push tag**:
+   ```bash
+   git tag v1.1.0
+   git push origin v1.1.0
+   ```
+
+4. **GitHub Actions automatically**:
+   - Builds for Intel and Apple Silicon Macs
+   - Creates GitHub Release with DMG files
+   - Uploads `latest-mac.yml` for auto-updates
+
+**Monitor build**: https://github.com/Bannerman/wp-juggernaut/actions
+
+### Auto-Update System
+
+- App checks for updates on startup (3 second delay)
+- Downloads from GitHub Releases
+- `latest-mac.yml` contains version info and checksums
+- `UpdateNotifier` component shows update status in UI
+- Users prompted to download/install new versions
+
+### Electron Files
+
+| File | Purpose |
+|------|---------|
+| `electron/main.ts` | Main process, window, auto-updater |
+| `electron/preload.ts` | Secure renderer ↔ main bridge |
+| `electron/server.ts` | Production Next.js server |
+| `electron-builder.yml` | Build configuration |
+| `components/UpdateNotifier.tsx` | Update status UI |
+| `types/electron.d.ts` | TypeScript declarations |
+
+### Code Signing (Optional)
+
+For signed releases without security warnings, add GitHub Secrets:
+- `MAC_CERTIFICATE` - Base64 .p12 certificate
 - `MAC_CERTIFICATE_PASSWORD` - Certificate password
 - `APPLE_ID` - Apple ID email
-- `APPLE_APP_SPECIFIC_PASSWORD` - App-specific password from appleid.apple.com
-- `APPLE_TEAM_ID` - Apple Developer Team ID
+- `APPLE_APP_SPECIFIC_PASSWORD` - App-specific password
+- `APPLE_TEAM_ID` - Developer Team ID
 
-### Electron Architecture
+Then update `.github/workflows/release.yml` to enable signing.
 
-- `electron/main.ts` - Main process, window management, auto-updater
-- `electron/preload.ts` - Secure bridge between main and renderer
-- `electron/server.ts` - Production Next.js server runner
-- `electron-builder.yml` - Build and packaging configuration
-- `components/UpdateNotifier.tsx` - UI for update status
+## Troubleshooting
 
-## MAIA Development Framework
+### Build Fails with Native Module Error
+```bash
+npm rebuild better-sqlite3
+```
 
-This project was bootstrapped using MAIA (Modular AI-driven Application). Planning artifacts live in:
-- `prompts/` - Phase 1 (planning) and Phase 2 (development) AI agent prompts
-- `modules/` - Module specifications (`spec.yaml` per module)
-- `docs/` - Requirements, domain model, API contracts, user stories
-- `maia_templates/` - Templates used during project generation
-- `project-manifest.yaml` - Module registry and project metadata
-- `kickstart.md` - Original project vision and requirements
+### Electron Can't Connect to Dev Server
+Ensure Next.js dev server is running first on port 3000.
+
+### GitHub Action Fails with 403
+Check that workflow has `permissions: contents: write` (already configured).
+
+### Database Locked
+Only one instance of the app can run at a time due to SQLite WAL mode.
+
+## MAIA Framework
+
+Project bootstrapped with MAIA. Planning artifacts:
+- `prompts/` - AI agent prompts
+- `modules/` - Module specifications
+- `docs/` - Requirements and standards
+- `project-manifest.yaml` - Module registry
