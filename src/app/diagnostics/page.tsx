@@ -73,10 +73,10 @@ export default function DiagnosticsPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-16 gap-4">
+      {/* Header - electron-drag allows window to be moved by dragging header */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 electron-drag">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
+          <div className="flex items-center h-16 gap-4 electron-no-drag">
             <Link
               href="/"
               className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
