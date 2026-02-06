@@ -4,11 +4,13 @@ import {
   batchUpdate,
   fetchResourceById,
   getTaxonomies,
+  getWpBaseUrl,
+  getWpCredentials,
   type UpdateResourcePayload,
   type BatchRequest,
 } from './wp-client';
 import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
-import { getResourceById, markResourceClean, getDirtyResources } from './queries';
+import { getResourceById, markResourceClean, getDirtyResources, getResourceSeo, type LocalSeoData } from './queries';
 
 export interface PushResult {
   success: boolean;
@@ -69,6 +71,80 @@ function normalizeDownloadSections(sections: unknown[]): DownloadSection[] {
       }),
     };
   });
+}
+
+/**
+ * Push SEO data to WordPress via SEOPress API.
+ * SEO is pushed separately from the resource since it uses a different API endpoint.
+ */
+async function pushSeoData(resourceId: number): Promise<{ success: boolean; error?: string }> {
+  const seo = getResourceSeo(resourceId);
+
+  // Check if there's any SEO data to push
+  const hasData = seo.title || seo.description || seo.canonical || seo.targetKeywords ||
+    seo.og.title || seo.og.description || seo.og.image ||
+    seo.twitter.title || seo.twitter.description || seo.twitter.image ||
+    seo.robots.noindex || seo.robots.nofollow || seo.robots.nosnippet || seo.robots.noimageindex;
+
+  if (!hasData) {
+    console.log(`[push] No SEO data to push for resource ${resourceId}`);
+    return { success: true };
+  }
+
+  try {
+    const creds = getWpCredentials();
+    const authHeader = 'Basic ' + Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
+
+    // SEOPress API payload format
+    const seoPayload = {
+      title: seo.title,
+      description: seo.description,
+      canonical: seo.canonical,
+      target_kw: seo.targetKeywords,
+      og: {
+        title: seo.og.title,
+        description: seo.og.description,
+        image: seo.og.image,
+      },
+      twitter: {
+        title: seo.twitter.title,
+        description: seo.twitter.description,
+        image: seo.twitter.image,
+      },
+      robots: {
+        noindex: seo.robots.noindex,
+        nofollow: seo.robots.nofollow,
+        nosnippet: seo.robots.nosnippet,
+        noimageindex: seo.robots.noimageindex,
+      },
+    };
+
+    console.log(`[push] Pushing SEO data for resource ${resourceId}`);
+
+    const response = await fetch(
+      `${getWpBaseUrl()}/wp-json/seopress/v1/posts/${resourceId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+        body: JSON.stringify(seoPayload),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[push] SEO push failed for resource ${resourceId}: ${response.status} - ${errorText}`);
+      return { success: false, error: `SEO push failed: ${response.status}` };
+    }
+
+    console.log(`[push] SEO data pushed successfully for resource ${resourceId}`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[push] SEO push error for resource ${resourceId}:`, error);
+    return { success: false, error: `SEO push error: ${String(error)}` };
+  }
 }
 
 export async function checkForConflicts(resourceIds: number[]): Promise<ConflictInfo[]> {
@@ -189,6 +265,12 @@ export async function pushResource(
 
     const payload = buildUpdatePayload(resourceId);
     const updated = await updateResource(resourceId, payload);
+
+    // Push SEO data (non-blocking - log errors but don't fail the push)
+    const seoResult = await pushSeoData(resourceId);
+    if (!seoResult.success) {
+      console.warn(`[push] SEO push warning for resource ${resourceId}: ${seoResult.error}`);
+    }
 
     // Update local modified_gmt and mark as clean
     const db = getDb();

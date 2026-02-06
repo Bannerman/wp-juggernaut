@@ -307,10 +307,24 @@ ipcMain.handle('set-credentials', async (_event, { username, appPassword }: { us
   if (success && !isDev) {
     // Restart the Next.js server so it picks up new credentials
     console.log('Credentials updated - restarting Next.js server...');
-    stopNextServer();
-    await startNextServer();
-    await waitForServer(`http://localhost:${PORT}`);
-    console.log('Server restarted with new credentials');
+    try {
+      stopNextServer();
+      // Small delay to ensure port is released
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await startNextServer();
+      const serverReady = await waitForServer(`http://localhost:${PORT}`);
+      if (serverReady) {
+        console.log('Server restarted with new credentials');
+        // Reload the window to reflect new state
+        mainWindow?.webContents.reload();
+      } else {
+        console.error('Server restart failed - server not ready');
+        dialog.showErrorBox('Restart Required', 'Credentials saved. Please restart the app for changes to take effect.');
+      }
+    } catch (error) {
+      console.error('Error restarting server:', error);
+      dialog.showErrorBox('Restart Required', 'Credentials saved. Please restart the app for changes to take effect.');
+    }
   }
   return { success };
 });

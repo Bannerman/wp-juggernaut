@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getResourceById, updateLocalResource } from '@/lib/queries';
+import { getResourceById, updateLocalResource, getResourceSeo, saveResourceSeo } from '@/lib/queries';
 
 export async function GET(
   request: NextRequest,
@@ -8,15 +8,18 @@ export async function GET(
   try {
     const id = parseInt(params.id, 10);
     const resource = getResourceById(id);
-    
+
     if (!resource) {
       return NextResponse.json(
         { error: 'Resource not found' },
         { status: 404 }
       );
     }
-    
-    return NextResponse.json(resource);
+
+    // Include SEO data
+    const seo = getResourceSeo(id);
+
+    return NextResponse.json({ ...resource, seo });
   } catch (error) {
     console.error('Error fetching resource:', error);
     return NextResponse.json(
@@ -33,7 +36,7 @@ export async function PATCH(
   try {
     const id = parseInt(params.id, 10);
     const body = await request.json();
-    
+
     const resource = getResourceById(id);
     if (!resource) {
       return NextResponse.json(
@@ -41,7 +44,8 @@ export async function PATCH(
         { status: 404 }
       );
     }
-    
+
+    // Update resource fields
     updateLocalResource(id, {
       title: body.title,
       slug: body.slug,
@@ -49,9 +53,15 @@ export async function PATCH(
       taxonomies: body.taxonomies,
       meta_box: body.meta_box,
     });
-    
+
+    // Update SEO data if provided
+    if (body.seo) {
+      saveResourceSeo(id, body.seo, true); // true = mark dirty
+    }
+
     const updated = getResourceById(id);
-    return NextResponse.json(updated);
+    const seo = getResourceSeo(id);
+    return NextResponse.json({ ...updated, seo });
   } catch (error) {
     console.error('Error updating resource:', error);
     return NextResponse.json(
