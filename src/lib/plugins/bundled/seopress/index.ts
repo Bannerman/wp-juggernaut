@@ -12,9 +12,11 @@ import type {
   SiteProfile,
   LocalResource,
   HookSystem,
+  PushPayload,
 } from '../../types';
 import manifest from './manifest.json';
 import { HOOKS } from '../../hooks';
+import { getPluginData, savePluginData } from '../../../queries';
 
 /**
  * SEO data structure
@@ -366,6 +368,61 @@ class SEOPressPlugin implements JuggernautPlugin {
     // SEO data is fetched on-demand, not during sync
     // This method is available if we want to pre-fetch SEO data
     return {};
+  }
+
+  // ─── Local Storage Methods ────────────────────────────────────────────────────
+
+  /**
+   * Get SEO data from local database
+   */
+  getLocalSEOData(postId: number): SEOData | null {
+    const data = getPluginData<SEOData>(postId, 'seopress', 'seo');
+    if (!data) return null;
+
+    // Merge with defaults to ensure all fields exist
+    return {
+      ...DEFAULT_SEO_DATA,
+      ...data,
+      og: { ...DEFAULT_SEO_DATA.og, ...data.og },
+      twitter: { ...DEFAULT_SEO_DATA.twitter, ...data.twitter },
+      robots: { ...DEFAULT_SEO_DATA.robots, ...data.robots },
+    };
+  }
+
+  /**
+   * Save SEO data to local database
+   */
+  saveLocalSEOData(postId: number, seoData: SEOData, markDirty = true): void {
+    savePluginData(postId, 'seopress', 'seo', seoData, markDirty);
+  }
+
+  /**
+   * Fetch SEO from WordPress and save to local database
+   */
+  async syncSEOData(
+    postId: number,
+    baseUrl: string,
+    authHeader: string
+  ): Promise<SEOData> {
+    const seoData = await this.fetchSEOData(postId, baseUrl, authHeader);
+    this.saveLocalSEOData(postId, seoData, false); // Don't mark dirty since we just synced
+    return seoData;
+  }
+
+  /**
+   * Push local SEO data to WordPress
+   */
+  async pushSEOData(
+    postId: number,
+    baseUrl: string,
+    authHeader: string
+  ): Promise<{ success: boolean; errors: string[] }> {
+    const localSEO = this.getLocalSEOData(postId);
+    if (!localSEO) {
+      return { success: true, errors: [] }; // Nothing to push
+    }
+
+    return this.updateSEOData(postId, localSEO, baseUrl, authHeader);
   }
 }
 
