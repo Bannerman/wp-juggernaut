@@ -7,7 +7,7 @@ import http from 'http';
 let mainWindow: BrowserWindow | null = null;
 let nextServer: UtilityProcess | null = null;
 const isDev = process.env.NODE_ENV === 'development';
-const PORT = 3000;
+const PORT = 4853; // Unique port to avoid conflicts with dev servers
 
 // Configure auto-updater for GitHub releases
 autoUpdater.autoDownload = false;
