@@ -5,8 +5,8 @@
   "private": true,
   "main": "electron/dist/main.js",
   "author": {
-    "name": "Your Name",
-    "email": "your@email.com"
+    "name": "Bannerman",
+    "email": "3360320+Bannerman@users.noreply.github.com"
   },
   "repository": {
     "type": "git",
