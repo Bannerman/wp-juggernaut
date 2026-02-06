@@ -1,7 +1,65 @@
-import { app, BrowserWindow, shell, ipcMain, dialog, utilityProcess, UtilityProcess } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, utilityProcess, UtilityProcess, safeStorage } from 'electron';
 import { autoUpdater, UpdateInfo, ProgressInfo } from 'electron-updater';
 import path from 'path';
+import fs from 'fs';
 import http from 'http';
+
+// Secure credential storage using macOS Keychain via safeStorage
+const CREDENTIALS_FILE = path.join(app.getPath('userData'), 'credentials.enc');
+
+interface StoredCredentials {
+  username: string;
+  appPassword: string;
+}
+
+function getSecureCredentials(): StoredCredentials | null {
+  try {
+    if (!fs.existsSync(CREDENTIALS_FILE)) {
+      return null;
+    }
+
+    if (!safeStorage.isEncryptionAvailable()) {
+      console.error('Encryption not available - cannot read credentials');
+      return null;
+    }
+
+    const encryptedData = fs.readFileSync(CREDENTIALS_FILE);
+    const decrypted = safeStorage.decryptString(encryptedData);
+    return JSON.parse(decrypted);
+  } catch (error) {
+    console.error('Failed to read secure credentials:', error);
+    return null;
+  }
+}
+
+function setSecureCredentials(credentials: StoredCredentials): boolean {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) {
+      console.error('Encryption not available - cannot store credentials');
+      return false;
+    }
+
+    const encrypted = safeStorage.encryptString(JSON.stringify(credentials));
+    fs.writeFileSync(CREDENTIALS_FILE, encrypted);
+    console.log('Credentials stored securely in:', CREDENTIALS_FILE);
+    return true;
+  } catch (error) {
+    console.error('Failed to store secure credentials:', error);
+    return false;
+  }
+}
+
+function deleteSecureCredentials(): boolean {
+  try {
+    if (fs.existsSync(CREDENTIALS_FILE)) {
+      fs.unlinkSync(CREDENTIALS_FILE);
+    }
+    return true;
+  } catch (error) {
+    console.error('Failed to delete credentials:', error);
+    return false;
+  }
+}
 
 
 let mainWindow: BrowserWindow | null = null;
@@ -79,20 +137,31 @@ async function startNextServer(): Promise<void> {
   // The standalone folder is in extraResources (outside asar)
   const serverPath = app.isPackaged
     ? path.join(process.resourcesPath, 'standalone', 'server.js')
-    : path.join(__dirname, '..', '.next', 'standalone', 'server.js');
+    : path.join(__dirname, '..', '..', '.next', 'standalone', 'server.js');
 
   console.log('Starting Next.js server from:', serverPath);
   console.log('Server path exists:', require('fs').existsSync(serverPath));
 
+  // Get credentials from secure storage to pass to the server
+  const credentials = getSecureCredentials();
+  const serverEnv: Record<string, string> = {
+    ...process.env as Record<string, string>,
+    PORT: String(PORT),
+    NODE_ENV: 'production',
+    HOSTNAME: 'localhost',
+  };
+
+  // Pass decrypted credentials to the server process
+  if (credentials) {
+    serverEnv.WP_USERNAME = credentials.username;
+    serverEnv.WP_APP_PASSWORD = credentials.appPassword;
+    console.log('Credentials loaded from secure storage for user:', credentials.username);
+  }
+
   // Use Electron's utilityProcess to fork the server
   // This uses Electron's built-in Node.js runtime
   nextServer = utilityProcess.fork(serverPath, [], {
-    env: {
-      ...process.env,
-      PORT: String(PORT),
-      NODE_ENV: 'production',
-      HOSTNAME: 'localhost',
-    },
+    env: serverEnv,
     cwd: path.dirname(serverPath),
   });
 
@@ -221,6 +290,38 @@ ipcMain.handle('install-update', () => {
 
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();
+});
+
+// Secure credential handlers
+ipcMain.handle('get-credentials', () => {
+  const creds = getSecureCredentials();
+  if (creds) {
+    // Return username but not the password for security
+    return { hasCredentials: true, username: creds.username };
+  }
+  return { hasCredentials: false, username: '' };
+});
+
+ipcMain.handle('set-credentials', async (_event, { username, appPassword }: { username: string; appPassword: string }) => {
+  const success = setSecureCredentials({ username, appPassword });
+  if (success && !isDev) {
+    // Restart the Next.js server so it picks up new credentials
+    console.log('Credentials updated - restarting Next.js server...');
+    stopNextServer();
+    await startNextServer();
+    await waitForServer(`http://localhost:${PORT}`);
+    console.log('Server restarted with new credentials');
+  }
+  return { success };
+});
+
+ipcMain.handle('delete-credentials', () => {
+  const success = deleteSecureCredentials();
+  if (success) {
+    delete process.env.WP_USERNAME;
+    delete process.env.WP_APP_PASSWORD;
+  }
+  return { success };
 });
 
 // App lifecycle

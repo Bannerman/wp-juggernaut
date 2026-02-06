@@ -10,6 +10,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
 
+  // Secure credential storage (uses macOS Keychain)
+  getCredentials: () => ipcRenderer.invoke('get-credentials'),
+  setCredentials: (username: string, appPassword: string) =>
+    ipcRenderer.invoke('set-credentials', { username, appPassword }),
+  deleteCredentials: () => ipcRenderer.invoke('delete-credentials'),
+
   // Update status listener
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => {
     const subscription = (_event: IpcRendererEvent, status: UpdateStatus) => {
@@ -33,11 +39,19 @@ export interface UpdateStatus {
   message?: string;
 }
 
+export interface CredentialStatus {
+  hasCredentials: boolean;
+  username: string;
+}
+
 export interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   checkForUpdates: () => Promise<{ success: boolean; version?: string; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
   installUpdate: () => void;
+  getCredentials: () => Promise<CredentialStatus>;
+  setCredentials: (username: string, appPassword: string) => Promise<{ success: boolean }>;
+  deleteCredentials: () => Promise<{ success: boolean }>;
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
 }
 

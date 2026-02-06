@@ -112,16 +112,32 @@ export default function SettingsPage() {
 
   // Fetch site config
   useEffect(() => {
-    fetch('/api/site-config')
-      .then(res => res.json())
-      .then(data => {
+    const loadConfig = async () => {
+      try {
+        // Fetch site targets
+        const res = await fetch('/api/site-config');
+        const data = await res.json();
         setTargets(data.targets || []);
         setActiveTarget(data.activeTarget || null);
-        setHasCredentials(data.hasCredentials || false);
-        setUsername(data.username || '');
-      })
-      .catch(err => console.error('Failed to fetch site config:', err))
-      .finally(() => setTargetLoading(false));
+
+        // Check for credentials via Electron secure storage (macOS Keychain)
+        if (window.electronAPI) {
+          const credStatus = await window.electronAPI.getCredentials();
+          setHasCredentials(credStatus.hasCredentials);
+          setUsername(credStatus.username);
+        } else {
+          // Fallback for browser dev mode
+          setHasCredentials(data.hasCredentials || false);
+          setUsername(data.username || '');
+        }
+      } catch (err) {
+        console.error('Failed to fetch site config:', err);
+      } finally {
+        setTargetLoading(false);
+      }
+    };
+
+    loadConfig();
   }, []);
 
   // Fetch plugins
@@ -188,7 +204,7 @@ export default function SettingsPage() {
     }
   };
 
-  // Save credentials
+  // Save credentials securely via macOS Keychain
   const saveCredentials = async () => {
     if (!username || !appPassword) {
       setMessage({ type: 'error', text: 'Both username and application password are required' });
@@ -199,18 +215,26 @@ export default function SettingsPage() {
     setMessage(null);
 
     try {
-      const res = await fetch('/api/site-config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credentials: { username, appPassword } }),
-      });
+      if (window.electronAPI) {
+        // Use secure storage (macOS Keychain) in Electron
+        const result = await window.electronAPI.setCredentials(username, appPassword);
+        if (!result.success) {
+          throw new Error('Failed to save credentials to secure storage');
+        }
+        setMessage({ type: 'success', text: 'Credentials saved securely to macOS Keychain' });
+      } else {
+        // Fallback for browser dev mode (less secure)
+        const res = await fetch('/api/site-config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credentials: { username, appPassword } }),
+        });
+        if (!res.ok) throw new Error('Failed to save credentials');
+        setMessage({ type: 'success', text: 'Credentials saved (dev mode)' });
+      }
 
-      if (!res.ok) throw new Error('Failed to save credentials');
-
-      const data = await res.json();
       setHasCredentials(true);
       setAppPassword(''); // Clear password from state for security
-      setMessage({ type: 'success', text: 'Credentials saved successfully' });
     } catch (err) {
       setMessage({ type: 'error', text: String(err) });
     } finally {
@@ -587,8 +611,11 @@ export default function SettingsPage() {
                 <p className="text-sm text-gray-500">
                   Enter your WordPress username and application password to connect to the API.
                   {hasCredentials && (
-                    <span className="ml-2 text-green-600 font-medium">✓ Credentials saved</span>
+                    <span className="ml-2 text-green-600 font-medium">✓ Stored in macOS Keychain</span>
                   )}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  🔒 Credentials are encrypted using macOS Keychain for secure storage
                 </p>
               </div>
 
