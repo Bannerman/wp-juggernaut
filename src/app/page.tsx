@@ -19,6 +19,7 @@ import {
 import { ResourceTable } from '@/components/ResourceTable';
 import { FilterPanel } from '@/components/FilterPanel';
 import { EditModal } from '@/components/EditModal';
+import { UpdateNotifier } from '@/components/UpdateNotifier';
 import { cn, formatRelativeTime } from '@/lib/utils';
 
 interface SyncStats {
@@ -71,6 +72,37 @@ export default function Home() {
   const [showSyncDropdown, setShowSyncDropdown] = useState(false);
   
   const [viewMode, setViewMode] = useState<'general' | 'power'>('general');
+
+  // Plugin-enabled features and profile config
+  const [enabledTabs, setEnabledTabs] = useState<string[]>(['basic', 'classification', 'ai']);
+  const [taxonomyConfig, setTaxonomyConfig] = useState<Array<{
+    slug: string;
+    name: string;
+    rest_base: string;
+    hierarchical?: boolean;
+    show_in_filter?: boolean;
+    filter_position?: number;
+    conditional?: { show_when?: { taxonomy: string; has_term_id: number } };
+  }>>([]);
+  const [taxonomyLabels, setTaxonomyLabels] = useState<Record<string, string>>({});
+
+  // Fetch profile config (includes enabled plugins and taxonomy config)
+  useEffect(() => {
+    fetch('/api/profile')
+      .then(res => res.json())
+      .then(data => {
+        if (data.enabledTabs) {
+          setEnabledTabs(data.enabledTabs);
+        }
+        if (data.taxonomies) {
+          setTaxonomyConfig(data.taxonomies);
+        }
+        if (data.taxonomyLabels) {
+          setTaxonomyLabels(data.taxonomyLabels);
+        }
+      })
+      .catch(err => console.error('Failed to fetch profile:', err));
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -229,7 +261,22 @@ export default function Home() {
     }
   };
 
-  const handleCreateResource = async (data: { title: string; slug?: string; status: string; taxonomies: Record<string, number[]>; meta_box: Record<string, unknown>; seoData?: Record<string, unknown> }) => {
+  const handleCreateResource = async (data: {
+    title: string;
+    slug?: string;
+    status: string;
+    taxonomies: Record<string, number[]>;
+    meta_box: Record<string, unknown>;
+    seoData?: {
+      title: string;
+      description: string;
+      canonical: string;
+      targetKeywords: string;
+      og: { title: string; description: string; image: string };
+      twitter: { title: string; description: string; image: string };
+      robots: { noindex: boolean; nofollow: boolean; nosnippet: boolean; noimageindex: boolean };
+    };
+  }) => {
     setIsCreating(true);
     setError(null);
 
@@ -319,6 +366,7 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-4">
+              <UpdateNotifier />
               {stats?.lastSync && (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <Clock className="w-4 h-4" />
@@ -525,6 +573,8 @@ export default function Home() {
               terms={terms}
               filters={taxonomyFilters}
               onChange={setTaxonomyFilters}
+              taxonomyConfig={taxonomyConfig}
+              taxonomyLabels={taxonomyLabels}
             />
           )}
         </div>
@@ -574,6 +624,9 @@ export default function Home() {
           terms={terms}
           onClose={() => setEditingResource(null)}
           onSave={(updates) => handleUpdateResource(editingResource.id, updates)}
+          enabledTabs={enabledTabs}
+          taxonomyConfig={taxonomyConfig}
+          taxonomyLabels={taxonomyLabels}
         />
       )}
 
@@ -586,6 +639,9 @@ export default function Home() {
           onSave={() => {}}
           onCreate={handleCreateResource}
           isCreating={isCreating}
+          enabledTabs={enabledTabs}
+          taxonomyConfig={taxonomyConfig}
+          taxonomyLabels={taxonomyLabels}
         />
       )}
     </div>

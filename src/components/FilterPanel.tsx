@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronDown, X } from 'lucide-react';
-import { cn, TAXONOMY_LABELS } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface Term {
   id: number;
@@ -12,21 +12,29 @@ interface Term {
   parent_id: number;
 }
 
+interface TaxonomyConfig {
+  slug: string;
+  name: string;
+  rest_base: string;
+  hierarchical?: boolean;
+  show_in_filter?: boolean;
+  filter_position?: number;
+}
+
 interface FilterPanelProps {
   terms: Record<string, Term[]>;
   filters: Record<string, number[]>;
   onChange: (filters: Record<string, number[]>) => void;
+  taxonomyConfig?: TaxonomyConfig[];
+  taxonomyLabels?: Record<string, string>;
 }
 
-const FILTERABLE_TAXONOMIES = [
-  'resource-type',
-  'topic',
-  'intent',
-  'audience',
-  'file_format',
-];
-
-export function FilterPanel({ terms, filters, onChange }: FilterPanelProps) {
+export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomyLabels = {} }: FilterPanelProps) {
+  // Get filterable taxonomies from profile config, sorted by filter_position
+  const filterableTaxonomies = (taxonomyConfig || [])
+    .filter(t => t.show_in_filter)
+    .sort((a, b) => (a.filter_position || 99) - (b.filter_position || 99))
+    .map(t => t.slug);
   const [expandedTaxonomy, setExpandedTaxonomy] = useState<string | null>(null);
 
   const toggleTaxonomy = (taxonomy: string) => {
@@ -81,10 +89,12 @@ export function FilterPanel({ terms, filters, onChange }: FilterPanelProps) {
       </div>
 
       <div className="space-y-3">
-        {FILTERABLE_TAXONOMIES.map((taxonomy) => {
+        {filterableTaxonomies.map((taxonomy) => {
           const taxonomyTerms = terms[taxonomy] || [];
           const selectedCount = (filters[taxonomy] || []).length;
           const isExpanded = expandedTaxonomy === taxonomy;
+          const taxConfig = taxonomyConfig?.find(t => t.slug === taxonomy);
+          const isHierarchical = taxConfig?.hierarchical ?? (taxonomy === 'topic');
 
           if (taxonomyTerms.length === 0) return null;
 
@@ -96,7 +106,7 @@ export function FilterPanel({ terms, filters, onChange }: FilterPanelProps) {
               >
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-gray-700">
-                    {TAXONOMY_LABELS[taxonomy] || taxonomy}
+                    {taxonomyLabels[taxonomy] || taxConfig?.name || taxonomy}
                   </span>
                   {selectedCount > 0 && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-brand-100 text-brand-700">
@@ -146,13 +156,12 @@ export function FilterPanel({ terms, filters, onChange }: FilterPanelProps) {
                   {/* Term list */}
                   <div className="max-h-48 overflow-y-auto scrollbar-thin space-y-1">
                     {taxonomyTerms
-                      .filter((term) => term.parent_id === 0 || taxonomy !== 'topic')
+                      .filter((term) => term.parent_id === 0 || !isHierarchical)
                       .map((term) => {
                         const isSelected = (filters[taxonomy] || []).includes(term.id);
-                        const children =
-                          taxonomy === 'topic'
-                            ? taxonomyTerms.filter((t) => t.parent_id === term.id)
-                            : [];
+                        const children = isHierarchical
+                          ? taxonomyTerms.filter((t) => t.parent_id === term.id)
+                          : [];
 
                         return (
                           <div key={term.id}>

@@ -1,0 +1,43 @@
+{
+  "id": "seopress",
+  "name": "SEOPress",
+  "version": "1.0.0",
+  "description": "Support for SEOPress SEO plugin. Manage meta titles, descriptions, social media tags, and robots directives.",
+  "author": {
+    "name": "Juggernaut",
+    "url": "https://github.com/plexkits/juggernaut"
+  },
+  "license": "MIT",
+  "requires_core": ">=1.0.0",
+  "tier": "bundled",
+  "wordpress_plugin": {
+    "name": "SEOPress",
+    "slug": "wp-seopress",
+    "url": "https://www.seopress.org/",
+    "detection": {
+      "rest_endpoint": "/wp-json/seopress/v1/"
+    }
+  },
+  "provides": {
+    "tabs": ["seo"],
+    "field_types": ["seo_title", "seo_description", "seo_keywords", "seo_social", "seo_robots"],
+    "api_extensions": ["seopress"]
+  },
+  "settings_schema": {
+    "auto_sync_seo": {
+      "type": "boolean",
+      "label": "Auto-sync SEO data",
+      "description": "Automatically fetch SEO data when editing resources",
+      "default": true
+    },
+    "default_robots": {
+      "type": "object",
+      "label": "Default robots settings",
+      "description": "Default robots meta settings for new posts",
+      "default": {
+        "noindex": false,
+        "nofollow": false
+      }
+    }
+  }
+}
