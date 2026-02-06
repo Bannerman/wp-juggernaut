@@ -1,12 +1,13 @@
-# **AI Agent Guidelines for PLEXKITS API**
+# **AI Agent Guidelines for Juggernaut**
 
-This document provides guidelines for AI agents and human developers working on **PLEXKITS API**, a project built with the MAIA (Modular AI-driven Application) Toolkit.
+This document provides guidelines for AI agents and human developers working on **Juggernaut**, a project built with the MAIA (Modular AI-driven Application) Toolkit.
 
 ## **1. Project Overview**
 
-**PLEXKITS API** is a local-first Next.js application designed to sync, bulk edit, and push WordPress Resource posts. It leverages a modular architecture to handle complex synchronization logic and batch updates.
+**Juggernaut** is a modular, plugin-based WordPress content management platform. It's a local-first desktop application (Electron + Next.js) designed to sync, bulk edit, and push WordPress posts. It leverages a profile-driven architecture with extensible plugin support.
 
 **Tech Stack:**
+- **Desktop:** Electron 31 with auto-updates via GitHub Releases
 - **Frontend:** Next.js 14 (App Router) + React 18
 - **Language:** TypeScript 5.4 (Strict mode)
 - **Styling:** TailwindCSS 3.4
@@ -17,9 +18,10 @@ This document provides guidelines for AI agents and human developers working on 
 ### **Project Structure**
 
 ```
-PLEXKITS-API/
+wp-juggernaut/
 ├── README.md                    # Project overview and setup
 ├── AGENTS.md                    # This file - AI agent guidelines
+├── CLAUDE.md                    # Claude Code specific instructions
 ├── project-manifest.yaml        # Central project registry & module mapping
 ├── docs/                        # All project documentation
 │   ├── requirements/            # Functional & non-functional requirements
@@ -32,7 +34,8 @@ PLEXKITS-API/
 ├── src/                         # Implementation (Source Code)
 │   ├── app/                     # Next.js App Router (Pages & API Routes)
 │   ├── components/              # Shared UI components
-│   └── lib/                     # Core logic (Sync, Push, DB, Queries)
+│   ├── lib/                     # Core logic (Sync, Push, DB, Queries, Plugins)
+│   └── electron/                # Electron main process files
 └── standards/                   # Additional project templates
 ```
 
@@ -42,7 +45,7 @@ PLEXKITS-API/
 
 Phase 1 established the foundation:
 1. ✅ **Project Manifest** - Central registry in `project-manifest.yaml` mapping logical modules to `src/` paths.
-2. ✅ **Technology Stack** - Next.js + SQLite stack selected.
+2. ✅ **Technology Stack** - Next.js + SQLite + Electron stack selected.
 3. ✅ **Requirements** - Defined in `docs/requirements/`.
 4. ✅ **Coding Standards** - Strictly defined in `docs/standards/coding_standards.md`.
 5. ✅ **Initial Modules** - Specifications created in `modules/*/spec.yaml`.
@@ -70,8 +73,19 @@ The logical modules defined in `modules/` are mapped to implementation files in 
 | **push-engine** | `src/lib/push.ts` | Implemented |
 | **api-routes** | `src/app/api/*` | Implemented |
 | **ui-components** | `src/components/*` | Implemented |
+| **plugins** | `src/lib/plugins/*` | Implemented |
+| **profiles** | `src/lib/profiles/*` | Implemented |
+| **electron** | `src/electron/*` | Implemented |
 
-## **4. Coding Standards Highlights**
+## **4. Plugin System**
+
+Juggernaut uses a modular plugin architecture:
+
+- **Bundled Plugins** (`src/lib/plugins/bundled/`): MetaBox, SEOPress
+- **Profile System** (`src/lib/profiles/`): Site-specific configurations
+- **Hook System** (`src/lib/plugins/hooks.ts`): Event-driven extension points
+
+## **5. Coding Standards Highlights**
 
 All code must adhere to `docs/standards/coding_standards.md`. Key mandates:
 - **TypeScript:** Strict mode, explicit return types, `import type` for types.
@@ -79,14 +93,20 @@ All code must adhere to `docs/standards/coding_standards.md`. Key mandates:
 - **API:** Handle WordPress batch limits (max 25/batch) and conflict detection via `modified_gmt`.
 - **UI:** TailwindCSS for styling, functional components with TypeScript interfaces for props.
 
-## **5. Git Workflow**
+## **6. Git Workflow**
 
 ### **Commit Message Format**
 Follow Conventional Commits: `type(scope): description`.
 - `feat(sync): Add progress tracking to sync engine`
 - `fix(db): Correct type mismatch in resource query`
 
-## **6. Quality Checklist**
+### **Releasing**
+1. Update version in `src/package.json`
+2. Create git tag: `git tag v1.0.0`
+3. Push tag: `git push origin v1.0.0`
+4. GitHub Actions builds and publishes the release
+
+## **7. Quality Checklist**
 
 Before completing a task:
 - [ ] Code follows `docs/standards/coding_standards.md`.

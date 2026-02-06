@@ -1,31 +1,62 @@
-# **PLEXKITS API Pusher**
-Welcome to PLEXKITS API Pusher\! This repository has been initialized to build a software application using a state-of-the-art, AI-driven development process (MAIA - Modular AI-driven Application).
+# **Juggernaut**
 
-## **Your Role: The Human Orchestrator**
-Your primary role is not to write code, but to provide the vision, make key decisions, and review the AI's work. You are the architect and the project manager; the AI is your development team.
+A modular, plugin-based WordPress content management platform. Juggernaut is a desktop application (Electron + Next.js) for syncing, bulk editing, and pushing WordPress posts with a local-first architecture.
 
-## **How to Get Started: The 3-Step Process**
-This project follows a structured, three-phase process to go from idea to finished application.
+## **Features**
 
-### **Step 1: Complete the Kickstart (kickstart.md)**
-This is the most important first step.
+- **Local-First**: SQLite database for offline editing with conflict detection
+- **Bulk Operations**: Sync and push multiple resources in batches
+- **Plugin System**: Extensible architecture with MetaBox and SEOPress support
+- **Profile-Driven**: Site-specific configurations for taxonomies, fields, and UI
+- **Auto-Updates**: GitHub Releases integration for seamless updates
+- **Cross-Platform**: Builds for macOS (Intel & Apple Silicon)
 
-1. Open the kickstart.md file in the root of this project.
-2. Fill out each section with as much detail as you can. The more specific your goals and features, the better the AI can understand your vision.
+## **Quick Start**
 
-### **Step 2: Collaborate with the MAIA Assistant (Phase 1\)**
-Once your kickstart.md is complete, you will engage in a dialogue with the MAIA AI Assistant. In this phase, you and the AI will:
+### Development
+```bash
+cd src
+npm install
+npm run dev          # Start Next.js dev server
+npm run electron:dev # Run Electron in development
+```
 
-* **Select a Technology Stack:** Choose the right tools for the job.
-* **Define Project Rules:** Establish the coding standards and best practices.
-* **Specify Every Module:** Create a detailed blueprint (/upd) that tells the AI agents *exactly* what to build for PLEXKITS API Pusher.
+### Build Desktop App
+```bash
+cd src
+npm run electron:build:mac  # Build macOS app
+```
 
-Your role here is to answer the AI's questions and give final approval on the generated blueprint.
+### Environment Setup
+Copy `src/.env.example` to `src/.env.local`:
+```
+WP_BASE_URL=https://your-site.com
+WP_USERNAME=<wp-username>
+WP_APP_PASSWORD=<application-password>
+DATABASE_PATH=./data/juggernaut.db
+```
 
-### **Step 3: Hand-off to the AI Developers (Phase 2\)**
-Once you approve the complete blueprint (/upd), the development process is handed off to a team of autonomous AI agents.
+## **Architecture**
 
-* The agents will read the blueprint and generate the PLEXKITS API Pusher application's source code into the /src directory.
-* You can monitor their progress and, once complete, review the final application.
+- **Electron** - Desktop app wrapper with auto-updates
+- **Next.js 14** - App Router for UI and API routes
+- **SQLite** - Local database via better-sqlite3
+- **Plugin System** - Modular extensions for WordPress integrations
+- **Profile System** - Site-specific configurations
 
-**To begin, please open kickstart.md.**
+## **Documentation**
+
+- `CLAUDE.md` - Claude Code instructions
+- `AGENTS.md` - AI agent guidelines
+- `docs/` - Requirements, API contracts, standards
+
+## **Release Process**
+
+1. Update version in `src/package.json`
+2. Create git tag: `git tag v1.0.0`
+3. Push tag: `git push origin v1.0.0`
+4. GitHub Actions builds and publishes automatically
+
+## **License**
+
+Private - All rights reserved.
