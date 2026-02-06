@@ -1,5 +1,6 @@
 import { getDb } from './db';
-import { TAXONOMY_META_FIELD, type WPResource } from './wp-client';
+import type { WPResource } from './wp-client';
+import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
 
 export interface AuditEntry {
   field_name: string;
