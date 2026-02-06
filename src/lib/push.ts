@@ -3,12 +3,11 @@ import {
   updateResource,
   batchUpdate,
   fetchResourceById,
+  getTaxonomies,
   type UpdateResourcePayload,
   type BatchRequest,
-  TAXONOMIES,
-  TAXONOMY_META_FIELD,
-  type TaxonomySlug,
 } from './wp-client';
+import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
 import { getResourceById, markResourceClean, getDirtyResources } from './queries';
 
 export interface PushResult {
@@ -142,7 +141,8 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
   // This ensures the assignment works regardless of how the CPT is configured.
   // Note: file_format is auto-synced from download_file_format in download links, so skip it.
   const taxSummary: Record<string, number[]> = {};
-  for (const taxonomy of TAXONOMIES) {
+  const taxonomies = getTaxonomies();
+  for (const taxonomy of taxonomies) {
     // Skip file_format - WP auto-syncs it from download_file_format in download links
     if (taxonomy === 'file_format') continue;
 

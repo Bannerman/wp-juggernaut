@@ -1,4 +1,14 @@
+/**
+ * WordPress REST API Client
+ *
+ * Handles all communication with WordPress REST API.
+ * Configuration (taxonomies, post types) comes from the active profile.
+ */
+
 import { getActiveBaseUrl } from './site-config';
+import { getProfileManager, ensureProfileLoaded } from './profiles';
+
+// ─── Configuration ───────────────────────────────────────────────────────────
 
 // Use getter function to allow dynamic switching
 export function getWpBaseUrl(): string {
@@ -10,32 +20,46 @@ export const WP_BASE_URL = process.env.WP_BASE_URL || 'https://plexkits.com';
 export const WP_USERNAME = process.env.WP_USERNAME || '';
 export const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
 
-export const TAXONOMIES = [
-  'resource-type',
-  'topic',
-  'intent',
-  'audience',
-  'leagues',
-  'competition_format',
-  'bracket-size',
-  'file_format',
-] as const;
+/**
+ * Get taxonomy slugs from the active profile
+ */
+export function getTaxonomies(): string[] {
+  try {
+    ensureProfileLoaded();
+    return getProfileManager().getTaxonomySlugs();
+  } catch {
+    // Fallback to empty if no profile loaded
+    console.warn('[wp-client] No profile loaded, returning empty taxonomies');
+    return [];
+  }
+}
 
-export type TaxonomySlug = typeof TAXONOMIES[number];
+/**
+ * Get taxonomy labels from the active profile
+ */
+export function getTaxonomyLabels(): Record<string, string> {
+  try {
+    ensureProfileLoaded();
+    return getProfileManager().getTaxonomyLabels();
+  } catch {
+    return {};
+  }
+}
 
-// Mapping from taxonomy REST slug to the Meta Box field ID used for updates.
-// Some taxonomies (like file_format) don't have a Meta Box field and only
-// work via the top-level REST field.
-export const TAXONOMY_META_FIELD: Partial<Record<TaxonomySlug, string>> = {
-  'resource-type': 'tax_resource_type',
-  'topic': 'tax_topic',
-  'intent': 'tax_intent',
-  'audience': 'tax_audience',
-  'leagues': 'tax_league',
-  'bracket-size': 'tax_bracket_size',
-  'competition_format': 'taax_competition_format', // typo is in the WP Meta Box config
-  // file_format has no Meta Box field - only works via top-level REST field
-};
+/**
+ * Get the primary post type REST base from the active profile
+ */
+export function getPrimaryPostTypeRestBase(): string {
+  try {
+    ensureProfileLoaded();
+    const postType = getProfileManager().getPrimaryPostType();
+    return postType?.rest_base || 'posts';
+  } catch {
+    return 'posts';
+  }
+}
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface WPTerm {
   id: number;
@@ -58,21 +82,30 @@ export interface WPResource {
   content: { rendered: string };
   excerpt: { rendered: string };
   featured_media: number;
-  'resource-type': number[];
-  topic: number[];
-  intent: number[];
-  audience: number[];
-  leagues: number[];
-  competition_format: number[];
-  'bracket-size': number[];
-  file_format: number[];
   meta_box?: Record<string, unknown>;
+  // Taxonomy fields are dynamic based on profile
+  [key: string]: unknown;
 }
+
+export interface UpdateResourcePayload {
+  title?: string;
+  slug?: string;
+  status?: string;
+  content?: string;
+  featured_media?: number;
+  meta_box?: Record<string, unknown>;
+  // Taxonomy fields are dynamic
+  [key: string]: unknown;
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
 
 function getAuthHeader(): string {
   const credentials = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
   return `Basic ${credentials}`;
 }
+
+// ─── Core Fetch ──────────────────────────────────────────────────────────────
 
 async function wpFetch<T>(
   endpoint: string,
@@ -80,10 +113,10 @@ async function wpFetch<T>(
   requiresAuth: boolean = true
 ): Promise<{ data: T; headers: Headers }> {
   const url = `${getWpBaseUrl()}/wp-json/wp/v2${endpoint}`;
-  
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers as Record<string, string>,
+    ...(options.headers as Record<string, string>),
   };
 
   // Only add auth if credentials are configured and auth is required
@@ -105,21 +138,41 @@ async function wpFetch<T>(
   return { data, headers: response.headers };
 }
 
-export async function fetchTaxonomyTerms(taxonomy: TaxonomySlug): Promise<WPTerm[]> {
-  // Taxonomies don't require auth for public terms
-  const { data } = await wpFetch<WPTerm[]>(`/${taxonomy}?per_page=100`, {}, false);
+// ─── Taxonomy Functions ──────────────────────────────────────────────────────
+
+/**
+ * Fetch terms for a specific taxonomy
+ */
+export async function fetchTaxonomyTerms(
+  taxonomy: string,
+  restBase?: string
+): Promise<WPTerm[]> {
+  // Use the REST base if provided, otherwise use taxonomy slug
+  const endpoint = restBase || taxonomy;
+  const { data } = await wpFetch<WPTerm[]>(`/${endpoint}?per_page=100`, {}, false);
   return data.map((term) => ({ ...term, taxonomy }));
 }
 
-export async function fetchAllTaxonomies(): Promise<Record<TaxonomySlug, WPTerm[]>> {
+/**
+ * Fetch all taxonomy terms based on the active profile configuration
+ */
+export async function fetchAllTaxonomies(): Promise<Record<string, WPTerm[]>> {
+  const profile = getProfileManager().getCurrentProfile();
+  const taxonomyConfigs = profile?.taxonomies || [];
+
+  if (taxonomyConfigs.length === 0) {
+    console.warn('[wp-client] No taxonomies configured in profile');
+    return {};
+  }
+
   const results = await Promise.all(
-    TAXONOMIES.map(async (taxonomy) => {
+    taxonomyConfigs.map(async (taxConfig) => {
       try {
-        const terms = await fetchTaxonomyTerms(taxonomy);
-        return { taxonomy, terms };
+        const terms = await fetchTaxonomyTerms(taxConfig.slug, taxConfig.rest_base);
+        return { taxonomy: taxConfig.slug, terms };
       } catch (error) {
-        console.error(`Error fetching ${taxonomy}:`, error);
-        return { taxonomy, terms: [] };
+        console.error(`Error fetching ${taxConfig.slug}:`, error);
+        return { taxonomy: taxConfig.slug, terms: [] };
       }
     })
   );
@@ -129,15 +182,18 @@ export async function fetchAllTaxonomies(): Promise<Record<TaxonomySlug, WPTerm[
       acc[taxonomy] = terms;
       return acc;
     },
-    {} as Record<TaxonomySlug, WPTerm[]>
+    {} as Record<string, WPTerm[]>
   );
 }
+
+// ─── Resource Functions ──────────────────────────────────────────────────────
 
 export interface FetchResourcesOptions {
   page?: number;
   perPage?: number;
   status?: string;
   modifiedAfter?: string;
+  postType?: string;
 }
 
 export interface FetchResourcesResult {
@@ -149,15 +205,24 @@ export interface FetchResourcesResult {
 export async function fetchResources(
   options: FetchResourcesOptions = {}
 ): Promise<FetchResourcesResult> {
-  const { page = 1, perPage = 100, status = 'any', modifiedAfter } = options;
+  const {
+    page = 1,
+    perPage = 100,
+    status = 'any',
+    modifiedAfter,
+    postType,
+  } = options;
+
+  // Get post type from options or profile
+  const restBase = postType || getPrimaryPostTypeRestBase();
 
   // Use auth if we have credentials and need non-public statuses
   const hasAuth = Boolean(WP_USERNAME && WP_APP_PASSWORD);
   const needsAuth = hasAuth && status !== 'publish';
 
-  console.log(`[wp-client] fetchResources - status: ${status}, hasAuth: ${hasAuth}, needsAuth: ${needsAuth}`);
+  console.log(`[wp-client] fetchResources - postType: ${restBase}, status: ${status}, hasAuth: ${hasAuth}`);
 
-  let endpoint = `/resource?per_page=${perPage}&page=${page}&status=${status}`;
+  let endpoint = `/${restBase}?per_page=${perPage}&page=${page}&status=${status}`;
   if (modifiedAfter) {
     endpoint += `&modified_after=${encodeURIComponent(modifiedAfter)}`;
   }
@@ -165,10 +230,9 @@ export async function fetchResources(
   console.log(`[wp-client] Fetching: ${endpoint}`);
 
   const { data, headers } = await wpFetch<WPResource[]>(endpoint, {}, needsAuth);
-  
-  console.log(`[wp-client] Received ${data.length} resources from WordPress:`);
-  data.forEach(r => console.log(`  - ID: ${r.id}, Title: ${r.title.rendered}, Status: ${r.status}`));
-  
+
+  console.log(`[wp-client] Received ${data.length} resources from WordPress`);
+
   return {
     resources: data,
     total: parseInt(headers.get('X-WP-Total') || '0', 10),
@@ -177,14 +241,15 @@ export async function fetchResources(
 }
 
 export async function fetchAllResources(
-  modifiedAfter?: string
+  modifiedAfter?: string,
+  postType?: string
 ): Promise<WPResource[]> {
   const allResources: WPResource[] = [];
   let page = 1;
   let totalPages = 1;
 
   while (page <= totalPages) {
-    const result = await fetchResources({ page, modifiedAfter });
+    const result = await fetchResources({ page, modifiedAfter, postType });
     allResources.push(...result.resources);
     totalPages = result.totalPages;
     page++;
@@ -193,16 +258,20 @@ export async function fetchAllResources(
   return allResources;
 }
 
-export async function fetchResourceById(id: number): Promise<WPResource> {
-  const { data } = await wpFetch<WPResource>(`/resource/${id}`);
+export async function fetchResourceById(
+  id: number,
+  postType?: string
+): Promise<WPResource> {
+  const restBase = postType || getPrimaryPostTypeRestBase();
+  const { data } = await wpFetch<WPResource>(`/${restBase}/${id}`);
   return data;
 }
 
-export async function fetchResourceIds(): Promise<number[]> {
-  // Fetch all resources with auth to include drafts
+export async function fetchResourceIds(postType?: string): Promise<number[]> {
+  const restBase = postType || getPrimaryPostTypeRestBase();
   const hasAuth = Boolean(WP_USERNAME && WP_APP_PASSWORD);
   const { data } = await wpFetch<{ id: number }[]>(
-    '/resource?per_page=100&_fields=id&status=any',
+    `/${restBase}?per_page=100&_fields=id&status=any`,
     {},
     hasAuth
   );
@@ -210,71 +279,61 @@ export async function fetchResourceIds(): Promise<number[]> {
 }
 
 export async function createResource(
-  payload: UpdateResourcePayload
+  payload: UpdateResourcePayload,
+  postType?: string
 ): Promise<WPResource> {
-  const { data } = await wpFetch<WPResource>('/resource', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, true);
+  const restBase = postType || getPrimaryPostTypeRestBase();
+  const { data } = await wpFetch<WPResource>(
+    `/${restBase}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    true
+  );
   return data;
-}
-
-export interface UpdateResourcePayload {
-  title?: string;
-  slug?: string;
-  status?: string;
-  content?: string;
-  featured_media?: number;
-  'resource-type'?: number[];
-  topic?: number[];
-  intent?: number[];
-  audience?: number[];
-  leagues?: number[];
-  competition_format?: number[];
-  'bracket-size'?: number[];
-  file_format?: number[];
-  meta_box?: Record<string, unknown>;
 }
 
 export async function updateResource(
   id: number,
-  payload: UpdateResourcePayload
+  payload: UpdateResourcePayload,
+  postType?: string
 ): Promise<WPResource> {
-  console.log(`[wp-client] Updating resource ${id}, payload keys:`, Object.keys(payload));
-  console.log(`[wp-client] Full payload:`, JSON.stringify(payload, null, 2));
+  const restBase = postType || getPrimaryPostTypeRestBase();
 
-  const { data } = await wpFetch<WPResource>(`/resource/${id}`, {
+  console.log(`[wp-client] Updating ${restBase} ${id}, payload keys:`, Object.keys(payload));
+
+  const { data } = await wpFetch<WPResource>(`/${restBase}/${id}`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 
-  // Log what WordPress returned
-  console.log(`[wp-client] Response from WP: id=${data.id}, title="${data.title.rendered}", status=${data.status}, modified_gmt=${data.modified_gmt}`);
+  console.log(`[wp-client] Response from WP: id=${data.id}, title="${data.title.rendered}", status=${data.status}`);
 
   // Verify title was updated
   if (payload.title !== undefined && data.title.rendered !== payload.title) {
     console.warn(`[wp-client] TITLE MISMATCH for resource ${id}: sent="${payload.title}", received="${data.title.rendered}"`);
-    console.warn(`[wp-client] WordPress may not be accepting title updates. Check if the title field is protected by a plugin or theme.`);
-  } else if (payload.title !== undefined) {
-    console.log(`[wp-client] Title verified: "${data.title.rendered}"`);
   }
 
-  // Verify taxonomy data in response
-  for (const taxonomy of TAXONOMIES) {
-    const sent = (payload as Record<string, unknown>)[taxonomy] as number[] | undefined;
-    const received = data[taxonomy as keyof WPResource] as number[] | undefined;
+  // Verify taxonomy data (dynamic based on profile)
+  const taxonomySlugs = getTaxonomies();
+  for (const taxonomy of taxonomySlugs) {
+    const sent = payload[taxonomy] as number[] | undefined;
+    const received = data[taxonomy] as number[] | undefined;
     if (sent && sent.length > 0) {
       const sentSorted = [...sent].sort();
       const receivedSorted = received ? [...received].sort() : [];
       const match = JSON.stringify(sentSorted) === JSON.stringify(receivedSorted);
       if (!match) {
-        console.warn(`[wp-client] TAXONOMY MISMATCH for ${taxonomy} on resource ${id}: sent=${JSON.stringify(sent)}, received=${JSON.stringify(received)}`);
+        console.warn(`[wp-client] TAXONOMY MISMATCH for ${taxonomy}: sent=${JSON.stringify(sent)}, received=${JSON.stringify(received)}`);
       }
     }
   }
 
   return data;
 }
+
+// ─── Batch Operations ────────────────────────────────────────────────────────
 
 export interface BatchRequest {
   method: 'POST' | 'PUT' | 'DELETE';
@@ -310,10 +369,9 @@ export async function batchUpdate(requests: BatchRequest[]): Promise<BatchRespon
 
   const result = await response.json();
 
-  // WordPress batch API may return responses as an object keyed by path, not an array
+  // WordPress batch API may return responses as an object keyed by path
   // Normalize to array format
   if (result.responses && !Array.isArray(result.responses)) {
-    console.log(`[wp-client] Batch response is object-keyed, converting to array`);
     const responseArray: Array<{ status: number; body: unknown }> = [];
     for (const req of requests) {
       const key = req.path;
@@ -324,23 +382,16 @@ export async function batchUpdate(requests: BatchRequest[]): Promise<BatchRespon
           body: resp.body ?? resp,
         });
       } else {
-        console.warn(`[wp-client] No batch response for path: ${key}`);
         responseArray.push({ status: 500, body: { error: 'No response for path' } });
       }
     }
     result.responses = responseArray;
   }
 
-  console.log(`[wp-client] Batch response: ${result.responses?.length ?? 0} responses`);
-  if (Array.isArray(result.responses)) {
-    result.responses.forEach((r: { status: number; body: unknown }, i: number) => {
-      const body = r.body as Record<string, unknown>;
-      console.log(`[wp-client]   [${i}] status=${r.status}, id=${body?.id}, title=${(body?.title as Record<string, string>)?.rendered ?? 'N/A'}`);
-    });
-  }
-
   return result;
 }
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
 
 export async function testConnection(): Promise<{ success: boolean; message: string }> {
   try {
@@ -349,9 +400,11 @@ export async function testConnection(): Promise<{ success: boolean; message: str
         Authorization: getAuthHeader(),
       },
     });
-    
+
     if (response.ok) {
-      return { success: true, message: 'Connected to WordPress REST API client for PLEXKITS' };
+      const profile = getProfileManager().getCurrentProfile();
+      const siteName = profile?.profile_name || 'WordPress';
+      return { success: true, message: `Connected to ${siteName}` };
     }
     return { success: false, message: `HTTP ${response.status}` };
   } catch (error) {

@@ -1,0 +1,84 @@
+appId: com.juggernaut.app
+productName: Juggernaut
+copyright: Copyright © 2024
+
+# Directories
+directories:
+  output: dist-electron
+  buildResources: build
+
+# Files to include in the app
+files:
+  - .next/**/*
+  - node_modules/**/*
+  - package.json
+  - electron/dist/**/*
+  - public/**/*
+
+# Extra resources (database, etc.)
+extraResources:
+  - from: data
+    to: data
+    filter:
+      - "**/*"
+
+# macOS configuration
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+
+# DMG configuration
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# Windows configuration (for future)
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+
+# NSIS installer config
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+# Linux configuration (for future)
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
+  icon: build/icons
+
+# Auto-update via GitHub releases
+publish:
+  provider: github
+  owner: mini2
+  repo: wp-juggernaut
+  releaseType: release
+
+# Code signing (set environment variables)
+afterSign: scripts/notarize.js

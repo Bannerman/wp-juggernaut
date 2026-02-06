@@ -75,7 +75,13 @@ export function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '');
 }
 
+/**
+ * Get taxonomy labels from profile or provide fallback
+ * This is kept as a constant for backward compatibility in client components
+ * The actual labels come from the profile via API
+ */
 export const TAXONOMY_LABELS: Record<string, string> = {
+  // These are fallbacks - actual labels come from profile
   'resource-type': 'Resource Type',
   topic: 'Topic',
   intent: 'Intent',
@@ -84,7 +90,29 @@ export const TAXONOMY_LABELS: Record<string, string> = {
   competition_format: 'Competition Format',
   'bracket-size': 'Bracket Size',
   file_format: 'File Format',
+  // Common WordPress defaults
+  category: 'Category',
+  post_tag: 'Tag',
 };
+
+/**
+ * Get a taxonomy label with fallback to slug
+ */
+export function getTaxonomyLabel(
+  slug: string,
+  labels?: Record<string, string>
+): string {
+  if (labels && labels[slug]) {
+    return labels[slug];
+  }
+  if (TAXONOMY_LABELS[slug]) {
+    return TAXONOMY_LABELS[slug];
+  }
+  // Convert slug to title case as fallback
+  return slug
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, (l) => l.toUpperCase());
+}
 
 export const STATUS_COLORS: Record<string, string> = {
   publish: 'bg-green-100 text-green-800',

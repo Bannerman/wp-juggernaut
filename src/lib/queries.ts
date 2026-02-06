@@ -1,5 +1,5 @@
 import { getDb } from './db';
-import { TAXONOMIES, type TaxonomySlug } from './wp-client';
+import { getTaxonomies } from './wp-client';
 
 export interface LocalResource {
   id: number;
@@ -14,7 +14,7 @@ export interface LocalResource {
   synced_at: string;
   is_dirty: boolean;
   meta_box: Record<string, unknown>;
-  taxonomies: Record<TaxonomySlug, number[]>;
+  taxonomies: Record<string, number[]>;
 }
 
 export interface LocalTerm {
@@ -30,35 +30,36 @@ export function getAllTerms(): LocalTerm[] {
   return db.prepare('SELECT * FROM terms ORDER BY taxonomy, name').all() as LocalTerm[];
 }
 
-export function getTermsByTaxonomy(taxonomy: TaxonomySlug): LocalTerm[] {
+export function getTermsByTaxonomy(taxonomy: string): LocalTerm[] {
   const db = getDb();
   return db
     .prepare('SELECT * FROM terms WHERE taxonomy = ? ORDER BY name')
     .all(taxonomy) as LocalTerm[];
 }
 
-export function getAllTermsGrouped(): Record<TaxonomySlug, LocalTerm[]> {
+export function getAllTermsGrouped(): Record<string, LocalTerm[]> {
   const terms = getAllTerms();
   const grouped: Record<string, LocalTerm[]> = {};
-  
-  for (const taxonomy of TAXONOMIES) {
+
+  const taxonomies = getTaxonomies();
+  for (const taxonomy of taxonomies) {
     grouped[taxonomy] = [];
   }
-  
+
   for (const term of terms) {
     if (grouped[term.taxonomy]) {
       grouped[term.taxonomy].push(term);
     }
   }
   
-  return grouped as Record<TaxonomySlug, LocalTerm[]>;
+  return grouped;
 }
 
 export interface ResourceFilters {
   status?: string;
   search?: string;
   isDirty?: boolean;
-  taxonomies?: Partial<Record<TaxonomySlug, number[]>>;
+  taxonomies?: Partial<Record<string, number[]>>;
 }
 
 export function getResources(filters: ResourceFilters = {}): LocalResource[] {
@@ -111,7 +112,7 @@ export function getResources(filters: ResourceFilters = {}): LocalResource[] {
     if (filters.taxonomies) {
       for (const [taxonomy, termIds] of Object.entries(filters.taxonomies)) {
         if (termIds && termIds.length > 0) {
-          const resourceTerms = resource.taxonomies[taxonomy as TaxonomySlug] || [];
+          const resourceTerms = resource.taxonomies[taxonomy] || [];
           const hasMatch = termIds.some((id) => resourceTerms.includes(id));
           if (!hasMatch) {
             return null;
@@ -167,24 +168,27 @@ function getResourceMeta(resourceId: number): Record<string, unknown> {
   return meta;
 }
 
-function getResourceTaxonomies(resourceId: number): Record<TaxonomySlug, number[]> {
+function getResourceTaxonomies(resourceId: number): Record<string, number[]> {
   const db = getDb();
   const rows = db
     .prepare('SELECT term_id, taxonomy FROM resource_terms WHERE resource_id = ?')
     .all(resourceId) as Array<{ term_id: number; taxonomy: string }>;
 
   const taxonomies: Record<string, number[]> = {};
-  for (const taxonomy of TAXONOMIES) {
+  const profileTaxonomies = getTaxonomies();
+  for (const taxonomy of profileTaxonomies) {
     taxonomies[taxonomy] = [];
   }
 
   for (const row of rows) {
-    if (taxonomies[row.taxonomy]) {
-      taxonomies[row.taxonomy].push(row.term_id);
+    // Initialize taxonomy if not already present (handles taxonomies from DB not in profile)
+    if (!taxonomies[row.taxonomy]) {
+      taxonomies[row.taxonomy] = [];
     }
+    taxonomies[row.taxonomy].push(row.term_id);
   }
 
-  return taxonomies as Record<TaxonomySlug, number[]>;
+  return taxonomies;
 }
 
 export function updateLocalResource(
@@ -193,7 +197,7 @@ export function updateLocalResource(
     title?: string;
     slug?: string;
     status?: string;
-    taxonomies?: Partial<Record<TaxonomySlug, number[]>>;
+    taxonomies?: Partial<Record<string, number[]>>;
     meta_box?: Record<string, unknown>;
   }
 ) {

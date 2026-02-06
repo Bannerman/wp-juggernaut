@@ -3,12 +3,11 @@ import {
   fetchAllTaxonomies,
   fetchAllResources,
   fetchResourceIds,
-  TAXONOMIES,
-  TAXONOMY_META_FIELD,
+  getTaxonomies,
   type WPResource,
   type WPTerm,
-  type TaxonomySlug,
 } from './wp-client';
+import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
 import { collectMetaBoxKeys, runFieldAudit, saveAuditResults } from './field-audit';
 import { decodeHtmlEntities } from './utils';
 
@@ -144,7 +143,8 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string) {
     VALUES (?, ?, ?)
   `);
 
-  for (const taxonomy of TAXONOMIES) {
+  const taxonomies = getTaxonomies();
+  for (const taxonomy of taxonomies) {
     const metaField = TAXONOMY_META_FIELD[taxonomy];
     let termIds: number[] = [];
 
@@ -204,8 +204,9 @@ export async function syncTaxonomies(): Promise<number> {
   const allTerms = await fetchAllTaxonomies();
   let count = 0;
 
-  for (const taxonomy of TAXONOMIES) {
-    const terms = allTerms[taxonomy];
+  const taxonomies = getTaxonomies();
+  for (const taxonomy of taxonomies) {
+    const terms = allTerms[taxonomy] || [];
     for (const term of terms) {
       saveTerm(term);
       count++;

@@ -1,0 +1,34 @@
+{
+  "id": "metabox",
+  "name": "Meta Box",
+  "version": "1.0.0",
+  "description": "Support for Meta Box custom fields. Syncs meta_box data from WordPress and provides field rendering in the editor.",
+  "author": {
+    "name": "Juggernaut",
+    "url": "https://github.com/plexkits/juggernaut"
+  },
+  "license": "MIT",
+  "requires_core": ">=1.0.0",
+  "tier": "bundled",
+  "wordpress_plugin": {
+    "name": "Meta Box",
+    "slug": "meta-box",
+    "url": "https://metabox.io/",
+    "detection": {
+      "rest_endpoint": "/wp-json/mb/v1/"
+    }
+  },
+  "provides": {
+    "tabs": ["content", "features", "downloads", "changelog", "timer"],
+    "field_types": ["text", "textarea", "checkbox", "select", "group", "repeater"],
+    "api_extensions": ["meta_box"]
+  },
+  "settings_schema": {
+    "auto_sync_meta": {
+      "type": "boolean",
+      "label": "Auto-sync Meta Box fields",
+      "description": "Automatically sync Meta Box data during resource sync",
+      "default": true
+    }
+  }
+}

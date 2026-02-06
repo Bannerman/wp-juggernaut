@@ -1,0 +1,175 @@
+{
+  "profile_id": "plexkits-resources",
+  "profile_name": "PLEXKITS Resources",
+  "profile_version": "1.0.0",
+  "juggernaut_version": ">=1.0.0",
+
+  "sites": [
+    {
+      "id": "production",
+      "name": "PLEXKITS Production",
+      "url": "https://plexkits.com",
+      "is_default": true
+    },
+    {
+      "id": "staging",
+      "name": "PLEXKITS Staging",
+      "url": "https://staging.plexkits.com"
+    }
+  ],
+
+  "required_plugins": [
+    {
+      "id": "metabox",
+      "version": ">=1.0.0",
+      "source": "bundled",
+      "auto_enable": true
+    },
+    {
+      "id": "seopress",
+      "version": ">=1.0.0",
+      "source": "bundled",
+      "auto_enable": true
+    }
+  ],
+
+  "post_types": [
+    {
+      "slug": "resource",
+      "name": "Resources",
+      "rest_base": "resource",
+      "icon": "FileText",
+      "supports": ["title", "editor", "thumbnail", "custom-fields"],
+      "is_primary": true
+    }
+  ],
+
+  "taxonomies": [
+    {
+      "slug": "resource-type",
+      "name": "Resource Type",
+      "rest_base": "resource-type",
+      "post_types": ["resource"],
+      "hierarchical": false,
+      "show_in_filter": true,
+      "filter_position": 1
+    },
+    {
+      "slug": "topic",
+      "name": "Topic",
+      "rest_base": "topic",
+      "post_types": ["resource"],
+      "hierarchical": true,
+      "show_in_filter": true,
+      "filter_position": 2
+    },
+    {
+      "slug": "intent",
+      "name": "Intent",
+      "rest_base": "intent",
+      "post_types": ["resource"],
+      "hierarchical": false,
+      "show_in_filter": true,
+      "filter_position": 3
+    },
+    {
+      "slug": "audience",
+      "name": "Audience",
+      "rest_base": "audience",
+      "post_types": ["resource"],
+      "hierarchical": false,
+      "show_in_filter": true,
+      "filter_position": 4
+    },
+    {
+      "slug": "leagues",
+      "name": "League",
+      "rest_base": "leagues",
+      "post_types": ["resource"],
+      "hierarchical": false,
+      "show_in_filter": true,
+      "filter_position": 5,
+      "conditional": {
+        "show_when": {
+          "taxonomy": "topic",
+          "has_term_id": 432
+        }
+      }
+    },
+    {
+      "slug": "bracket-size",
+      "name": "Bracket Size",
+      "rest_base": "bracket-size",
+      "post_types": ["resource"],
+      "hierarchical": false,
+      "show_in_filter": true,
+      "filter_position": 6,
+      "conditional": {
+        "show_when": {
+          "taxonomy": "resource-type",
+          "has_term_id": 417
+        }
+      }
+    },
+    {
+      "slug": "competition_format",
+      "name": "Competition Format",
+      "rest_base": "competition_format",
+      "post_types": ["resource"],
+      "hierarchical": false,
+      "show_in_filter": true,
+      "filter_position": 7,
+      "conditional": {
+        "show_when": {
+          "taxonomy": "topic",
+          "has_term_id": 432
+        }
+      }
+    },
+    {
+      "slug": "file_format",
+      "name": "File Format",
+      "rest_base": "file_format",
+      "post_types": ["resource"],
+      "hierarchical": false,
+      "show_in_filter": false
+    }
+  ],
+
+  "plugin_settings": {
+    "metabox": {
+      "auto_sync_meta": true
+    },
+    "seopress": {
+      "auto_sync_seo": true,
+      "default_robots": {
+        "noindex": false,
+        "nofollow": false
+      }
+    }
+  },
+
+  "ui": {
+    "tabs": [
+      { "id": "basic", "label": "Basic", "source": "core", "position": 1 },
+      { "id": "seo", "label": "SEO", "source": "seopress", "position": 2 },
+      { "id": "content", "label": "Content", "source": "metabox", "position": 3 },
+      { "id": "features", "label": "Features", "source": "metabox", "position": 4 },
+      { "id": "classification", "label": "Classification", "source": "core", "position": 5 },
+      { "id": "timer", "label": "Timer", "source": "metabox", "position": 6 },
+      { "id": "downloads", "label": "Downloads", "source": "metabox", "position": 7 },
+      { "id": "changelog", "label": "Changelog", "source": "metabox", "position": 8 },
+      { "id": "ai", "label": "AI Fill", "source": "core", "icon": "sparkles", "position": 9 }
+    ],
+    "branding": {
+      "app_name": "PLEXKITS Manager",
+      "primary_color": "#6366f1"
+    },
+    "features": {
+      "ai_fill": true,
+      "prompt_templates": true,
+      "bulk_edit": true,
+      "diagnostics": true
+    }
+  }
+}

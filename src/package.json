@@ -3,6 +3,15 @@
   "version": "0.9.0",
   "description": "Juggernaut - A modular WordPress content management platform with plugin support",
   "private": true,
+  "main": "electron/dist/main.js",
+  "author": {
+    "name": "Your Name",
+    "email": "your@email.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mini2/wp-juggernaut.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,7 +20,15 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "db:init": "node scripts/init-db.js"
+    "db:init": "node scripts/init-db.js",
+    "electron:dev": "npm run build:electron && NODE_ENV=development electron .",
+    "electron:build": "npm run build && npm run build:electron && electron-builder",
+    "electron:build:mac": "npm run build && npm run build:electron && electron-builder --mac",
+    "electron:build:win": "npm run build && npm run build:electron && electron-builder --win",
+    "electron:build:linux": "npm run build && npm run build:electron && electron-builder --linux",
+    "electron:publish": "npm run build && npm run build:electron && electron-builder --mac --publish always",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
@@ -39,6 +56,14 @@
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.0",
     "eslint": "^8.57.0",
-    "eslint-config-next": "^14.2.0"
+    "eslint-config-next": "^14.2.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.0",
+    "electron-updater": "^6.2.0",
+    "electron-squirrel-startup": "^1.0.1",
+    "@electron/notarize": "^2.3.0"
+  },
+  "build": {
+    "extends": "electron-builder.yml"
   }
 }
