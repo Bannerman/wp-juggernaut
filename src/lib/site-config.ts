@@ -1,8 +1,11 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
-// Store in project root so it syncs to git
-const CONFIG_PATH = path.join(process.cwd(), 'site-config.json');
+// Store outside the repo to avoid accidental commits of credentials
+const DEFAULT_CONFIG_DIR = path.join(os.homedir(), '.juggernaut');
+const CONFIG_DIR = process.env.JUGGERNAUT_CONFIG_DIR || DEFAULT_CONFIG_DIR;
+const CONFIG_PATH = path.join(CONFIG_DIR, 'site-config.json');
 
 export interface SiteTarget {
   id: string;
@@ -32,15 +35,24 @@ export const SITE_TARGETS: SiteTarget[] = [
   },
 ];
 
+interface SiteCredentials {
+  username: string;
+  appPassword: string;
+}
+
 interface SiteConfig {
   activeTarget: string;
-  credentials?: {
-    username: string;
-    appPassword: string;
-  };
+  // Per-site credentials keyed by target id
+  siteCredentials?: Record<string, SiteCredentials>;
+  // Legacy: single credentials for all sites (migrated to siteCredentials on first write)
+  credentials?: SiteCredentials;
 }
 
 export function getConfig(): SiteConfig {
+  if (!fs.existsSync(CONFIG_DIR)) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  }
+
   if (!fs.existsSync(CONFIG_PATH)) {
     // Default to local
     const defaultConfig: SiteConfig = { activeTarget: 'local' };
@@ -63,9 +75,10 @@ export function setActiveTarget(targetId: string): SiteConfig {
     throw new Error(`Unknown target: ${targetId}`);
   }
 
-  const config: SiteConfig = { activeTarget: targetId };
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
-  return config;
+  const config = getConfig();
+  const newConfig: SiteConfig = { ...config, activeTarget: targetId };
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2));
+  return newConfig;
 }
 
 export function getActiveTarget(): SiteTarget {
@@ -81,18 +94,34 @@ export function getActiveBaseUrl(): string {
 
 export function getCredentials(): { username: string; appPassword: string } | null {
   const config = getConfig();
+  const targetId = config.activeTarget;
+
+  // Check per-site credentials first
+  const siteCreds = config.siteCredentials?.[targetId];
+  if (siteCreds?.username && siteCreds?.appPassword) {
+    return siteCreds;
+  }
+
+  // Fallback to legacy global credentials
   if (config.credentials?.username && config.credentials?.appPassword) {
     return config.credentials;
   }
+
   return null;
 }
 
 export function setCredentials(username: string, appPassword: string): SiteConfig {
   const config = getConfig();
+  const targetId = config.activeTarget;
   const newConfig: SiteConfig = {
     ...config,
-    credentials: { username, appPassword },
+    siteCredentials: {
+      ...config.siteCredentials,
+      [targetId]: { username, appPassword },
+    },
   };
+  // Remove legacy credentials field if present
+  delete newConfig.credentials;
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2));
   return newConfig;
 }
