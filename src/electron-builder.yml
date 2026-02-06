@@ -76,7 +76,7 @@ linux:
 # Auto-update via GitHub releases
 publish:
   provider: github
-  owner: mini2
+  owner: Bannerman
   repo: wp-juggernaut
   releaseType: release
 
