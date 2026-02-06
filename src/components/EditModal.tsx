@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { X, Save, AlertTriangle, Plus, Trash2, GripVertical, Sparkles, Copy, Check, Wand2, Upload, Image as ImageIcon, Loader2, Search, Globe, Share2 } from 'lucide-react';
-import { cn, TAXONOMY_LABELS } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { imagePipeline, createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
 
 interface Term {
@@ -24,6 +24,16 @@ interface Resource {
   meta_box: Record<string, unknown>;
 }
 
+interface TaxonomyConfig {
+  slug: string;
+  name: string;
+  rest_base: string;
+  hierarchical?: boolean;
+  show_in_filter?: boolean;
+  filter_position?: number;
+  conditional?: { show_when?: { taxonomy: string; has_term_id: number } };
+}
+
 interface EditModalProps {
   resource: Resource | null;
   terms: Record<string, Term[]>;
@@ -31,6 +41,9 @@ interface EditModalProps {
   onSave: (updates: Partial<Resource>) => void;
   onCreate?: (data: { title: string; slug?: string; status: string; taxonomies: Record<string, number[]>; meta_box: Record<string, unknown>; seoData?: SEOData }) => void;
   isCreating?: boolean;
+  enabledTabs?: string[];
+  taxonomyConfig?: TaxonomyConfig[];
+  taxonomyLabels?: Record<string, string>;
 }
 
 interface FeatureItem {
@@ -92,26 +105,30 @@ const DEFAULT_SEO: SEOData = {
   robots: { noindex: false, nofollow: false, nosnippet: false, noimageindex: false },
 };
 
-const TABS = [
-  { id: 'basic', label: 'Basic' },
-  { id: 'seo', label: 'SEO' },
-  { id: 'content', label: 'Content' },
-  { id: 'features', label: 'Features' },
-  { id: 'classification', label: 'Classification' },
-  { id: 'timer', label: 'Timer' },
-  { id: 'downloads', label: 'Downloads' },
-  { id: 'changelog', label: 'Changelog' },
-  { id: 'ai', label: 'AI Fill', icon: 'sparkles' },
+// All available tabs with their plugin source
+const ALL_TABS = [
+  { id: 'basic', label: 'Basic', plugin: 'core' },
+  { id: 'seo', label: 'SEO', plugin: 'seopress' },
+  { id: 'content', label: 'Content', plugin: 'metabox' },
+  { id: 'features', label: 'Features', plugin: 'metabox' },
+  { id: 'classification', label: 'Classification', plugin: 'core' },
+  { id: 'timer', label: 'Timer', plugin: 'metabox' },
+  { id: 'downloads', label: 'Downloads', plugin: 'metabox' },
+  { id: 'changelog', label: 'Changelog', plugin: 'metabox' },
+  { id: 'ai', label: 'AI Fill', icon: 'sparkles', plugin: 'core' },
 ];
 
 const STATUS_OPTIONS = ['publish', 'draft'];
 
-// Conditional visibility constants from PHP
-const BRACKET_RESOURCE_TYPE_ID = 417;
-const SPORTS_TOPIC_ID = 432;
-
-export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreating = false }: EditModalProps) {
+export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreating = false, enabledTabs = [], taxonomyConfig = [], taxonomyLabels = {} }: EditModalProps) {
   const isCreateMode = resource === null;
+
+  // Filter tabs based on enabled plugins
+  // Core tabs are always shown, other tabs only if their plugin's tabs are enabled
+  const TABS = ALL_TABS.filter(tab => {
+    if (tab.plugin === 'core') return true;
+    return enabledTabs.includes(tab.id);
+  });
 
   // Default empty resource for create mode
   const defaultResource: Resource = {
@@ -183,10 +200,23 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
   );
   const [isSaving, setIsSaving] = useState(false);
 
-  // Derived state for conditional visibility
-  const isBracketType = (taxonomies['resource-type'] || []).includes(BRACKET_RESOURCE_TYPE_ID);
-  const hasSportsTopic = (taxonomies['topic'] || []).includes(SPORTS_TOPIC_ID);
+  // Derived state for conditional visibility - uses taxonomy config
   const timerEnabled = Boolean(metaBox.timer_enable);
+
+  // Check if a taxonomy's conditional visibility is satisfied
+  const isTaxonomyVisible = (taxSlug: string): boolean => {
+    const taxConfig = taxonomyConfig.find(t => t.slug === taxSlug);
+    if (!taxConfig?.conditional?.show_when) return true;
+
+    const { taxonomy, has_term_id } = taxConfig.conditional.show_when;
+    const selectedTerms = taxonomies[taxonomy] || [];
+    return selectedTerms.includes(has_term_id);
+  };
+
+  // Get taxonomies sorted by filter_position for classification tab
+  const classificationTaxonomies = taxonomyConfig
+    .filter(t => t.show_in_filter !== false) // Show all taxonomies in classification, not just filter ones
+    .sort((a, b) => (a.filter_position || 99) - (b.filter_position || 99));
 
   const resourceHasChanges = isCreateMode
     ? title.trim().length > 0  // For create mode, just need a title
@@ -424,23 +454,25 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const generatePrompt = (templateId: 'ai-fill' | 'featured-image') => {
-    // Build taxonomy options dynamically from synced terms
+    // Build taxonomy options dynamically from synced terms and config
     const getTaxonomyExamples = (taxonomy: string, maxExamples = 3): string => {
       const taxTerms = terms[taxonomy] || [];
       if (taxTerms.length === 0) return '[none available]';
       return taxTerms.slice(0, maxExamples).map(t => t.name).join(', ');
     };
 
-    const taxonomyLines = [
-      { key: 'resource-type', label: 'resource-type', examples: getTaxonomyExamples('resource-type') },
-      { key: 'intent', label: 'intent', examples: getTaxonomyExamples('intent') },
-      { key: 'topic', label: 'topic', examples: getTaxonomyExamples('topic') },
-      { key: 'audience', label: 'audience', examples: getTaxonomyExamples('audience') },
-      { key: 'leagues', label: 'leagues', examples: getTaxonomyExamples('leagues'), note: 'only if sports-related' },
-      { key: 'bracket-size', label: 'bracket-size', examples: getTaxonomyExamples('bracket-size'), note: 'only if bracket' },
-      { key: 'file_format', label: 'file-format', examples: getTaxonomyExamples('file_format') },
-      { key: 'competition_format', label: 'competition-format', examples: getTaxonomyExamples('competition_format'), note: 'only if tournament' },
-    ];
+    // Build taxonomy lines dynamically from profile config
+    const taxonomyLines = taxonomyConfig.map(tax => {
+      const note = tax.conditional?.show_when
+        ? `only if ${tax.conditional.show_when.taxonomy} matches`
+        : undefined;
+      return {
+        key: tax.slug,
+        label: tax.slug,
+        examples: getTaxonomyExamples(tax.slug),
+        note,
+      };
+    });
 
     const taxonomySelectionsBlock = taxonomyLines
       .filter(t => (terms[t.key]?.length || 0) > 0)
@@ -453,7 +485,7 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
     });
 
     const availableTaxonomiesBlock = Object.entries(availableTaxonomies)
-      .map(([tax, names]) => `${TAXONOMY_LABELS[tax] || tax}: ${names.slice(0, 15).join(', ')}${names.length > 15 ? '...' : ''}`)
+      .map(([tax, names]) => `${taxonomyLabels[tax] || tax}: ${names.slice(0, 15).join(', ')}${names.length > 15 ? '...' : ''}`)
       .join('\n');
 
     const featuresBlock = features.length > 0
@@ -852,20 +884,24 @@ timer_datetime: {{timer_datetime}}
   };
 
   // Taxonomy renderer with conditional visibility
-  const renderTaxonomy = (taxonomy: string, label: string, required = false) => {
+  const renderTaxonomy = (taxonomy: string, label?: string, required = false) => {
     const taxonomyTerms = terms[taxonomy] || [];
     const selectedIds = taxonomies[taxonomy] || [];
     if (taxonomyTerms.length === 0) return null;
 
-    // For topic taxonomy, use hierarchical rendering
-    if (taxonomy === 'topic') {
-      return renderHierarchicalTaxonomy(taxonomyTerms, selectedIds, label, required);
+    const taxConfig = taxonomyConfig.find(t => t.slug === taxonomy);
+    const displayLabel = label || taxonomyLabels[taxonomy] || taxConfig?.name || taxonomy;
+    const isHierarchical = taxConfig?.hierarchical ?? false;
+
+    // For hierarchical taxonomies, use hierarchical rendering
+    if (isHierarchical) {
+      return renderHierarchicalTaxonomy(taxonomyTerms, selectedIds, displayLabel, required, taxonomy);
     }
 
     return (
       <div key={taxonomy}>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          {label} {required && <span className="text-red-500">*</span>}
+          {displayLabel} {required && <span className="text-red-500">*</span>}
         </label>
         <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
           {taxonomyTerms.map((term) => {
@@ -891,10 +927,10 @@ timer_datetime: {{timer_datetime}}
     );
   };
 
-  // Get topic hierarchy data for use in rendering
-  const getTopicHierarchy = () => {
-    const taxonomyTerms = terms['topic'] || [];
-    const selectedIds = taxonomies['topic'] || [];
+  // Get hierarchy data for any hierarchical taxonomy
+  const getHierarchyData = (taxSlug: string) => {
+    const taxonomyTerms = terms[taxSlug] || [];
+    const selectedIds = taxonomies[taxSlug] || [];
 
     const topLevel = taxonomyTerms.filter(t => t.parent_id === 0);
     const childrenByParent = new Map<number, Term[]>();
@@ -920,14 +956,15 @@ timer_datetime: {{timer_datetime}}
     return { topLevel, childrenByParent, selectedIds, expandedParents };
   };
 
-  // Render just the top-level topic categories
+  // Render just the top-level categories for hierarchical taxonomies
   const renderHierarchicalTaxonomy = (
     taxonomyTerms: Term[],
     selectedIds: number[],
     label: string,
-    required: boolean
+    required: boolean,
+    taxSlug: string
   ) => {
-    const { topLevel, childrenByParent } = getTopicHierarchy();
+    const { topLevel, childrenByParent } = getHierarchyData(taxSlug);
 
     const hasSelectedChild = (parentId: number) => {
       const children = childrenByParent.get(parentId) || [];
@@ -935,7 +972,7 @@ timer_datetime: {{timer_datetime}}
     };
 
     return (
-      <div key="topic">
+      <div key={taxSlug}>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
@@ -948,7 +985,7 @@ timer_datetime: {{timer_datetime}}
               <button
                 key={term.id}
                 type="button"
-                onClick={() => toggleTerm('topic', term.id)}
+                onClick={() => toggleTerm(taxSlug, term.id)}
                 className={cn(
                   'px-3 py-1.5 rounded-full text-sm border transition-colors',
                   isSelected
@@ -975,16 +1012,20 @@ timer_datetime: {{timer_datetime}}
     );
   };
 
-  // Render subtopics as a separate section (like League/Competition Format)
-  const renderTopicSubtopics = () => {
-    const { childrenByParent, selectedIds, expandedParents } = getTopicHierarchy();
+  // Render subtopics as a separate section for hierarchical taxonomies
+  const renderHierarchicalSubtopics = (taxSlug: string) => {
+    const taxConfig = taxonomyConfig.find(t => t.slug === taxSlug);
+    if (!taxConfig?.hierarchical) return null;
+
+    const { childrenByParent, selectedIds, expandedParents } = getHierarchyData(taxSlug);
+    const taxLabel = taxonomyLabels[taxSlug] || taxConfig?.name || taxSlug;
 
     if (expandedParents.length === 0) return null;
 
     return (
-      <div key="topic-subtopics">
+      <div key={`${taxSlug}-subtopics`}>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Topic Subtopics
+          {taxLabel} Subtopics
         </label>
         <div className="space-y-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
           {expandedParents.map((parent) => {
@@ -1001,7 +1042,7 @@ timer_datetime: {{timer_datetime}}
                       <button
                         key={term.id}
                         type="button"
-                        onClick={() => toggleTerm('topic', term.id)}
+                        onClick={() => toggleTerm(taxSlug, term.id)}
                         className={cn(
                           'px-3 py-1 rounded-full text-sm border transition-colors',
                           isSelected
@@ -1535,25 +1576,18 @@ timer_datetime: {{timer_datetime}}
             {/* Classification Tab */}
             {activeTab === 'classification' && (
               <div className="space-y-4">
-                {renderTaxonomy('resource-type', 'Resource Type', true)}
-                {renderTaxonomy('intent', 'Intent')}
-                {renderTaxonomy('topic', 'Topic')}
+                {classificationTaxonomies.map((taxConfig) => {
+                  // Check conditional visibility
+                  if (!isTaxonomyVisible(taxConfig.slug)) return null;
 
-                {/* Conditional: Topic Subtopics (appears when a parent topic with children is selected) */}
-                {renderTopicSubtopics()}
-
-                {renderTaxonomy('audience', 'Audience')}
-
-                {/* Conditional: Bracket Size (visible when resource-type = 417) */}
-                {isBracketType && renderTaxonomy('bracket-size', 'Bracket Size', true)}
-
-                {/* Conditional: League & Competition Format (visible when topic contains 432) */}
-                {hasSportsTopic && (
-                  <>
-                    {renderTaxonomy('leagues', 'League', true)}
-                    {renderTaxonomy('competition_format', 'Competition Format')}
-                  </>
-                )}
+                  return (
+                    <div key={taxConfig.slug}>
+                      {renderTaxonomy(taxConfig.slug)}
+                      {/* Render subtopics for hierarchical taxonomies */}
+                      {taxConfig.hierarchical && renderHierarchicalSubtopics(taxConfig.slug)}
+                    </div>
+                  );
+                })}
               </div>
             )}
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Save, RotateCcw, Check, AlertCircle, History, FileText, Globe, Server, Sparkles, Activity, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Save, RotateCcw, Check, AlertCircle, History, FileText, Globe, Server, Sparkles, Activity, Loader2, RefreshCw, Puzzle, ToggleLeft, ToggleRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PromptTemplate {
@@ -40,7 +40,33 @@ interface DiagnosticResult {
   error?: string;
 }
 
-type SettingsTab = 'target' | 'prompts' | 'diagnostics';
+interface PluginInfo {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  tier: 'bundled' | 'community' | 'premium';
+  enabled: boolean;
+  wordpress_plugin?: {
+    name: string;
+    slug: string;
+    url?: string;
+  };
+  provides?: {
+    tabs?: string[];
+    field_types?: string[];
+    api_extensions?: string[];
+  };
+}
+
+interface PluginStats {
+  total: number;
+  enabled: number;
+  bundled: number;
+  community: number;
+}
+
+type SettingsTab = 'target' | 'prompts' | 'plugins' | 'diagnostics';
 type PromptsView = 'edit' | 'history';
 
 export default function SettingsPage() {
@@ -67,6 +93,12 @@ export default function SettingsPage() {
   const [diagnostics, setDiagnostics] = useState<DiagnosticResult | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
 
+  // Plugins state
+  const [plugins, setPlugins] = useState<PluginInfo[]>([]);
+  const [pluginStats, setPluginStats] = useState<PluginStats | null>(null);
+  const [pluginsLoading, setPluginsLoading] = useState(true);
+  const [togglingPlugin, setTogglingPlugin] = useState<string | null>(null);
+
   // Common state
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -82,6 +114,18 @@ export default function SettingsPage() {
       })
       .catch(err => console.error('Failed to fetch site config:', err))
       .finally(() => setTargetLoading(false));
+  }, []);
+
+  // Fetch plugins
+  useEffect(() => {
+    fetch('/api/plugins')
+      .then(res => res.json())
+      .then(data => {
+        setPlugins(data.plugins || []);
+        setPluginStats(data.stats || null);
+      })
+      .catch(err => console.error('Failed to fetch plugins:', err))
+      .finally(() => setPluginsLoading(false));
   }, []);
 
   // Fetch templates
@@ -155,6 +199,44 @@ export default function SettingsPage() {
       });
     } finally {
       setDiagLoading(false);
+    }
+  };
+
+  // Toggle plugin enabled/disabled
+  const togglePlugin = async (pluginId: string, currentEnabled: boolean) => {
+    setTogglingPlugin(pluginId);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/plugins', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pluginId, enabled: !currentEnabled }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to toggle plugin');
+      }
+
+      const data = await res.json();
+
+      // Update local state
+      setPlugins(prev => prev.map(p =>
+        p.id === pluginId ? { ...p, enabled: data.enabled } : p
+      ));
+
+      // Update stats
+      setPluginStats(prev => prev ? {
+        ...prev,
+        enabled: prev.enabled + (data.enabled ? 1 : -1),
+      } : null);
+
+      setMessage({ type: 'success', text: data.message });
+    } catch (err) {
+      setMessage({ type: 'error', text: String(err) });
+    } finally {
+      setTogglingPlugin(null);
     }
   };
 
@@ -362,6 +444,23 @@ export default function SettingsPage() {
               Prompts
             </button>
             <button
+              onClick={() => setActiveTab('plugins')}
+              className={cn(
+                'py-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2',
+                activeTab === 'plugins'
+                  ? 'border-brand-500 text-brand-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              )}
+            >
+              <Puzzle className="w-4 h-4" />
+              Plugins
+              {pluginStats && pluginStats.enabled > 0 && (
+                <span className="text-xs bg-brand-100 text-brand-700 px-1.5 py-0.5 rounded-full">
+                  {pluginStats.enabled}
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => setActiveTab('diagnostics')}
               className={cn(
                 'py-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2',
@@ -447,6 +546,156 @@ export default function SettingsPage() {
               <p className="text-sm text-amber-700">
                 <strong>Note:</strong> After switching targets, you should re-sync your data to load resources from the new site.
                 The same WordPress credentials (username and application password) are used for all sites.
+              </p>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* Plugins Tab */}
+      {activeTab === 'plugins' && (
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">Plugins</h2>
+              <p className="text-sm text-gray-500">
+                Manage Juggernaut plugins to extend functionality for different WordPress plugins
+              </p>
+            </div>
+
+            {/* Stats Cards */}
+            {pluginStats && (
+              <div className="grid grid-cols-4 gap-4">
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <p className="text-sm text-gray-500">Total Plugins</p>
+                  <p className="text-2xl font-semibold text-gray-900">{pluginStats.total}</p>
+                </div>
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <p className="text-sm text-gray-500">Enabled</p>
+                  <p className="text-2xl font-semibold text-green-600">{pluginStats.enabled}</p>
+                </div>
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <p className="text-sm text-gray-500">Bundled</p>
+                  <p className="text-2xl font-semibold text-brand-600">{pluginStats.bundled}</p>
+                </div>
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <p className="text-sm text-gray-500">Community</p>
+                  <p className="text-2xl font-semibold text-purple-600">{pluginStats.community}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Plugin List */}
+            {pluginsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                <span className="ml-2 text-gray-500">Loading plugins...</span>
+              </div>
+            ) : plugins.length === 0 ? (
+              <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center">
+                <Puzzle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No plugins available</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {plugins.map((plugin) => (
+                  <div
+                    key={plugin.id}
+                    className={cn(
+                      'bg-white rounded-lg border-2 p-5 transition-all',
+                      plugin.enabled ? 'border-brand-200 bg-brand-50/30' : 'border-gray-200'
+                    )}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-lg font-semibold text-gray-900">{plugin.name}</h3>
+                          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                            v{plugin.version}
+                          </span>
+                          <span className={cn(
+                            'text-xs font-medium px-2 py-0.5 rounded',
+                            plugin.tier === 'bundled'
+                              ? 'bg-brand-100 text-brand-700'
+                              : plugin.tier === 'premium'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-purple-100 text-purple-700'
+                          )}>
+                            {plugin.tier}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">{plugin.description}</p>
+
+                        {/* WordPress Plugin Info */}
+                        {plugin.wordpress_plugin && (
+                          <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+                            <Globe className="w-4 h-4" />
+                            <span>Supports: </span>
+                            {plugin.wordpress_plugin.url ? (
+                              <a
+                                href={plugin.wordpress_plugin.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-brand-600 hover:underline"
+                              >
+                                {plugin.wordpress_plugin.name}
+                              </a>
+                            ) : (
+                              <span className="font-medium">{plugin.wordpress_plugin.name}</span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Provides Info */}
+                        {plugin.provides && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {plugin.provides.tabs?.map((tab) => (
+                              <span key={tab} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                                Tab: {tab}
+                              </span>
+                            ))}
+                            {plugin.provides.api_extensions?.map((ext) => (
+                              <span key={ext} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded">
+                                API: {ext}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Toggle Button */}
+                      <button
+                        onClick={() => togglePlugin(plugin.id, plugin.enabled)}
+                        disabled={togglingPlugin === plugin.id}
+                        className={cn(
+                          'flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all',
+                          togglingPlugin === plugin.id
+                            ? 'bg-gray-100 text-gray-400 cursor-wait'
+                            : plugin.enabled
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        )}
+                      >
+                        {togglingPlugin === plugin.id ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : plugin.enabled ? (
+                          <ToggleRight className="w-5 h-5" />
+                        ) : (
+                          <ToggleLeft className="w-5 h-5" />
+                        )}
+                        {plugin.enabled ? 'Enabled' : 'Disabled'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Info Box */}
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700">
+                <strong>Note:</strong> Bundled plugins ship with Juggernaut and provide support for popular WordPress plugins like Meta Box and SEOPress.
+                Enable the plugins that match the WordPress plugins installed on your site.
               </p>
             </div>
           </div>
@@ -713,9 +962,24 @@ export default function SettingsPage() {
             {!diagnostics && !diagLoading && (
               <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center">
                 <Activity className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Click "Run Test" to check the connection</p>
+                <p className="text-gray-500">Click &quot;Run Test&quot; to check the connection</p>
               </div>
             )}
+
+            {/* Field Audit Link */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Field Mapping Audit</h3>
+              <p className="text-sm text-gray-500 mb-3">
+                Compare local field mappings against WordPress meta_box fields to identify mismatches.
+              </p>
+              <Link
+                href="/diagnostics"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-brand-700 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors"
+              >
+                <FileText className="w-4 h-4" />
+                Open Field Audit
+              </Link>
+            </div>
           </div>
         </main>
       )}

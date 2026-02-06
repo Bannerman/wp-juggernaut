@@ -78,6 +78,46 @@ Defined in `docs/standards/coding_standards.md`. Key points:
 - **Git commits**: Conventional Commits format (`feat(scope): description`)
 - **`better-sqlite3`** is in `serverComponentsExternalPackages` in next.config.js to avoid bundling issues
 
+## Electron Desktop App
+
+Juggernaut is packaged as a native Mac app using Electron with auto-updates via GitHub Releases.
+
+### Electron Commands
+
+```bash
+cd src
+npm run electron:dev        # Run Electron in development (requires npm run dev separately)
+npm run electron:build:mac  # Build Mac app (.dmg and .zip)
+npm run electron:publish    # Build and publish to GitHub Releases
+```
+
+### Auto-Updates
+
+The app checks for updates on startup and notifies users when a new version is available. Updates are downloaded from GitHub Releases.
+
+**To release a new version:**
+1. Update `version` in `package.json`
+2. Create a git tag: `git tag v1.0.0`
+3. Push the tag: `git push origin v1.0.0`
+4. GitHub Actions will automatically build and publish the release
+
+### Code Signing & Notarization (macOS)
+
+Set these secrets in GitHub repository settings:
+- `MAC_CERTIFICATE` - Base64-encoded .p12 certificate
+- `MAC_CERTIFICATE_PASSWORD` - Certificate password
+- `APPLE_ID` - Apple ID email
+- `APPLE_APP_SPECIFIC_PASSWORD` - App-specific password from appleid.apple.com
+- `APPLE_TEAM_ID` - Apple Developer Team ID
+
+### Electron Architecture
+
+- `electron/main.ts` - Main process, window management, auto-updater
+- `electron/preload.ts` - Secure bridge between main and renderer
+- `electron/server.ts` - Production Next.js server runner
+- `electron-builder.yml` - Build and packaging configuration
+- `components/UpdateNotifier.tsx` - UI for update status
+
 ## MAIA Development Framework
 
 This project was bootstrapped using MAIA (Modular AI-driven Application). Planning artifacts live in:
