@@ -34,11 +34,8 @@ mac:
       arch:
         - x64
         - arm64
-  icon: build/icon.icns
-  hardenedRuntime: true
-  gatekeeperAssess: false
-  entitlements: build/entitlements.mac.plist
-  entitlementsInherit: build/entitlements.mac.inherit.plist
+  # Icon is optional - will use default Electron icon if not present
+  # icon: build/icon.icns
 
 # DMG configuration
 dmg:
@@ -79,6 +76,3 @@ publish:
   owner: Bannerman
   repo: wp-juggernaut
   releaseType: release
-
-# Code signing (set environment variables)
-afterSign: scripts/notarize.js
