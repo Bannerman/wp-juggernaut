@@ -13,13 +13,10 @@ files:
 
 # Extra resources (outside asar, for execution)
 # The standalone folder must be outside asar since Node.js needs to execute it
+# NOTE: Don't include 'data' folder - database should be created fresh by app
 extraResources:
   - from: .next/standalone
     to: standalone
-    filter:
-      - "**/*"
-  - from: data
-    to: data
     filter:
       - "**/*"
 

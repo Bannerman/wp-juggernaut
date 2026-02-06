@@ -374,11 +374,11 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Header - electron-drag allows window to be moved by dragging header */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 electron-drag">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 electron-no-drag">
               <Link
                 href="/"
                 className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
@@ -391,7 +391,7 @@ export default function SettingsPage() {
 
             {/* Tab-specific actions */}
             {activeTab === 'prompts' && promptsView === 'edit' && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 electron-no-drag">
                 <button
                   onClick={handleResetPrompt}
                   disabled={isSaving || !activeTemplateId}
@@ -418,7 +418,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Tabs */}
-          <nav className="flex gap-6 -mb-px">
+          <nav className="flex gap-6 -mb-px electron-no-drag">
             <button
               onClick={() => setActiveTab('target')}
               className={cn(
