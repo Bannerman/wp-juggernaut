@@ -8,13 +8,25 @@ export async function GET() {
     const activeTarget = getActiveTarget();
     const credentials = getCredentials();
 
+    // Build per-site credential status (has credentials + username, never passwords)
+    const siteCredentialStatus: Record<string, { hasCredentials: boolean; username: string }> = {};
+    for (const target of SITE_TARGETS) {
+      const siteCreds = config.siteCredentials?.[target.id];
+      const legacyCreds = config.credentials;
+      const creds = siteCreds || legacyCreds;
+      siteCredentialStatus[target.id] = {
+        hasCredentials: Boolean(creds?.username && creds?.appPassword),
+        username: creds?.username || '',
+      };
+    }
+
     return NextResponse.json({
       activeTarget,
       targets: SITE_TARGETS,
-      config,
-      // Only return whether credentials exist, not the actual values for security
+      config: { activeTarget: config.activeTarget },
       hasCredentials: Boolean(credentials),
       username: credentials?.username || '',
+      siteCredentialStatus,
     });
   } catch (error) {
     console.error('Error getting site config:', error);
@@ -31,8 +43,15 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { targetId, credentials } = body;
 
-    // Handle credential update
+    // Handle credential update (saves for the currently active target)
     if (credentials) {
+      if (process.env.JUGGERNAUT_ELECTRON === '1') {
+        return NextResponse.json(
+          { error: 'Credential updates must be done via the desktop app' },
+          { status: 403 }
+        );
+      }
+
       const { username, appPassword } = credentials;
       if (!username || !appPassword) {
         return NextResponse.json(
@@ -41,8 +60,9 @@ export async function PATCH(request: NextRequest) {
         );
       }
       setCredentials(username, appPassword);
+      const activeTarget = getActiveTarget();
       return NextResponse.json({
-        message: 'Credentials saved successfully',
+        message: `Credentials saved for ${activeTarget.name}`,
         hasCredentials: true,
         username,
       });
@@ -50,12 +70,14 @@ export async function PATCH(request: NextRequest) {
 
     // Handle target switch
     if (targetId) {
-      const config = setActiveTarget(targetId);
+      setActiveTarget(targetId);
       const activeTarget = getActiveTarget();
+      const credentials = getCredentials();
 
       return NextResponse.json({
         activeTarget,
-        config,
+        hasCredentials: Boolean(credentials),
+        username: credentials?.username || '',
         message: `Switched to ${activeTarget.name}`,
       });
     }

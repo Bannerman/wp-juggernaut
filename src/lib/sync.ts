@@ -144,8 +144,8 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string) {
   const excerpt = resource.excerpt?.rendered || '';
 
   db.prepare(`
-    INSERT OR REPLACE INTO resources (id, title, slug, status, content, excerpt, featured_media, date_gmt, modified_gmt, synced_at, is_dirty)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT is_dirty FROM resources WHERE id = ?), 0))
+    INSERT OR REPLACE INTO posts (id, post_type, title, slug, status, content, excerpt, featured_media, date_gmt, modified_gmt, synced_at, is_dirty)
+    VALUES (?, 'resource', ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT is_dirty FROM posts WHERE id = ?), 0))
   `).run(
     resource.id,
     title,
@@ -162,12 +162,12 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string) {
 
   // Save meta_box fields
   const metaStmt = db.prepare(`
-    INSERT OR REPLACE INTO resource_meta (resource_id, field_id, value)
+    INSERT OR REPLACE INTO post_meta (post_id, field_id, value)
     VALUES (?, ?, ?)
   `);
-  
+
   // First, clear existing meta_box to handle removed fields
-  db.prepare('DELETE FROM resource_meta WHERE resource_id = ?').run(resource.id);
+  db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(resource.id);
   
   // Save the featured_image_url and featured_media_id if we have them
   if (featuredImageUrl) {
@@ -188,10 +188,10 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string) {
 
   // Save taxonomy terms — prefer Meta Box fields (tax_*) which contain reliable
   // term objects, over top-level REST fields which can include stale term_taxonomy_ids.
-  db.prepare('DELETE FROM resource_terms WHERE resource_id = ?').run(resource.id);
+  db.prepare('DELETE FROM post_terms WHERE post_id = ?').run(resource.id);
 
   const termStmt = db.prepare(`
-    INSERT OR REPLACE INTO resource_terms (resource_id, term_id, taxonomy)
+    INSERT OR REPLACE INTO post_terms (post_id, term_id, taxonomy)
     VALUES (?, ?, ?)
   `);
 
@@ -249,7 +249,7 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string) {
 
 export function deleteResource(id: number) {
   const db = getDb();
-  db.prepare('DELETE FROM resources WHERE id = ?').run(id);
+  db.prepare('DELETE FROM posts WHERE id = ?').run(id);
 }
 
 export async function syncTaxonomies(): Promise<number> {
@@ -330,8 +330,8 @@ export async function syncResources(incremental: boolean = false): Promise<{
     const serverIds = new Set(await fetchResourceIds());
     const db = getDb();
     const localIds = db
-      .prepare('SELECT id FROM resources')
-      .all() as { id: number }[];
+      .prepare('SELECT id FROM posts WHERE post_type = ?')
+      .all('resource') as { id: number }[];
 
     for (const { id } of localIds) {
       if (!serverIds.has(id)) {

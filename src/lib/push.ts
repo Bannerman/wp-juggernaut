@@ -153,7 +153,7 @@ export async function checkForConflicts(resourceIds: number[]): Promise<Conflict
 
   for (const id of resourceIds) {
     const localResource = db
-      .prepare('SELECT id, title, modified_gmt FROM resources WHERE id = ?')
+      .prepare('SELECT id, title, modified_gmt FROM posts WHERE id = ?')
       .get(id) as { id: number; title: string; modified_gmt: string } | undefined;
 
     if (!localResource) continue;
@@ -274,7 +274,7 @@ export async function pushResource(
 
     // Update local modified_gmt and mark as clean
     const db = getDb();
-    db.prepare('UPDATE resources SET modified_gmt = ?, is_dirty = 0 WHERE id = ?').run(
+    db.prepare('UPDATE posts SET modified_gmt = ?, is_dirty = 0 WHERE id = ?').run(
       updated.modified_gmt,
       resourceId
     );
@@ -372,7 +372,7 @@ async function pushBatch(
       if (response.status >= 200 && response.status < 300) {
         const body = response.body as { modified_gmt?: string };
         if (body.modified_gmt) {
-          db.prepare('UPDATE resources SET modified_gmt = ?, is_dirty = 0 WHERE id = ?').run(
+          db.prepare('UPDATE posts SET modified_gmt = ?, is_dirty = 0 WHERE id = ?').run(
             body.modified_gmt,
             resourceId
           );

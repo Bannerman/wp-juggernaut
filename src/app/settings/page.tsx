@@ -195,6 +195,11 @@ export default function SettingsPage() {
       setActiveTarget(data.activeTarget);
       setMessage({ type: 'success', text: data.message });
 
+      // Update credential status for the new target
+      setHasCredentials(data.hasCredentials || false);
+      setUsername(data.username || '');
+      setAppPassword('');
+
       // Clear diagnostics when switching
       setDiagnostics(null);
     } catch (err) {
@@ -230,7 +235,8 @@ export default function SettingsPage() {
           body: JSON.stringify({ credentials: { username, appPassword } }),
         });
         if (!res.ok) throw new Error('Failed to save credentials');
-        setMessage({ type: 'success', text: 'Credentials saved (dev mode)' });
+        const savedData = await res.json();
+        setMessage({ type: 'success', text: savedData.message || 'Credentials saved' });
       }
 
       setHasCredentials(true);
@@ -607,11 +613,13 @@ export default function SettingsPage() {
             {/* Credentials Section */}
             <div className="mt-8 pt-8 border-t border-gray-200">
               <div className="mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">WordPress Credentials</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                  WordPress Credentials{activeTarget ? ` — ${activeTarget.name}` : ''}
+                </h2>
                 <p className="text-sm text-gray-500">
-                  Enter your WordPress username and application password to connect to the API.
+                  Enter your WordPress username and application password for {activeTarget?.name || 'the active site'}.
                   {hasCredentials && (
-                    <span className="ml-2 text-green-600 font-medium">✓ Stored in macOS Keychain</span>
+                    <span className="ml-2 text-green-600 font-medium">✓ Credentials saved</span>
                   )}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
@@ -675,10 +683,14 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-sm text-amber-700">
-                <strong>Note:</strong> After switching targets, you should re-sync your data to load resources from the new site.
-                The same credentials are used for all sites.
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700">
+                <strong>Note:</strong> Credentials are saved per site. After switching targets, you should re-sync your data to load resources from the new site.
+                {activeTarget && !hasCredentials && (
+                  <span className="block mt-1 font-medium text-amber-700">
+                    No credentials saved for {activeTarget.name} — enter them above.
+                  </span>
+                )}
               </p>
             </div>
           </div>
