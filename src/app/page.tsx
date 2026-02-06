@@ -355,7 +355,7 @@ export default function Home() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <Database className="w-8 h-8 text-brand-600" />
-              <h1 className="text-xl font-bold text-gray-900">PLEXKITS Resource Manager</h1>
+              <h1 className="text-xl font-bold text-gray-900">Juggernaut</h1>
               <Link
                 href="/settings"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"

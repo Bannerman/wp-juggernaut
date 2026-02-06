@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PLEXKITS API Pusher is a local-first Next.js application for syncing, bulk editing, and pushing WordPress Resource posts from plexkits.com via the REST API. It uses a local SQLite database for offline editing with conflict detection when pushing changes back.
+Juggernaut is a modular, plugin-based WordPress content management platform. It's a local-first desktop application (Electron + Next.js) for syncing, bulk editing, and pushing WordPress posts. It uses a local SQLite database for offline editing with conflict detection when pushing changes back.
 
 ## Common Commands
 
@@ -14,16 +14,18 @@ All commands run from the `src/` directory:
 cd src
 npm run dev          # Start dev server (http://localhost:3000)
 npm run build        # Production build
-npm run lint         # ESLint (next/core-web-vitals + no-explicit-any)
+npm run lint         # ESLint (next/core-web-vitals)
 npm run test         # Jest test suite
 npm run test:watch   # Tests in watch mode
 npm run test:coverage # Coverage report (80% threshold)
 npm run db:init      # Initialize SQLite database
+npm run electron:dev        # Run Electron in development
+npm run electron:build:mac  # Build Mac app
 ```
 
 ## Architecture
 
-**Stack**: Next.js 14 (App Router) + React 18 + TypeScript 5.4 (strict) + TailwindCSS 3.4 + SQLite (better-sqlite3)
+**Stack**: Electron 31 + Next.js 14 (App Router) + React 18 + TypeScript 5.4 (strict) + TailwindCSS 3.4 + SQLite (better-sqlite3)
 
 The app is structured in layers:
 
@@ -37,9 +39,13 @@ The app is structured in layers:
    - `push.ts` - Pushes dirty resources in batches of 25. Conflict detection compares local `modified_gmt` with server. 300ms delay between batches.
    - `queries.ts` - Local database query abstraction with filtering support. Tracks dirty resources via `is_dirty` flag.
    - `db.ts` - SQLite singleton connection with WAL mode. Schema: `resources`, `resource_meta`, `resource_terms`, `terms`, `sync_meta`, `change_log`.
-   - `utils.ts` - `cn()` class merge utility (clsx + tailwind-merge), date formatting, HTML stripping, taxonomy/status constants.
+   - `utils.ts` - `cn()` class merge utility (clsx + tailwind-merge), date formatting, HTML stripping.
+   - `plugins/` - Modular plugin system with bundled MetaBox and SEOPress plugins.
+   - `profiles/` - Site-specific configurations for taxonomies, fields, and UI.
 
-4. **Dashboard** (`src/app/page.tsx`) - Main page orchestrating all components. Manages state with React hooks, handles sync/push/edit/filter operations.
+4. **Electron** (`src/electron/`) - Desktop app wrapper with auto-updates via GitHub Releases.
+
+5. **Dashboard** (`src/app/page.tsx`) - Main page orchestrating all components. Manages state with React hooks, handles sync/push/edit/filter operations.
 
 ## Key Patterns
 
@@ -47,17 +53,18 @@ The app is structured in layers:
 - **Dirty flag tracking**: Resources marked `is_dirty = 1` on local edit, cleared after successful push
 - **Conflict detection**: Compares `modified_gmt` timestamps to detect server-side changes since last sync
 - **Batch push**: Groups of 25 via WP batch API, with individual fallback on batch failure
-- **9 WordPress taxonomies**: resource-type, topic, intent, audience, leagues, access_level, competition_format, bracket-size, file_format
-- **Meta Box fields**: Custom fields via MB REST API plugin (intro_text, text_content, version, download_sections, etc.)
+- **Plugin system**: Extensible architecture with hook system for data transformation
+- **Profile system**: Site-specific configurations loaded from JSON files
+- **Meta Box fields**: Custom fields via MB REST API plugin
 
 ## Environment Setup
 
 Copy `src/.env.example` to `src/.env.local`:
 ```
-WP_BASE_URL=https://plexkits.com
+WP_BASE_URL=https://your-site.com
 WP_USERNAME=<wp-username>
 WP_APP_PASSWORD=<application-password>
-DATABASE_PATH=./data/plexkits.db
+DATABASE_PATH=./data/juggernaut.db
 ```
 
 WordPress requires: REST API enabled, Resource CPT with `show_in_rest`, MB REST API plugin active, Application Password created.
@@ -66,7 +73,7 @@ WordPress requires: REST API enabled, Resource CPT with `show_in_rest`, MB REST 
 
 Defined in `docs/standards/coding_standards.md`. Key points:
 
-- **TypeScript strict mode** — no `any` (ESLint enforced), use `unknown` if type unknown
+- **TypeScript strict mode** — use `unknown` if type unknown
 - **`interface`** for extensible objects, **`type`** for unions/intersections
 - **Import order**: external libs → `@/` absolute imports → relative → type imports → CSS
 - **Use `@/`** path alias for cross-directory imports (maps to `src/`)
@@ -81,15 +88,6 @@ Defined in `docs/standards/coding_standards.md`. Key points:
 ## Electron Desktop App
 
 Juggernaut is packaged as a native Mac app using Electron with auto-updates via GitHub Releases.
-
-### Electron Commands
-
-```bash
-cd src
-npm run electron:dev        # Run Electron in development (requires npm run dev separately)
-npm run electron:build:mac  # Build Mac app (.dmg and .zip)
-npm run electron:publish    # Build and publish to GitHub Releases
-```
 
 ### Auto-Updates
 
