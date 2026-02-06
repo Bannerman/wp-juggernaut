@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Edit2, ExternalLink, ChevronUp, ChevronDown } from 'lucide-react';
-import { cn, formatRelativeTime, STATUS_COLORS, TAXONOMY_LABELS, truncate } from '@/lib/utils';
+import { cn, formatRelativeTime, STATUS_COLORS, truncate } from '@/lib/utils';
 
 interface Term {
   id: number;
@@ -32,6 +32,14 @@ interface ResourceTableProps {
   onSelect: (ids: number[]) => void;
   onEdit: (resource: Resource) => void;
   onUpdate: (id: number, updates: Partial<Resource>) => void;
+  /** Site URL from profile (e.g., "https://plexkits.com") */
+  siteUrl?: string;
+  /** Post type slug for URL building (e.g., "resource") */
+  postTypeSlug?: string;
+  /** Taxonomy labels from profile */
+  taxonomyLabels?: Record<string, string>;
+  /** Post type label for display (e.g., "resources") */
+  postTypeLabelPlural?: string;
 }
 
 type SortField = 'title' | 'status' | 'modified_gmt' | 'date_gmt';
@@ -45,6 +53,10 @@ export function ResourceTable({
   onSelect,
   onEdit,
   onUpdate,
+  siteUrl = '',
+  postTypeSlug = 'resource',
+  taxonomyLabels = {},
+  postTypeLabelPlural = 'resources',
 }: ResourceTableProps) {
   const [sortField, setSortField] = useState<SortField>('modified_gmt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -321,15 +333,17 @@ export function ResourceTable({
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <a
-                        href={`https://plexkits.com/resource/${resource.slug}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
-                        title="View on site"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
+                      {siteUrl && (
+                        <a
+                          href={`${siteUrl}/${postTypeSlug}/${resource.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                          title="View on site"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -344,7 +358,7 @@ export function ResourceTable({
         {selectedIds.length > 0 ? (
           <span>{selectedIds.length} selected</span>
         ) : (
-          <span>{resources.length} resources</span>
+          <span>{resources.length} {postTypeLabelPlural}</span>
         )}
       </div>
     </div>

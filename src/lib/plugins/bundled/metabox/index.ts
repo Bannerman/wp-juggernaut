@@ -17,10 +17,12 @@ import type {
 } from '../../types';
 import manifest from './manifest.json';
 import { HOOKS } from '../../hooks';
+import { getProfileManager } from '../../../profiles';
 
 /**
- * Mapping from taxonomy REST slug to Meta Box field ID
- * Used when pushing taxonomy updates via meta_box
+ * DEPRECATED: Use getTaxonomyMetaFieldMappingFromProfile() instead.
+ * This constant is kept for backward compatibility but will be removed.
+ * The mapping now comes from the profile's taxonomy configurations.
  */
 export const TAXONOMY_META_FIELD: Record<string, string> = {
   'resource-type': 'tax_resource_type',
@@ -32,6 +34,28 @@ export const TAXONOMY_META_FIELD: Record<string, string> = {
   'competition_format': 'taax_competition_format', // typo is in the WP Meta Box config
   // file_format has no Meta Box field - only works via top-level REST field
 };
+
+/**
+ * Get taxonomy to Meta Box field mapping from the current profile.
+ * Falls back to hardcoded TAXONOMY_META_FIELD if profile doesn't have mappings.
+ */
+export function getTaxonomyMetaFieldMappingFromProfile(): Record<string, string> {
+  const manager = getProfileManager();
+  const profile = manager.getCurrentProfile();
+  if (profile) {
+    const mapping: Record<string, string> = {};
+    for (const tax of profile.taxonomies || []) {
+      if (tax.meta_field) {
+        mapping[tax.slug] = tax.meta_field;
+      }
+    }
+    if (Object.keys(mapping).length > 0) {
+      return mapping;
+    }
+  }
+  // Fallback to hardcoded mapping for backward compatibility
+  return TAXONOMY_META_FIELD;
+}
 
 /**
  * Known Meta Box field groups

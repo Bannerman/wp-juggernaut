@@ -253,6 +253,33 @@ class ProfileManager {
   }
 
   /**
+   * Get editable taxonomies (those with editable: true)
+   */
+  getEditableTaxonomies(): SiteProfile['taxonomies'] {
+    return this.getTaxonomies().filter((t) => t.editable === true);
+  }
+
+  /**
+   * Get editable taxonomy slugs
+   */
+  getEditableTaxonomySlugs(): string[] {
+    return this.getEditableTaxonomies().map((t) => t.slug);
+  }
+
+  /**
+   * Get taxonomy to Meta Box field mapping from profile
+   */
+  getTaxonomyMetaFieldMapping(): Record<string, string> {
+    const mapping: Record<string, string> = {};
+    for (const tax of this.getTaxonomies()) {
+      if (tax.meta_field) {
+        mapping[tax.slug] = tax.meta_field;
+      }
+    }
+    return mapping;
+  }
+
+  /**
    * Get full configuration for frontend
    */
   getFullConfig(): {
@@ -337,6 +364,22 @@ export function getProfileTaxonomySlugs(): string[] {
 export function getProfileTaxonomyLabels(): Record<string, string> {
   ensureProfileLoaded();
   return getProfileManager().getTaxonomyLabels();
+}
+
+/**
+ * Get editable taxonomy slugs from current profile
+ */
+export function getProfileEditableTaxonomySlugs(): string[] {
+  ensureProfileLoaded();
+  return getProfileManager().getEditableTaxonomySlugs();
+}
+
+/**
+ * Get taxonomy to Meta Box field mapping from current profile
+ */
+export function getProfileTaxonomyMetaFieldMapping(): Record<string, string> {
+  ensureProfileLoaded();
+  return getProfileManager().getTaxonomyMetaFieldMapping();
 }
 
 // Export the ProfileManager class for testing

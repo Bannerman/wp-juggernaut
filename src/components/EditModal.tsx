@@ -44,6 +44,12 @@ interface EditModalProps {
   enabledTabs?: string[];
   taxonomyConfig?: TaxonomyConfig[];
   taxonomyLabels?: Record<string, string>;
+  /** Site URL from profile (e.g., "https://plexkits.com") */
+  siteUrl?: string;
+  /** Post type slug for URL building (e.g., "resource") */
+  postTypeSlug?: string;
+  /** Post type label for display (e.g., "Resource") */
+  postTypeLabel?: string;
 }
 
 interface FeatureItem {
@@ -120,7 +126,20 @@ const ALL_TABS = [
 
 const STATUS_OPTIONS = ['publish', 'draft'];
 
-export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreating = false, enabledTabs = [], taxonomyConfig = [], taxonomyLabels = {} }: EditModalProps) {
+export function EditModal({
+  resource,
+  terms,
+  onClose,
+  onSave,
+  onCreate,
+  isCreating = false,
+  enabledTabs = [],
+  taxonomyConfig = [],
+  taxonomyLabels = {},
+  siteUrl = '',
+  postTypeSlug = 'resource',
+  postTypeLabel = 'Resource',
+}: EditModalProps) {
   const isCreateMode = resource === null;
 
   // Filter tabs based on enabled plugins
@@ -1063,27 +1082,27 @@ timer_datetime: {{timer_datetime}}
           )}>
             <div>
               <h2 className="text-lg font-semibold text-gray-900 line-clamp-1">
-                {isCreateMode ? (title || 'New Resource') : title}
+                {isCreateMode ? (title || `New ${postTypeLabel}`) : title}
               </h2>
               {!isCreateMode && (
                 <p className="text-sm text-gray-500">
                   ID: {effectiveResource.id}
-                  {slug && (
+                  {slug && siteUrl && (
                     <>
                       <span className="mx-2">·</span>
                       <a
-                        href={`https://plexkits.com/resource/${slug}/`}
+                        href={`${siteUrl}/${postTypeSlug}/${slug}/`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-brand-600 hover:underline"
                       >
-                        plexkits.com/resource/{slug}/
+                        {siteUrl.replace(/^https?:\/\//, '')}/{postTypeSlug}/{slug}/
                       </a>
                     </>
                   )}
                 </p>
               )}
-              {isCreateMode && <p className="text-sm text-green-600">Creating new resource</p>}
+              {isCreateMode && <p className="text-sm text-green-600">Creating new {postTypeLabel.toLowerCase()}</p>}
             </div>
             <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
               <X className="w-5 h-5" />

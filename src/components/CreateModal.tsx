@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { X, Save, Plus } from 'lucide-react';
-import { cn, TAXONOMY_LABELS } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface Term {
   id: number;
@@ -22,22 +22,25 @@ interface CreateModalProps {
     meta_box: Record<string, unknown>;
   }) => void;
   isCreating: boolean;
+  /** Editable taxonomy slugs from profile */
+  editableTaxonomies?: string[];
+  /** Taxonomy slug to label mapping from profile */
+  taxonomyLabels?: Record<string, string>;
+  /** Post type label for display (e.g., "Resource", "Product") */
+  postTypeLabel?: string;
 }
-
-const EDITABLE_TAXONOMIES = [
-  'resource-type',
-  'topic',
-  'intent',
-  'audience',
-  'leagues',
-  'competition_format',
-  'bracket-size',
-  'file_format',
-];
 
 const STATUS_OPTIONS = ['publish', 'draft', 'pending', 'private'];
 
-export function CreateModal({ terms, onClose, onSave, isCreating }: CreateModalProps) {
+export function CreateModal({
+  terms,
+  onClose,
+  onSave,
+  isCreating,
+  editableTaxonomies = [],
+  taxonomyLabels = {},
+  postTypeLabel = 'Resource',
+}: CreateModalProps) {
   const [title, setTitle] = useState('');
   const [status, setStatus] = useState('draft');
   const [taxonomies, setTaxonomies] = useState<Record<string, number[]>>({});
@@ -83,7 +86,7 @@ export function CreateModal({ terms, onClose, onSave, isCreating }: CreateModalP
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-green-50">
             <div className="flex items-center gap-3">
               <Plus className="w-6 h-6 text-green-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Create New Resource</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Create New {postTypeLabel}</h2>
             </div>
             <button
               onClick={onClose}
@@ -196,7 +199,7 @@ export function CreateModal({ terms, onClose, onSave, isCreating }: CreateModalP
                   Taxonomies (Optional)
                 </h3>
 
-                {EDITABLE_TAXONOMIES.map((taxonomy) => {
+                {editableTaxonomies.map((taxonomy) => {
                   const taxonomyTerms = terms[taxonomy] || [];
                   const selectedIds = taxonomies[taxonomy] || [];
 
@@ -205,7 +208,7 @@ export function CreateModal({ terms, onClose, onSave, isCreating }: CreateModalP
                   return (
                     <div key={taxonomy}>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {TAXONOMY_LABELS[taxonomy] || taxonomy}
+                        {taxonomyLabels[taxonomy] || taxonomy}
                       </label>
                       <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
                         {taxonomyTerms
@@ -239,7 +242,7 @@ export function CreateModal({ terms, onClose, onSave, isCreating }: CreateModalP
           {/* Footer */}
           <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
             <p className="text-sm text-gray-500">
-              Resource will be created in WordPress immediately
+              {postTypeLabel} will be created in WordPress immediately
             </p>
             <div className="flex items-center gap-3">
               <button
@@ -259,7 +262,7 @@ export function CreateModal({ terms, onClose, onSave, isCreating }: CreateModalP
                 )}
               >
                 <Save className="w-4 h-4" />
-                {isCreating ? 'Creating...' : 'Create Resource'}
+                {isCreating ? 'Creating...' : `Create ${postTypeLabel}`}
               </button>
             </div>
           </div>

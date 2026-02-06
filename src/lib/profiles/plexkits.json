@@ -52,7 +52,9 @@
       "post_types": ["resource"],
       "hierarchical": false,
       "show_in_filter": true,
-      "filter_position": 1
+      "filter_position": 1,
+      "meta_field": "tax_resource_type",
+      "editable": true
     },
     {
       "slug": "topic",
@@ -61,7 +63,9 @@
       "post_types": ["resource"],
       "hierarchical": true,
       "show_in_filter": true,
-      "filter_position": 2
+      "filter_position": 2,
+      "meta_field": "tax_topic",
+      "editable": true
     },
     {
       "slug": "intent",
@@ -70,7 +74,9 @@
       "post_types": ["resource"],
       "hierarchical": false,
       "show_in_filter": true,
-      "filter_position": 3
+      "filter_position": 3,
+      "meta_field": "tax_intent",
+      "editable": true
     },
     {
       "slug": "audience",
@@ -79,7 +85,9 @@
       "post_types": ["resource"],
       "hierarchical": false,
       "show_in_filter": true,
-      "filter_position": 4
+      "filter_position": 4,
+      "meta_field": "tax_audience",
+      "editable": true
     },
     {
       "slug": "leagues",
@@ -89,6 +97,8 @@
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 5,
+      "meta_field": "tax_league",
+      "editable": false,
       "conditional": {
         "show_when": {
           "taxonomy": "topic",
@@ -104,6 +114,8 @@
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 6,
+      "meta_field": "tax_bracket_size",
+      "editable": false,
       "conditional": {
         "show_when": {
           "taxonomy": "resource-type",
@@ -119,6 +131,8 @@
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 7,
+      "meta_field": "taax_competition_format",
+      "editable": false,
       "conditional": {
         "show_when": {
           "taxonomy": "topic",
@@ -132,7 +146,8 @@
       "rest_base": "file_format",
       "post_types": ["resource"],
       "hierarchical": false,
-      "show_in_filter": false
+      "show_in_filter": false,
+      "editable": false
     }
   ],
 

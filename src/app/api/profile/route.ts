@@ -41,6 +41,9 @@ export async function GET() {
       }
     }
 
+    // Get primary post type
+    const primaryPostType = config.postTypes?.find(pt => pt.is_primary) || config.postTypes?.[0];
+
     return NextResponse.json({
       profile: {
         id: profile.profile_id,
@@ -48,7 +51,13 @@ export async function GET() {
         version: profile.profile_version,
       },
       activeSite: config.activeSite,
+      siteUrl: config.activeSite?.url || '',
       postTypes: config.postTypes,
+      postType: primaryPostType ? {
+        slug: primaryPostType.slug,
+        name: primaryPostType.name,
+        rest_base: primaryPostType.rest_base,
+      } : null,
       taxonomies: config.taxonomies,
       taxonomyLabels: config.taxonomyLabels,
       filterTaxonomies: config.filterTaxonomies,
