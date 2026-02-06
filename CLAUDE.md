@@ -2,6 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL: Always Work From a Plan
+
+**NEVER start building without a documented plan.**
+
+Before making significant changes:
+1. Check if `/docs/v1.0-plan.md` exists and is up to date
+2. If no plan exists, CREATE ONE FIRST before writing any code
+3. If the plan is outdated, UPDATE IT before proceeding
+4. For new features, add them to the plan and get user approval
+
+The plan document contains:
+- Architecture decisions
+- Implementation roadmap
+- Security requirements (e.g., Keychain for credentials)
+- What's completed vs. in progress
+
+**Do not rely on conversation context alone** - plans get lost when conversations compact.
+
 ## Project Overview
 
 Juggernaut is a modular, plugin-based WordPress content management platform. It's a local-first desktop application (Electron + Next.js) for syncing, bulk editing, and pushing WordPress posts. It uses a local SQLite database for offline editing with conflict detection when pushing changes back.
