@@ -4,11 +4,6 @@ import path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import http from 'http';
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-if (require('electron-squirrel-startup')) {
-  app.quit();
-}
 
 let mainWindow: BrowserWindow | null = null;
 let nextServer: ChildProcess | null = null;
