@@ -14,6 +14,11 @@ files:
   - .next/standalone/**/*
   - electron/dist/**/*
 
+# Unpack standalone server so it can be executed
+# (Node.js can't run scripts from inside asar archives)
+asarUnpack:
+  - .next/standalone/**/*
+
 # Extra resources (database, etc.)
 extraResources:
   - from: data
