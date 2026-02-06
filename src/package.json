@@ -5,12 +5,12 @@
   "private": true,
   "main": "electron/dist/main.js",
   "author": {
-    "name": "Your Name",
-    "email": "your@email.com"
+    "name": "Bannerman",
+    "email": "rickbannerman@gmail.com"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/mini2/wp-juggernaut.git"
+    "url": "https://github.com/Bannerman/wp-juggernaut.git"
   },
   "scripts": {
     "dev": "next dev",
