@@ -1,12 +1,11 @@
-import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, utilityProcess, UtilityProcess } from 'electron';
 import { autoUpdater, UpdateInfo, ProgressInfo } from 'electron-updater';
 import path from 'path';
-import { spawn, ChildProcess } from 'child_process';
 import http from 'http';
 
 
 let mainWindow: BrowserWindow | null = null;
-let nextServer: ChildProcess | null = null;
+let nextServer: UtilityProcess | null = null;
 const isDev = process.env.NODE_ENV === 'development';
 const PORT = 3000;
 
@@ -76,38 +75,40 @@ async function startNextServer(): Promise<void> {
     return;
   }
 
-  // In production, start the Next.js server
-  // process.resourcesPath is available in packaged Electron apps
-  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath || __dirname;
-  const serverPath = path.join(resourcesPath, 'app');
+  // In production, start the Next.js standalone server
+  // The standalone server is bundled at .next/standalone/server.js
+  const appPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar')
+    : path.join(__dirname, '..');
 
-  nextServer = spawn('node', [path.join(serverPath, 'server.js')], {
-    cwd: serverPath,
+  const serverPath = path.join(appPath, '.next', 'standalone', 'server.js');
+
+  console.log('Starting Next.js server from:', serverPath);
+
+  // Use Electron's utilityProcess to fork the server
+  // This uses Electron's built-in Node.js runtime
+  nextServer = utilityProcess.fork(serverPath, [], {
     env: {
       ...process.env,
       PORT: String(PORT),
       NODE_ENV: 'production',
+      HOSTNAME: 'localhost',
     },
-    stdio: 'pipe',
+    cwd: path.dirname(serverPath),
   });
 
   nextServer.stdout?.on('data', (data: Buffer) => {
-    console.log(`[Next.js] ${data}`);
+    console.log(`[Next.js] ${data.toString()}`);
   });
 
   nextServer.stderr?.on('data', (data: Buffer) => {
-    console.error(`[Next.js Error] ${data}`);
+    console.error(`[Next.js Error] ${data.toString()}`);
   });
 
-  nextServer.on('error', (error: Error) => {
-    console.error('Failed to start Next.js server:', error);
-    dialog.showErrorBox('Server Error', 'Failed to start the application server.');
-    app.quit();
-  });
-
-  nextServer.on('exit', (code: number | null) => {
-    if (code !== 0 && code !== null) {
+  nextServer.on('exit', (code: number) => {
+    if (code !== 0) {
       console.error(`Next.js server exited with code ${code}`);
+      dialog.showErrorBox('Server Error', 'The application server stopped unexpectedly.');
     }
   });
 }
@@ -117,6 +118,13 @@ function stopNextServer(): void {
     nextServer.kill();
     nextServer = null;
   }
+}
+
+// Helper to get the app base path
+function getAppPath(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar')
+    : path.join(__dirname, '..');
 }
 
 // Auto-updater events

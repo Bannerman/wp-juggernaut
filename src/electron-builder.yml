@@ -8,12 +8,11 @@ directories:
   buildResources: build
 
 # Files to include in the app
+# The standalone folder contains server.js and node_modules
+# We copy .next/static and public into it during build:standalone
 files:
-  - .next/**/*
-  - node_modules/**/*
-  - package.json
+  - .next/standalone/**/*
   - electron/dist/**/*
-  - public/**/*
 
 # Extra resources (database, etc.)
 extraResources:
