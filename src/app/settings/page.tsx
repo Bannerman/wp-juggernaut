@@ -78,6 +78,12 @@ export default function SettingsPage() {
   const [targetLoading, setTargetLoading] = useState(true);
   const [targetSwitching, setTargetSwitching] = useState(false);
 
+  // Credentials state
+  const [username, setUsername] = useState('');
+  const [appPassword, setAppPassword] = useState('');
+  const [hasCredentials, setHasCredentials] = useState(false);
+  const [savingCredentials, setSavingCredentials] = useState(false);
+
   // Prompts state
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [placeholders, setPlaceholders] = useState<Placeholder[]>([]);
@@ -111,6 +117,8 @@ export default function SettingsPage() {
       .then(data => {
         setTargets(data.targets || []);
         setActiveTarget(data.activeTarget || null);
+        setHasCredentials(data.hasCredentials || false);
+        setUsername(data.username || '');
       })
       .catch(err => console.error('Failed to fetch site config:', err))
       .finally(() => setTargetLoading(false));
@@ -177,6 +185,36 @@ export default function SettingsPage() {
       setMessage({ type: 'error', text: String(err) });
     } finally {
       setTargetSwitching(false);
+    }
+  };
+
+  // Save credentials
+  const saveCredentials = async () => {
+    if (!username || !appPassword) {
+      setMessage({ type: 'error', text: 'Both username and application password are required' });
+      return;
+    }
+
+    setSavingCredentials(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/site-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentials: { username, appPassword } }),
+      });
+
+      if (!res.ok) throw new Error('Failed to save credentials');
+
+      const data = await res.json();
+      setHasCredentials(true);
+      setAppPassword(''); // Clear password from state for security
+      setMessage({ type: 'success', text: 'Credentials saved successfully' });
+    } catch (err) {
+      setMessage({ type: 'error', text: String(err) });
+    } finally {
+      setSavingCredentials(false);
     }
   };
 
@@ -542,10 +580,78 @@ export default function SettingsPage() {
               </div>
             )}
 
+            {/* Credentials Section */}
+            <div className="mt-8 pt-8 border-t border-gray-200">
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">WordPress Credentials</h2>
+                <p className="text-sm text-gray-500">
+                  Enter your WordPress username and application password to connect to the API.
+                  {hasCredentials && (
+                    <span className="ml-2 text-green-600 font-medium">✓ Credentials saved</span>
+                  )}
+                </p>
+              </div>
+
+              <div className="space-y-4 max-w-md">
+                <div>
+                  <label htmlFor="wp-username" className="block text-sm font-medium text-gray-700 mb-1">
+                    WordPress Username
+                  </label>
+                  <input
+                    id="wp-username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="admin"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="wp-password" className="block text-sm font-medium text-gray-700 mb-1">
+                    Application Password
+                  </label>
+                  <input
+                    id="wp-password"
+                    type="password"
+                    value={appPassword}
+                    onChange={(e) => setAppPassword(e.target.value)}
+                    placeholder={hasCredentials ? '••••••••••••••••' : 'xxxx xxxx xxxx xxxx xxxx xxxx'}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Generate an application password in WordPress: Users → Profile → Application Passwords
+                  </p>
+                </div>
+
+                <button
+                  onClick={saveCredentials}
+                  disabled={savingCredentials || (!username && !appPassword)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                    'bg-brand-600 text-white hover:bg-brand-700',
+                    'disabled:opacity-50 disabled:cursor-not-allowed'
+                  )}
+                >
+                  {savingCredentials ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Save Credentials
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
             <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-sm text-amber-700">
                 <strong>Note:</strong> After switching targets, you should re-sync your data to load resources from the new site.
-                The same WordPress credentials (username and application password) are used for all sites.
+                The same credentials are used for all sites.
               </p>
             </div>
           </div>
