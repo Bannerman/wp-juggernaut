@@ -600,6 +600,10 @@ export interface TaxonomyConfig {
   hierarchical?: boolean;
   show_in_filter?: boolean;
   filter_position?: number;
+  /** Meta Box field ID for this taxonomy (e.g., 'tax_resource_type') */
+  meta_field?: string;
+  /** Whether this taxonomy is editable in the create/edit modal */
+  editable?: boolean;
   conditional?: {
     show_when: {
       taxonomy: string;

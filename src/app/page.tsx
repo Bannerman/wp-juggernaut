@@ -82,9 +82,14 @@ export default function Home() {
     hierarchical?: boolean;
     show_in_filter?: boolean;
     filter_position?: number;
+    editable?: boolean;
     conditional?: { show_when?: { taxonomy: string; has_term_id: number } };
   }>>([]);
   const [taxonomyLabels, setTaxonomyLabels] = useState<Record<string, string>>({});
+  const [siteUrl, setSiteUrl] = useState<string>('');
+  const [postTypeSlug, setPostTypeSlug] = useState<string>('resource');
+  const [postTypeLabel, setPostTypeLabel] = useState<string>('Resource');
+  const [editableTaxonomies, setEditableTaxonomies] = useState<string[]>([]);
 
   // Fetch profile config (includes enabled plugins and taxonomy config)
   useEffect(() => {
@@ -96,9 +101,21 @@ export default function Home() {
         }
         if (data.taxonomies) {
           setTaxonomyConfig(data.taxonomies);
+          // Extract editable taxonomies from config
+          const editable = data.taxonomies
+            .filter((t: { editable?: boolean }) => t.editable)
+            .map((t: { slug: string }) => t.slug);
+          setEditableTaxonomies(editable);
         }
         if (data.taxonomyLabels) {
           setTaxonomyLabels(data.taxonomyLabels);
+        }
+        if (data.siteUrl) {
+          setSiteUrl(data.siteUrl);
+        }
+        if (data.postType) {
+          setPostTypeSlug(data.postType.slug || 'resource');
+          setPostTypeLabel(data.postType.name || 'Resource');
         }
       })
       .catch(err => console.error('Failed to fetch profile:', err));
@@ -613,6 +630,10 @@ export default function Home() {
             onSelect={setSelectedResources}
             onEdit={setEditingResource}
             onUpdate={handleUpdateResource}
+            siteUrl={siteUrl}
+            postTypeSlug={postTypeSlug}
+            taxonomyLabels={taxonomyLabels}
+            postTypeLabelPlural={`${postTypeLabel.toLowerCase()}s`}
           />
         )}
       </main>
@@ -627,6 +648,9 @@ export default function Home() {
           enabledTabs={enabledTabs}
           taxonomyConfig={taxonomyConfig}
           taxonomyLabels={taxonomyLabels}
+          siteUrl={siteUrl}
+          postTypeSlug={postTypeSlug}
+          postTypeLabel={postTypeLabel}
         />
       )}
 
@@ -642,6 +666,9 @@ export default function Home() {
           enabledTabs={enabledTabs}
           taxonomyConfig={taxonomyConfig}
           taxonomyLabels={taxonomyLabels}
+          siteUrl={siteUrl}
+          postTypeSlug={postTypeSlug}
+          postTypeLabel={postTypeLabel}
         />
       )}
     </div>

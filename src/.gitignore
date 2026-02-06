@@ -26,6 +26,9 @@ yarn-error.log*
 .env*.local
 .env
 
+# Credentials / site config (contains sensitive data)
+site-config.json
+
 # Vercel
 .vercel
 
