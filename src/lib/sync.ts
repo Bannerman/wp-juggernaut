@@ -4,15 +4,67 @@ import {
   fetchAllResources,
   fetchResourceIds,
   getTaxonomies,
+  getWpBaseUrl,
+  getWpCredentials,
   type WPResource,
   type WPTerm,
 } from './wp-client';
 import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
 import { collectMetaBoxKeys, runFieldAudit, saveAuditResults } from './field-audit';
 import { decodeHtmlEntities } from './utils';
+import { saveResourceSeo, type LocalSeoData } from './queries';
 
 // Cache for media URLs to avoid duplicate requests during sync
 const mediaUrlCache = new Map<number, string>();
+
+// Fetch SEO data from SEOPress for a resource
+async function fetchSeoData(resourceId: number): Promise<LocalSeoData | null> {
+  try {
+    const creds = getWpCredentials();
+    const authHeader = 'Basic ' + Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
+
+    const response = await fetch(
+      `${getWpBaseUrl()}/wp-json/seopress/v1/posts/${resourceId}`,
+      {
+        headers: { Authorization: authHeader },
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      console.warn(`Failed to fetch SEO for resource ${resourceId}: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+
+    return {
+      title: data.title || '',
+      description: data.description || '',
+      canonical: data.canonical || '',
+      targetKeywords: data.target_kw || '',
+      og: {
+        title: data.og?.title || '',
+        description: data.og?.description || '',
+        image: data.og?.image || '',
+      },
+      twitter: {
+        title: data.twitter?.title || '',
+        description: data.twitter?.description || '',
+        image: data.twitter?.image || '',
+      },
+      robots: {
+        noindex: data.robots?.noindex || false,
+        nofollow: data.robots?.nofollow || false,
+        nosnippet: data.robots?.nosnippet || false,
+        noimageindex: data.robots?.noimageindex || false,
+      },
+    };
+  } catch (error) {
+    console.error(`Error fetching SEO for resource ${resourceId}:`, error);
+    return null;
+  }
+}
 
 async function fetchMediaUrl(mediaId: number): Promise<string | null> {
   // Check cache first
@@ -253,6 +305,24 @@ export async function syncResources(incremental: boolean = false): Promise<{
     }
     saveResource(resource, featuredImageUrl);
   }
+
+  // Fetch and save SEO data for all resources in parallel
+  console.log(`Fetching SEO data for ${resources.length} resources...`);
+  const seoResults = await Promise.all(
+    resources.map(async (resource) => {
+      const seo = await fetchSeoData(resource.id);
+      return { id: resource.id, seo };
+    })
+  );
+
+  let seoSaved = 0;
+  for (const { id, seo } of seoResults) {
+    if (seo) {
+      saveResourceSeo(id, seo, false); // false = don't mark dirty during sync
+      seoSaved++;
+    }
+  }
+  console.log(`Saved SEO data for ${seoSaved} resources`);
 
   // Check for deleted resources
   let deletedCount = 0;

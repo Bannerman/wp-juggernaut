@@ -257,26 +257,10 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
       .finally(() => setSeoLoading(false));
   }, [isCreateMode, effectiveResource.id]);
 
+  // SEO is now saved locally with the resource, not directly to WordPress
   const saveSeoData = async () => {
-    if (!effectiveResource.id || !seoHasChanges) return;
-
-    setSeoSaving(true);
-    try {
-      const res = await fetch(`/api/seo/${effectiveResource.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(seoData),
-      });
-
-      if (!res.ok) throw new Error('Failed to save SEO data');
-
-      setOriginalSeoData(seoData);
-    } catch (err) {
-      console.error('Failed to save SEO data:', err);
-      throw err;
-    } finally {
-      setSeoSaving(false);
-    }
+    // This is now handled in handleSave by including seo in the resource update
+    // Kept for backwards compatibility but should not be called directly
   };
 
   const updateSeoField = (field: keyof SEOData, value: unknown) => {
@@ -321,23 +305,26 @@ export function EditModal({ resource, terms, onClose, onSave, onCreate, isCreati
 
     setIsSaving(true);
     try {
-      // Save resource changes
-      if (resourceHasChanges) {
-        await onSave({
-          title,
-          slug,
-          status,
-          taxonomies,
-          meta_box: metaBox,
-        });
-      }
+      // Save resource changes (including SEO if changed)
+      // SEO is now saved locally with the resource, then pushed to WordPress with the rest
+      await onSave({
+        title,
+        slug,
+        status,
+        taxonomies,
+        meta_box: metaBox,
+        ...(seoHasChanges ? { seo: seoData } : {}),
+      });
 
-      // Save SEO changes
+      // Update originalSeoData so we know it's been saved
       if (seoHasChanges) {
-        await saveSeoData();
+        setOriginalSeoData(seoData);
       }
 
       onClose();
+    } catch (err) {
+      console.error('Save failed:', err);
+      setSeoError(`Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsSaving(false);
     }

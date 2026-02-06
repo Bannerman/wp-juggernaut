@@ -99,6 +99,26 @@ function initializeSchema(database: Database.Database) {
       UNIQUE(audit_run_at, field_name)
     );
 
+    -- SEO data (from SEOPress or similar)
+    CREATE TABLE IF NOT EXISTS resource_seo (
+      resource_id INTEGER PRIMARY KEY,
+      seo_title TEXT DEFAULT '',
+      seo_description TEXT DEFAULT '',
+      seo_canonical TEXT DEFAULT '',
+      seo_target_keywords TEXT DEFAULT '',
+      og_title TEXT DEFAULT '',
+      og_description TEXT DEFAULT '',
+      og_image TEXT DEFAULT '',
+      twitter_title TEXT DEFAULT '',
+      twitter_description TEXT DEFAULT '',
+      twitter_image TEXT DEFAULT '',
+      robots_noindex INTEGER DEFAULT 0,
+      robots_nofollow INTEGER DEFAULT 0,
+      robots_nosnippet INTEGER DEFAULT 0,
+      robots_noimageindex INTEGER DEFAULT 0,
+      FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE CASCADE
+    );
+
     -- Indexes for performance
     CREATE INDEX IF NOT EXISTS idx_terms_taxonomy ON terms(taxonomy);
     CREATE INDEX IF NOT EXISTS idx_resource_terms_resource ON resource_terms(resource_id);

@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getWpBaseUrl, WP_USERNAME, WP_APP_PASSWORD } from '@/lib/wp-client';
+import { getWpBaseUrl, getWpCredentials } from '@/lib/wp-client';
+
+// Force dynamic - don't prerender
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const baseUrl = getWpBaseUrl();
-  const authHeader = 'Basic ' + Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
+  const creds = getWpCredentials();
+  const authHeader = 'Basic ' + Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
+
+  console.log('[test-connection] Using credentials for:', creds.username);
+  console.log('[test-connection] Password length:', creds.appPassword?.length || 0);
 
   const result = {
     success: false,

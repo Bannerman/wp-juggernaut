@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getActiveBaseUrl } from '@/lib/site-config';
+import { getWpBaseUrl, getWpCredentials } from '@/lib/wp-client';
 
-const WP_USERNAME = process.env.WP_USERNAME || '';
-const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
-
-const authHeader = 'Basic ' + Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
+function getAuthHeader(): string {
+  const creds = getWpCredentials();
+  return 'Basic ' + Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
+}
 
 function getBaseUrl(): string {
-  return getActiveBaseUrl();
+  return getWpBaseUrl();
 }
 
 export interface SEOData {
@@ -50,7 +50,7 @@ export async function GET(
     const response = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}`, {
       method: 'GET',
       headers: {
-        'Authorization': authHeader,
+        'Authorization': getAuthHeader(),
         'Content-Type': 'application/json',
       },
     });
@@ -134,7 +134,7 @@ export async function PATCH(
       const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/title-description-metas`, {
         method: 'PUT',
         headers: {
-          'Authorization': authHeader,
+          'Authorization': getAuthHeader(),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(titleDescPayload),
@@ -152,7 +152,7 @@ export async function PATCH(
       const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/target-keywords`, {
         method: 'PUT',
         headers: {
-          'Authorization': authHeader,
+          'Authorization': getAuthHeader(),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -187,7 +187,7 @@ export async function PATCH(
         const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/social-settings`, {
           method: 'PUT',
           headers: {
-            'Authorization': authHeader,
+            'Authorization': getAuthHeader(),
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(socialPayload),
@@ -227,7 +227,7 @@ export async function PATCH(
         const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/meta-robot-settings`, {
           method: 'PUT',
           headers: {
-            'Authorization': authHeader,
+            'Authorization': getAuthHeader(),
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(robotsPayload),

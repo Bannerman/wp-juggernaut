@@ -311,3 +311,116 @@ export function getSyncStats(): {
     totalTerms: termCount.count,
   };
 }
+
+// ─── SEO Data ─────────────────────────────────────────────────────────────────
+
+export interface LocalSeoData {
+  title: string;
+  description: string;
+  canonical: string;
+  targetKeywords: string;
+  og: {
+    title: string;
+    description: string;
+    image: string;
+  };
+  twitter: {
+    title: string;
+    description: string;
+    image: string;
+  };
+  robots: {
+    noindex: boolean;
+    nofollow: boolean;
+    nosnippet: boolean;
+    noimageindex: boolean;
+  };
+}
+
+const DEFAULT_SEO: LocalSeoData = {
+  title: '',
+  description: '',
+  canonical: '',
+  targetKeywords: '',
+  og: { title: '', description: '', image: '' },
+  twitter: { title: '', description: '', image: '' },
+  robots: { noindex: false, nofollow: false, nosnippet: false, noimageindex: false },
+};
+
+export function getResourceSeo(resourceId: number): LocalSeoData {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM resource_seo WHERE resource_id = ?').get(resourceId) as {
+    seo_title: string;
+    seo_description: string;
+    seo_canonical: string;
+    seo_target_keywords: string;
+    og_title: string;
+    og_description: string;
+    og_image: string;
+    twitter_title: string;
+    twitter_description: string;
+    twitter_image: string;
+    robots_noindex: number;
+    robots_nofollow: number;
+    robots_nosnippet: number;
+    robots_noimageindex: number;
+  } | undefined;
+
+  if (!row) return { ...DEFAULT_SEO };
+
+  return {
+    title: row.seo_title || '',
+    description: row.seo_description || '',
+    canonical: row.seo_canonical || '',
+    targetKeywords: row.seo_target_keywords || '',
+    og: {
+      title: row.og_title || '',
+      description: row.og_description || '',
+      image: row.og_image || '',
+    },
+    twitter: {
+      title: row.twitter_title || '',
+      description: row.twitter_description || '',
+      image: row.twitter_image || '',
+    },
+    robots: {
+      noindex: row.robots_noindex === 1,
+      nofollow: row.robots_nofollow === 1,
+      nosnippet: row.robots_nosnippet === 1,
+      noimageindex: row.robots_noimageindex === 1,
+    },
+  };
+}
+
+export function saveResourceSeo(resourceId: number, seo: LocalSeoData, markDirty = true): void {
+  const db = getDb();
+
+  db.prepare(`
+    INSERT OR REPLACE INTO resource_seo (
+      resource_id, seo_title, seo_description, seo_canonical, seo_target_keywords,
+      og_title, og_description, og_image,
+      twitter_title, twitter_description, twitter_image,
+      robots_noindex, robots_nofollow, robots_nosnippet, robots_noimageindex
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    resourceId,
+    seo.title,
+    seo.description,
+    seo.canonical,
+    seo.targetKeywords,
+    seo.og.title,
+    seo.og.description,
+    seo.og.image,
+    seo.twitter.title,
+    seo.twitter.description,
+    seo.twitter.image,
+    seo.robots.noindex ? 1 : 0,
+    seo.robots.nofollow ? 1 : 0,
+    seo.robots.nosnippet ? 1 : 0,
+    seo.robots.noimageindex ? 1 : 0
+  );
+
+  if (markDirty) {
+    db.prepare('UPDATE resources SET is_dirty = 1 WHERE id = ?').run(resourceId);
+  }
+}
