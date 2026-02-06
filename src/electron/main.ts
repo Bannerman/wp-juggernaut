@@ -76,13 +76,10 @@ async function startNextServer(): Promise<void> {
   }
 
   // In production, start the Next.js standalone server
-  // The standalone server is unpacked outside the asar archive
-  // because Node.js can't run scripts from inside asar
-  const appPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'app.asar.unpacked')
-    : path.join(__dirname, '..');
-
-  const serverPath = path.join(appPath, '.next', 'standalone', 'server.js');
+  // The standalone folder is in extraResources (outside asar)
+  const serverPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'standalone', 'server.js')
+    : path.join(__dirname, '..', '.next', 'standalone', 'server.js');
 
   console.log('Starting Next.js server from:', serverPath);
   console.log('Server path exists:', require('fs').existsSync(serverPath));
