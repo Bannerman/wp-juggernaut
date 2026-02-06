@@ -1,5 +1,17 @@
+/**
+ * SEO API Route
+ *
+ * GET /api/seo/[id] - Fetch SEO data for a resource
+ * PATCH /api/seo/[id] - Update SEO data for a resource
+ *
+ * This route delegates to the SEOPress plugin for actual implementation.
+ * If a different SEO plugin is needed (Yoast, RankMath), a separate
+ * plugin would be created with its own API handling.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getWpBaseUrl, getWpCredentials } from '@/lib/wp-client';
+import { seopressPlugin, SEOData, DEFAULT_SEO_DATA } from '@/lib/plugins/bundled/seopress';
 
 function getAuthHeader(): string {
   const creds = getWpCredentials();
@@ -10,34 +22,8 @@ function getBaseUrl(): string {
   return getWpBaseUrl();
 }
 
-export interface SEOData {
-  title: string;
-  description: string;
-  canonical: string;
-  targetKeywords: string;
-  og: {
-    title: string;
-    description: string;
-    image: string;
-    attachment_id: string;
-    image_width: string;
-    image_height: string;
-  };
-  twitter: {
-    title: string;
-    description: string;
-    image: string;
-    attachment_id: string;
-    image_width: string;
-    image_height: string;
-  };
-  robots: {
-    noindex: boolean;
-    nofollow: boolean;
-    nosnippet: boolean;
-    noimageindex: boolean;
-  };
-}
+// Re-export SEOData type for consumers
+export type { SEOData };
 
 // GET /api/seo/[id] - Fetch SEO data for a resource
 export async function GET(
@@ -45,67 +31,25 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const postId = params.id;
+    const postId = parseInt(params.id, 10);
 
-    const response = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': getAuthHeader(),
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      // If SEOPress returns 404 or error, return empty SEO data
-      if (response.status === 404) {
-        return NextResponse.json({
-          seo: {
-            title: '',
-            description: '',
-            canonical: '',
-            targetKeywords: '',
-            og: { title: '', description: '', image: '', attachment_id: '', image_width: '', image_height: '' },
-            twitter: { title: '', description: '', image: '', attachment_id: '', image_width: '', image_height: '' },
-            robots: { noindex: false, nofollow: false, nosnippet: false, noimageindex: false },
-          }
-        });
-      }
-      throw new Error(`SEOPress API error: ${response.status}`);
+    if (isNaN(postId)) {
+      return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
     }
 
-    const data = await response.json();
+    // Check for source param - 'local' reads from DB, 'remote' fetches from WP
+    const source = request.nextUrl.searchParams.get('source') || 'remote';
 
-    // Transform SEOPress response to our format
-    const seo: SEOData = {
-      title: data.title || '',
-      description: data.description || '',
-      canonical: data.canonical || '',
-      targetKeywords: data.target_kw || '',
-      og: {
-        title: data.og?.title || '',
-        description: data.og?.description || '',
-        image: data.og?.image || '',
-        attachment_id: data.og?.attachment_id || '',
-        image_width: data.og?.image_width || '',
-        image_height: data.og?.image_height || '',
-      },
-      twitter: {
-        title: data.twitter?.title || '',
-        description: data.twitter?.description || '',
-        image: data.twitter?.image || '',
-        attachment_id: data.twitter?.attachment_id || '',
-        image_width: data.twitter?.image_width || '',
-        image_height: data.twitter?.image_height || '',
-      },
-      robots: {
-        noindex: data.robots?.noindex || false,
-        nofollow: data.robots?.nofollow || false,
-        nosnippet: data.robots?.nosnippet || false,
-        noimageindex: data.robots?.noimageindex || false,
-      },
-    };
+    if (source === 'local') {
+      // Return locally cached SEO data
+      const localSEO = seopressPlugin.getLocalSEOData(postId);
+      return NextResponse.json({ seo: localSEO || DEFAULT_SEO_DATA, source: 'local' });
+    }
 
-    return NextResponse.json({ seo });
+    // Fetch from WordPress via SEOPress plugin
+    const seo = await seopressPlugin.fetchSEOData(postId, getBaseUrl(), getAuthHeader());
+
+    return NextResponse.json({ seo, source: 'remote' });
   } catch (error) {
     console.error('Error fetching SEO data:', error);
     return NextResponse.json(
@@ -121,139 +65,71 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const postId = params.id;
+    const postId = parseInt(params.id, 10);
+
+    if (isNaN(postId)) {
+      return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
+    }
+
     const body = await request.json();
-    const results: { endpoint: string; success: boolean; error?: string }[] = [];
 
-    // Update title and description
-    if (body.title !== undefined || body.description !== undefined) {
-      const titleDescPayload: Record<string, string> = {};
-      if (body.title !== undefined) titleDescPayload.title = body.title;
-      if (body.description !== undefined) titleDescPayload.description = body.description;
+    // Check for target param - 'local' saves to DB only, 'remote' pushes to WP, 'both' does both
+    const target = request.nextUrl.searchParams.get('target') || 'remote';
 
-      const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/title-description-metas`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': getAuthHeader(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(titleDescPayload),
-      });
+    // Build SEO data from body
+    const seoData: Partial<SEOData> = {};
+    if (body.title !== undefined) seoData.title = body.title;
+    if (body.description !== undefined) seoData.description = body.description;
+    if (body.canonical !== undefined) seoData.canonical = body.canonical;
+    if (body.targetKeywords !== undefined) seoData.targetKeywords = body.targetKeywords;
+    if (body.og) seoData.og = body.og;
+    if (body.twitter) seoData.twitter = body.twitter;
+    if (body.robots) seoData.robots = body.robots;
 
-      results.push({
-        endpoint: 'title-description-metas',
-        success: res.ok,
-        error: res.ok ? undefined : await res.text(),
-      });
-    }
+    let localSuccess = true;
+    let remoteResult = { success: true, errors: [] as string[] };
 
-    // Update target keywords
-    if (body.targetKeywords !== undefined) {
-      const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/target-keywords`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': getAuthHeader(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          '_seopress_analysis_target_kw': body.targetKeywords,
-        }),
-      });
-
-      results.push({
-        endpoint: 'target-keywords',
-        success: res.ok,
-        error: res.ok ? undefined : await res.text(),
-      });
-    }
-
-    // Update social settings
-    if (body.og || body.twitter) {
-      const socialPayload: Record<string, string> = {};
-
-      if (body.og) {
-        if (body.og.title !== undefined) socialPayload['_seopress_social_fb_title'] = body.og.title;
-        if (body.og.description !== undefined) socialPayload['_seopress_social_fb_desc'] = body.og.description;
-        if (body.og.image !== undefined) socialPayload['_seopress_social_fb_img'] = body.og.image;
-      }
-
-      if (body.twitter) {
-        if (body.twitter.title !== undefined) socialPayload['_seopress_social_twitter_title'] = body.twitter.title;
-        if (body.twitter.description !== undefined) socialPayload['_seopress_social_twitter_desc'] = body.twitter.description;
-        if (body.twitter.image !== undefined) socialPayload['_seopress_social_twitter_img'] = body.twitter.image;
-      }
-
-      if (Object.keys(socialPayload).length > 0) {
-        const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/social-settings`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': getAuthHeader(),
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(socialPayload),
-        });
-
-        results.push({
-          endpoint: 'social-settings',
-          success: res.ok,
-          error: res.ok ? undefined : await res.text(),
-        });
+    // Save to local database
+    if (target === 'local' || target === 'both') {
+      try {
+        // Get existing data and merge
+        const existing = seopressPlugin.getLocalSEOData(postId) || DEFAULT_SEO_DATA;
+        const merged: SEOData = {
+          ...existing,
+          ...seoData,
+          og: { ...existing.og, ...seoData.og },
+          twitter: { ...existing.twitter, ...seoData.twitter },
+          robots: { ...existing.robots, ...seoData.robots },
+        };
+        seopressPlugin.saveLocalSEOData(postId, merged);
+      } catch (err) {
+        localSuccess = false;
+        console.error('Error saving SEO data locally:', err);
       }
     }
 
-    // Update meta robots
-    if (body.robots) {
-      const robotsPayload: Record<string, string> = {};
-
-      // SEOPress uses "yes" for enabling these settings (which means DO index/follow)
-      // noindex: true means we want to NOT index, so we send "no" to _seopress_robots_index
-      if (body.robots.noindex !== undefined) {
-        robotsPayload['_seopress_robots_index'] = body.robots.noindex ? 'no' : 'yes';
-      }
-      if (body.robots.nofollow !== undefined) {
-        robotsPayload['_seopress_robots_follow'] = body.robots.nofollow ? 'no' : 'yes';
-      }
-      if (body.robots.nosnippet !== undefined) {
-        robotsPayload['_seopress_robots_snippet'] = body.robots.nosnippet ? 'no' : 'yes';
-      }
-      if (body.robots.noimageindex !== undefined) {
-        robotsPayload['_seopress_robots_imageindex'] = body.robots.noimageindex ? 'no' : 'yes';
-      }
-      if (body.canonical !== undefined) {
-        robotsPayload['_seopress_robots_canonical'] = body.canonical;
-      }
-
-      if (Object.keys(robotsPayload).length > 0) {
-        const res = await fetch(`${getBaseUrl()}/wp-json/seopress/v1/posts/${postId}/meta-robot-settings`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': getAuthHeader(),
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(robotsPayload),
-        });
-
-        results.push({
-          endpoint: 'meta-robot-settings',
-          success: res.ok,
-          error: res.ok ? undefined : await res.text(),
-        });
-      }
+    // Push to WordPress
+    if (target === 'remote' || target === 'both') {
+      remoteResult = await seopressPlugin.updateSEOData(
+        postId,
+        seoData,
+        getBaseUrl(),
+        getAuthHeader()
+      );
     }
 
-    const allSuccess = results.every(r => r.success);
-    const failedEndpoints = results.filter(r => !r.success);
+    const allSuccess = localSuccess && remoteResult.success;
 
     if (!allSuccess) {
-      console.error('Some SEO updates failed:', failedEndpoints);
       return NextResponse.json({
         success: false,
-        results,
-        error: `Failed endpoints: ${failedEndpoints.map(f => f.endpoint).join(', ')}`,
+        localSuccess,
+        remoteSuccess: remoteResult.success,
+        errors: remoteResult.errors,
       }, { status: 207 });
     }
 
-    return NextResponse.json({ success: true, results });
+    return NextResponse.json({ success: true, target });
   } catch (error) {
     console.error('Error updating SEO data:', error);
     return NextResponse.json(
