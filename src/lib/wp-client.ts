@@ -15,17 +15,24 @@ export function getWpBaseUrl(): string {
   return getActiveBaseUrl();
 }
 
-// Get credentials from site-config (UI-editable) or fall back to env vars
+// Get credentials - prioritize environment variables (set by Electron from secure storage)
+// then fall back to config file (for dev mode)
 export function getWpCredentials(): { username: string; appPassword: string } {
+  // In Electron production mode, credentials come from secure storage via env vars
+  if (process.env.WP_USERNAME && process.env.WP_APP_PASSWORD) {
+    return {
+      username: process.env.WP_USERNAME,
+      appPassword: process.env.WP_APP_PASSWORD,
+    };
+  }
+
+  // Fallback to config file (for browser dev mode)
   const configCreds = getCredentials();
   if (configCreds) {
     return configCreds;
   }
-  // Fallback to environment variables for backwards compatibility
-  return {
-    username: process.env.WP_USERNAME || '',
-    appPassword: process.env.WP_APP_PASSWORD || '',
-  };
+
+  return { username: '', appPassword: '' };
 }
 
 // Legacy exports for backwards compatibility (now read dynamically)
