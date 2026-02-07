@@ -21,6 +21,7 @@ import { FilterPanel } from '@/components/FilterPanel';
 import { EditModal } from '@/components/EditModal';
 import { UpdateNotifier } from '@/components/UpdateNotifier';
 import { cn, formatRelativeTime } from '@/lib/utils';
+import type { FieldDefinition } from '@/lib/plugins/types';
 
 interface SyncStats {
   totalResources: number;
@@ -75,6 +76,8 @@ export default function Home() {
 
   // Plugin-enabled features and profile config
   const [enabledTabs, setEnabledTabs] = useState<string[]>(['basic', 'classification', 'ai']);
+  const [fieldLayout, setFieldLayout] = useState<Record<string, FieldDefinition[]> | undefined>(undefined);
+  const [tabConfig, setTabConfig] = useState<Array<{ id: string; label: string; source: string; icon?: string; position?: number; dynamic?: boolean }>>([]);
   const [taxonomyConfig, setTaxonomyConfig] = useState<Array<{
     slug: string;
     name: string;
@@ -82,6 +85,9 @@ export default function Home() {
     hierarchical?: boolean;
     show_in_filter?: boolean;
     filter_position?: number;
+    show_in_table?: boolean;
+    table_position?: number;
+    table_max_display?: number;
     editable?: boolean;
     conditional?: { show_when?: { taxonomy: string; has_term_id: number } };
   }>>([]);
@@ -98,6 +104,12 @@ export default function Home() {
       .then(data => {
         if (data.enabledTabs) {
           setEnabledTabs(data.enabledTabs);
+        }
+        if (data.ui?.field_layout) {
+          setFieldLayout(data.ui.field_layout);
+        }
+        if (data.ui?.tabs) {
+          setTabConfig(data.ui.tabs);
         }
         if (data.taxonomies) {
           setTaxonomyConfig(data.taxonomies);
@@ -396,7 +408,7 @@ export default function Home() {
                 className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors min-w-[120px]"
               >
                 <Plus className="w-4 h-4" />
-                New Resource
+                New {postTypeLabel}
               </button>
 
               <div className="relative flex items-center sync-dropdown">
@@ -489,7 +501,7 @@ export default function Home() {
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500">Total:</span>
-                  <span className="font-medium text-gray-900">{stats.totalResources} resources</span>
+                  <span className="font-medium text-gray-900">{stats.totalResources} {postTypeLabel.toLowerCase()}s</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500">Terms:</span>
@@ -541,7 +553,7 @@ export default function Home() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search resources..."
+                placeholder={`Search ${postTypeLabel.toLowerCase()}s...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
@@ -632,7 +644,12 @@ export default function Home() {
             onUpdate={handleUpdateResource}
             siteUrl={siteUrl}
             postTypeSlug={postTypeSlug}
-            taxonomyLabels={taxonomyLabels}
+            taxonomyColumns={
+              taxonomyConfig
+                .filter((t) => t.show_in_table)
+                .sort((a, b) => (a.table_position ?? 99) - (b.table_position ?? 99))
+                .map((t) => ({ slug: t.slug, label: t.name, maxDisplay: t.table_max_display }))
+            }
             postTypeLabelPlural={`${postTypeLabel.toLowerCase()}s`}
           />
         )}
@@ -651,6 +668,8 @@ export default function Home() {
           siteUrl={siteUrl}
           postTypeSlug={postTypeSlug}
           postTypeLabel={postTypeLabel}
+          fieldLayout={fieldLayout}
+          tabConfig={tabConfig}
         />
       )}
 
@@ -669,6 +688,8 @@ export default function Home() {
           siteUrl={siteUrl}
           postTypeSlug={postTypeSlug}
           postTypeLabel={postTypeLabel}
+          fieldLayout={fieldLayout}
+          tabConfig={tabConfig}
         />
       )}
     </div>

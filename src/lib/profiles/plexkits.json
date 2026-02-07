@@ -6,15 +6,23 @@
 
   "sites": [
     {
-      "id": "production",
-      "name": "PLEXKITS Production",
-      "url": "https://plexkits.com",
-      "is_default": true
+      "id": "local",
+      "name": "Local Development",
+      "url": "http://plexkits-v4.local",
+      "description": "Local WordPress development environment"
     },
     {
       "id": "staging",
       "name": "PLEXKITS Staging",
-      "url": "https://staging.plexkits.com"
+      "url": "https://staging.plexkits.com",
+      "description": "Staging environment for testing"
+    },
+    {
+      "id": "production",
+      "name": "PLEXKITS Production",
+      "url": "https://plexkits.com",
+      "description": "Live production site",
+      "is_default": true
     }
   ],
 
@@ -53,6 +61,8 @@
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 1,
+      "show_in_table": true,
+      "table_position": 1,
       "meta_field": "tax_resource_type",
       "editable": true
     },
@@ -64,6 +74,9 @@
       "hierarchical": true,
       "show_in_filter": true,
       "filter_position": 2,
+      "show_in_table": true,
+      "table_position": 2,
+      "table_max_display": 3,
       "meta_field": "tax_topic",
       "editable": true
     },
@@ -168,14 +181,63 @@
     "tabs": [
       { "id": "basic", "label": "Basic", "source": "core", "position": 1 },
       { "id": "seo", "label": "SEO", "source": "seopress", "position": 2 },
-      { "id": "content", "label": "Content", "source": "metabox", "position": 3 },
-      { "id": "features", "label": "Features", "source": "metabox", "position": 4 },
+      { "id": "content", "label": "Content", "source": "metabox", "position": 3, "dynamic": true },
+      { "id": "features", "label": "Features", "source": "metabox", "position": 4, "dynamic": true },
       { "id": "classification", "label": "Classification", "source": "core", "position": 5 },
-      { "id": "timer", "label": "Timer", "source": "metabox", "position": 6 },
-      { "id": "downloads", "label": "Downloads", "source": "metabox", "position": 7 },
-      { "id": "changelog", "label": "Changelog", "source": "metabox", "position": 8 },
+      { "id": "timer", "label": "Timer", "source": "metabox", "position": 6, "dynamic": true },
+      { "id": "downloads", "label": "Downloads", "source": "metabox", "position": 7, "dynamic": true },
+      { "id": "changelog", "label": "Changelog", "source": "metabox", "position": 8, "dynamic": true },
       { "id": "ai", "label": "AI Fill", "source": "core", "icon": "sparkles", "position": 9 }
     ],
+    "field_layout": {
+      "content": [
+        { "key": "intro_text", "type": "textarea", "label": "Intro Text", "rows": 3, "placeholder": "Introduction paragraph..." },
+        { "key": "text_content", "type": "textarea", "label": "Main Content Text", "rows": 6, "placeholder": "Main content..." },
+        { "key": "text_", "type": "textarea", "label": "Additional Content", "rows": 4, "placeholder": "Additional content block..." }
+      ],
+      "features": [
+        {
+          "key": "group_features", "type": "repeater", "label": "Feature List",
+          "fields": {
+            "feature_text": { "key": "feature_text", "type": "text", "label": "Feature", "placeholder": "Feature description..." }
+          }
+        }
+      ],
+      "timer": [
+        { "key": "timer_enable", "type": "checkbox", "label": "Enable Timer" },
+        { "key": "timer_title", "type": "text", "label": "Timer Title", "placeholder": "e.g., TOURNAMENT STARTS", "conditional": { "field": "timer_enable", "operator": "truthy" } },
+        { "key": "timer_single_datetime", "type": "datetime", "label": "Timer Date/Time", "conditional": { "field": "timer_enable", "operator": "truthy" } }
+      ],
+      "downloads": [
+        {
+          "key": "download_sections", "type": "repeater", "label": "Download Sections",
+          "fields": {
+            "download_section_heading": { "key": "download_section_heading", "type": "text", "label": "Section Heading", "placeholder": "Section heading..." },
+            "download_section_color": { "key": "download_section_color", "type": "color", "label": "Section Color" },
+            "download_archive": { "key": "download_archive", "type": "checkbox", "label": "Archive Section" },
+            "download_links": {
+              "key": "download_links", "type": "repeater", "label": "Download Links",
+              "fields": {
+                "link_text": { "key": "link_text", "type": "text", "label": "Link Text", "placeholder": "Link text..." },
+                "download_file_format": { "key": "download_file_format", "type": "select", "label": "File Format", "width": "half", "taxonomy_source": "file_format", "triggers": [{ "match_term_pattern": "google", "set_field": "download_link_type", "set_value": "link" }] },
+                "download_link_type": { "key": "download_link_type", "type": "select", "label": "Link Type", "width": "half", "options": [{ "value": "link", "label": "External Link" }, { "value": "upload", "label": "Upload File" }] },
+                "download_link_url": { "key": "download_link_url", "type": "url", "label": "URL", "conditional": { "field": "download_link_type", "value": "link" } }
+              }
+            }
+          }
+        }
+      ],
+      "changelog": [
+        {
+          "key": "group_changelog", "type": "repeater", "label": "Changelog",
+          "fields": {
+            "changelog_version": { "key": "changelog_version", "type": "text", "label": "Version", "placeholder": "v1.0", "width": "half" },
+            "changelog_date": { "key": "changelog_date", "type": "date", "label": "Date", "width": "half" },
+            "changelog_notes": { "key": "changelog_notes", "type": "textarea-list", "label": "Notes", "rows": 3, "separator": "\n", "placeholder": "Notes (one per line)..." }
+          }
+        }
+      ]
+    },
     "branding": {
       "app_name": "PLEXKITS Manager",
       "primary_color": "#6366f1"

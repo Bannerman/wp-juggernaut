@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Save, AlertTriangle, Plus, Trash2, GripVertical, Sparkles, Copy, Check, Wand2, Upload, Image as ImageIcon, Loader2, Search, Globe, Share2 } from 'lucide-react';
+import { X, Save, AlertTriangle, Sparkles, Check, Wand2, Upload, Image as ImageIcon, Loader2, Search, Globe, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { imagePipeline, createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
+import { DynamicTab } from '@/components/fields';
+import type { FieldDefinition } from '@/lib/plugins/types';
 
 interface Term {
   id: number;
@@ -50,32 +52,10 @@ interface EditModalProps {
   postTypeSlug?: string;
   /** Post type label for display (e.g., "Resource") */
   postTypeLabel?: string;
-}
-
-interface FeatureItem {
-  feature_text: string;
-  feature_icon?: string;
-}
-
-interface ChangelogItem {
-  changelog_version: string;
-  changelog_date: string;
-  changelog_notes: string[];
-}
-
-interface DownloadLink {
-  link_text: string;
-  download_link_type: 'link' | 'upload';
-  download_file_format?: number;
-  download_link_url?: string;
-  download_link_upload?: string;
-}
-
-interface DownloadSection {
-  download_section_heading: string;
-  download_section_color?: string;
-  download_archive?: boolean;
-  download_links: DownloadLink[];
+  /** Field layout from profile (maps tab ID to field definitions) */
+  fieldLayout?: Record<string, FieldDefinition[]>;
+  /** Tab configuration from profile */
+  tabConfig?: Array<{ id: string; label: string; source: string; icon?: string; position?: number; dynamic?: boolean }>;
 }
 
 interface SEOData {
@@ -111,18 +91,16 @@ const DEFAULT_SEO: SEOData = {
   robots: { noindex: false, nofollow: false, nosnippet: false, noimageindex: false },
 };
 
-// All available tabs with their plugin source
-const ALL_TABS = [
+// Fallback tab list when no profile tabs are configured
+const FALLBACK_TABS = [
   { id: 'basic', label: 'Basic', plugin: 'core' },
   { id: 'seo', label: 'SEO', plugin: 'seopress' },
-  { id: 'content', label: 'Content', plugin: 'metabox' },
-  { id: 'features', label: 'Features', plugin: 'metabox' },
   { id: 'classification', label: 'Classification', plugin: 'core' },
-  { id: 'timer', label: 'Timer', plugin: 'metabox' },
-  { id: 'downloads', label: 'Downloads', plugin: 'metabox' },
-  { id: 'changelog', label: 'Changelog', plugin: 'metabox' },
   { id: 'ai', label: 'AI Fill', icon: 'sparkles', plugin: 'core' },
 ];
+
+// Core tabs that are always handled with hardcoded rendering
+const CORE_TAB_IDS = new Set(['basic', 'seo', 'classification', 'ai']);
 
 const STATUS_OPTIONS = ['publish', 'draft'];
 
@@ -139,15 +117,33 @@ export function EditModal({
   siteUrl = '',
   postTypeSlug = 'resource',
   postTypeLabel = 'Resource',
+  fieldLayout,
+  tabConfig = [],
 }: EditModalProps) {
   const isCreateMode = resource === null;
 
-  // Filter tabs based on enabled plugins
-  // Core tabs are always shown, other tabs only if their plugin's tabs are enabled
-  const TABS = ALL_TABS.filter(tab => {
-    if (tab.plugin === 'core') return true;
-    return enabledTabs.includes(tab.id);
-  });
+  // Build tab list from profile config or fallback
+  const TABS = (() => {
+    if (tabConfig.length > 0) {
+      // Profile-driven tabs: core tabs + dynamic tabs that have field_layout entries
+      return tabConfig
+        .filter(tab => {
+          if (CORE_TAB_IDS.has(tab.id)) return true;
+          // Non-core tabs need to be in enabledTabs
+          if (!enabledTabs.includes(tab.id)) return false;
+          // Dynamic tabs need a field_layout entry
+          if (tab.dynamic && (!fieldLayout || !fieldLayout[tab.id])) return false;
+          return true;
+        })
+        .sort((a, b) => (a.position ?? 99) - (b.position ?? 99))
+        .map(tab => ({ id: tab.id, label: tab.label, plugin: tab.source, icon: tab.icon }));
+    }
+    // Fallback: core tabs only
+    return FALLBACK_TABS.filter(tab => {
+      if (tab.plugin === 'core') return true;
+      return enabledTabs.includes(tab.id);
+    });
+  })();
 
   // Default empty resource for create mode
   const defaultResource: Resource = {
@@ -171,7 +167,7 @@ export function EditModal({
   // Track whether slug and SEO title have been manually edited (breaks auto-population)
   // In edit mode, start as "manually edited" to preserve existing values
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(!isCreateMode || effectiveResource.slug !== '');
-  const [seoTitleManuallyEdited, setSeoTitleManuallyEdited] = useState(!isCreateMode);
+  const [seoTitleManuallyEdited, setSeoTitleManuallyEdited] = useState(false);
 
   // Helper to generate slug from title
   const generateSlugFromTitle = (titleText: string): string => {
@@ -218,9 +214,6 @@ export function EditModal({
     JSON.parse(JSON.stringify(effectiveResource.meta_box))
   );
   const [isSaving, setIsSaving] = useState(false);
-
-  // Derived state for conditional visibility - uses taxonomy config
-  const timerEnabled = Boolean(metaBox.timer_enable);
 
   // Check if a taxonomy's conditional visibility is satisfied
   const isTaxonomyVisible = (taxSlug: string): boolean => {
@@ -365,72 +358,6 @@ export function EditModal({
     setMetaBox(prev => ({ ...prev, [field]: value }));
   };
 
-  // Features helpers
-  const features = (metaBox.group_features as FeatureItem[]) || [];
-  const addFeature = () => {
-    updateMetaField('group_features', [...features, { feature_text: '' }]);
-  };
-  const updateFeature = (index: number, text: string) => {
-    const updated = [...features];
-    updated[index] = { ...updated[index], feature_text: text };
-    updateMetaField('group_features', updated);
-  };
-  const removeFeature = (index: number) => {
-    updateMetaField('group_features', features.filter((_, i) => i !== index));
-  };
-
-  // Changelog helpers
-  const changelog = (metaBox.group_changelog as ChangelogItem[]) || [];
-  const addChangelogEntry = () => {
-    updateMetaField('group_changelog', [...changelog, { changelog_version: '', changelog_date: '', changelog_notes: [] }]);
-  };
-  const updateChangelog = (index: number, field: keyof ChangelogItem, value: unknown) => {
-    const updated = [...changelog];
-    updated[index] = { ...updated[index], [field]: value };
-    updateMetaField('group_changelog', updated);
-  };
-  const removeChangelog = (index: number) => {
-    updateMetaField('group_changelog', changelog.filter((_, i) => i !== index));
-  };
-
-  // Download sections helpers
-  const downloadSections = (metaBox.download_sections as DownloadSection[]) || [];
-  const addDownloadSection = () => {
-    updateMetaField('download_sections', [...downloadSections, { download_section_heading: '', download_links: [] }]);
-  };
-  const updateDownloadSection = (index: number, field: keyof DownloadSection, value: unknown) => {
-    const updated = [...downloadSections];
-    updated[index] = { ...updated[index], [field]: value };
-    updateMetaField('download_sections', updated);
-  };
-  const removeDownloadSection = (index: number) => {
-    updateMetaField('download_sections', downloadSections.filter((_, i) => i !== index));
-  };
-  const addDownloadLink = (sectionIndex: number) => {
-    const updated = [...downloadSections];
-    const section = { ...updated[sectionIndex] };
-    const links = section.download_links || [];
-    section.download_links = [...links, { link_text: '', download_link_type: 'link' }];
-    updated[sectionIndex] = section;
-    updateMetaField('download_sections', updated);
-  };
-  const updateDownloadLink = (sectionIndex: number, linkIndex: number, field: keyof DownloadLink, value: unknown) => {
-    const updated = [...downloadSections];
-    const section = { ...updated[sectionIndex] };
-    const links = [...(section.download_links || [])];
-    links[linkIndex] = { ...links[linkIndex], [field]: value };
-    section.download_links = links;
-    updated[sectionIndex] = section;
-    updateMetaField('download_sections', updated);
-  };
-  const removeDownloadLink = (sectionIndex: number, linkIndex: number) => {
-    const updated = [...downloadSections];
-    const section = { ...updated[sectionIndex] };
-    section.download_links = section.download_links.filter((_, i) => i !== linkIndex);
-    updated[sectionIndex] = section;
-    updateMetaField('download_sections', updated);
-  };
-
   // AI Fill state and helpers
   const [aiPasteContent, setAiPasteContent] = useState('');
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
@@ -494,12 +421,14 @@ export function EditModal({
       .map(([tax, names]) => `${taxonomyLabels[tax] || tax}: ${names.slice(0, 15).join(', ')}${names.length > 15 ? '...' : ''}`)
       .join('\n');
 
-    const featuresBlock = features.length > 0
-      ? features.map(f => `- ${f.feature_text}`).join('\n')
+    const aiFeatures = (metaBox.group_features as Array<{ feature_text: string }>) || [];
+    const featuresBlock = aiFeatures.length > 0
+      ? aiFeatures.map(f => `- ${f.feature_text}`).join('\n')
       : '[List features, one per line with - prefix]\n- Feature 1\n- Feature 2\n- Feature 3';
 
-    const changelogBlock = changelog.length > 0
-      ? changelog.map(c =>
+    const aiChangelog = (metaBox.group_changelog as Array<{ changelog_version: string; changelog_date: string; changelog_notes: string[] }>) || [];
+    const changelogBlock = aiChangelog.length > 0
+      ? aiChangelog.map(c =>
           `version: ${c.changelog_version}\ndate: ${c.changelog_date}\nnotes:\n${(c.changelog_notes || []).map(n => `- ${n}`).join('\n')}`
         ).join('\n\n')
       : 'version: 1.0\ndate: [YYYY-MM-DD]\nnotes:\n- Initial release';
@@ -512,7 +441,7 @@ export function EditModal({
       '{{features}}': featuresBlock,
       '{{available_taxonomies}}': availableTaxonomiesBlock,
       '{{taxonomy_selections}}': taxonomySelectionsBlock,
-      '{{timer_enabled}}': timerEnabled ? 'yes' : 'no',
+      '{{timer_enabled}}': metaBox.timer_enable ? 'yes' : 'no',
       '{{timer_title}}': (metaBox.timer_title as string) || '[e.g., EVENT STARTS]',
       '{{timer_datetime}}': (metaBox.timer_single_datetime as string) || '[YYYY-MM-DDTHH:MM format]',
       '{{changelog}}': changelogBlock,
@@ -701,7 +630,7 @@ timer_datetime: {{timer_datetime}}
       const changelogMatch = content.match(/---CHANGELOG---\s*([\s\S]*?)(?=---END---|$)/);
       if (changelogMatch && changelogMatch[1].trim()) {
         const changelogContent = changelogMatch[1].trim();
-        const entries: ChangelogItem[] = [];
+        const entries: Array<{ changelog_version: string; changelog_date: string; changelog_notes: string[] }> = [];
         
         const versionBlocks = changelogContent.split(/(?=version:)/i).filter(Boolean);
         versionBlocks.forEach(block => {
@@ -1510,75 +1439,6 @@ timer_datetime: {{timer_datetime}}
               </div>
             )}
 
-            {/* Content Tab */}
-            {activeTab === 'content' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Intro Text</label>
-                  <textarea
-                    value={(metaBox.intro_text as string) || ''}
-                    onChange={(e) => updateMetaField('intro_text', e.target.value)}
-                    rows={3}
-                    placeholder="Introduction paragraph..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Main Content Text</label>
-                  <textarea
-                    value={(metaBox.text_content as string) || ''}
-                    onChange={(e) => updateMetaField('text_content', e.target.value)}
-                    rows={6}
-                    placeholder="Main content..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Additional Content</label>
-                  <textarea
-                    value={(metaBox.text_ as string) || ''}
-                    onChange={(e) => updateMetaField('text_', e.target.value)}
-                    rows={4}
-                    placeholder="Additional content block..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Features Tab */}
-            {activeTab === 'features' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">Feature List</label>
-                  <button onClick={addFeature} className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700">
-                    <Plus className="w-4 h-4" /> Add Feature
-                  </button>
-                </div>
-                {features.length === 0 ? (
-                  <p className="text-sm text-gray-500 italic">No features added yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {features.map((feature, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <GripVertical className="w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          value={feature.feature_text}
-                          onChange={(e) => updateFeature(index, e.target.value)}
-                          placeholder="Feature description..."
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                        />
-                        <button onClick={() => removeFeature(index)} className="p-2 text-red-500 hover:bg-red-50 rounded">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Classification Tab */}
             {activeTab === 'classification' && (
               <div className="space-y-4">
@@ -1597,210 +1457,15 @@ timer_datetime: {{timer_datetime}}
               </div>
             )}
 
-            {/* Timer Tab */}
-            {activeTab === 'timer' && (
-              <div className="space-y-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={timerEnabled}
-                    onChange={(e) => updateMetaField('timer_enable', e.target.checked)}
-                    className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Enable Timer</span>
-                </label>
-
-                {timerEnabled && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Timer Title</label>
-                      <input
-                        type="text"
-                        value={(metaBox.timer_title as string) || ''}
-                        onChange={(e) => updateMetaField('timer_title', e.target.value)}
-                        placeholder="e.g., TOURNAMENT STARTS"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Timer Date/Time</label>
-                      <input
-                        type="datetime-local"
-                        value={(metaBox.timer_single_datetime as string)?.slice(0, 16) || ''}
-                        onChange={(e) => updateMetaField('timer_single_datetime', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Downloads Tab */}
-            {activeTab === 'downloads' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">Download Sections</label>
-                  <button onClick={addDownloadSection} className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700">
-                    <Plus className="w-4 h-4" /> Add Section
-                  </button>
-                </div>
-                {downloadSections.length === 0 ? (
-                  <p className="text-sm text-gray-500 italic">No download sections added yet.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {downloadSections.map((section, sectionIndex) => (
-                      <div key={sectionIndex} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                        <div className="flex items-start justify-between mb-3">
-                          <input
-                            type="text"
-                            value={section.download_section_heading}
-                            onChange={(e) => updateDownloadSection(sectionIndex, 'download_section_heading', e.target.value)}
-                            placeholder="Section heading..."
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                          />
-                          <button onClick={() => removeDownloadSection(sectionIndex)} className="ml-2 p-2 text-red-500 hover:bg-red-50 rounded">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-4 mb-4">
-                          <input
-                            type="color"
-                            value={section.download_section_color || '#3B82F6'}
-                            onChange={(e) => updateDownloadSection(sectionIndex, 'download_section_color', e.target.value)}
-                            className="w-10 h-10 rounded cursor-pointer"
-                          />
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={section.download_archive || false}
-                              onChange={(e) => updateDownloadSection(sectionIndex, 'download_archive', e.target.checked)}
-                              className="rounded border-gray-300 text-brand-600"
-                            />
-                            <span className="text-sm text-gray-700">Archive Download</span>
-                          </label>
-                        </div>
-
-                        {/* Download Links within section */}
-                        <div className="border-t border-gray-200 pt-3 mt-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <label className="text-xs font-medium text-gray-600 uppercase">Download Links</label>
-                            <button onClick={() => addDownloadLink(sectionIndex)} className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700">
-                              <Plus className="w-3 h-3" /> Add Link
-                            </button>
-                          </div>
-                          {(section.download_links || []).length === 0 ? (
-                            <p className="text-xs text-gray-400 italic">No download links in this section.</p>
-                          ) : (
-                            <div className="space-y-3">
-                              {(section.download_links || []).map((link, linkIndex) => (
-                                <div key={linkIndex} className="bg-white border border-gray-200 rounded p-3">
-                                  <div className="flex items-start gap-2 mb-2">
-                                    <input
-                                      type="text"
-                                      value={link.link_text}
-                                      onChange={(e) => updateDownloadLink(sectionIndex, linkIndex, 'link_text', e.target.value)}
-                                      placeholder="Link text..."
-                                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-brand-500"
-                                    />
-                                    <button onClick={() => removeDownloadLink(sectionIndex, linkIndex)} className="p-1 text-red-500 hover:bg-red-50 rounded">
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    <select
-                                      value={link.download_link_type}
-                                      onChange={(e) => updateDownloadLink(sectionIndex, linkIndex, 'download_link_type', e.target.value)}
-                                      className="text-xs px-2 py-1 border border-gray-300 rounded"
-                                    >
-                                      <option value="link">External Link</option>
-                                      <option value="upload">Upload File</option>
-                                    </select>
-                                    {link.download_link_type === 'link' && (
-                                      <input
-                                        type="url"
-                                        value={link.download_link_url || ''}
-                                        onChange={(e) => updateDownloadLink(sectionIndex, linkIndex, 'download_link_url', e.target.value)}
-                                        placeholder="https://..."
-                                        className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-500"
-                                      />
-                                    )}
-                                    {link.download_link_type === 'upload' && (
-                                      <span className="text-xs text-gray-500 italic">File upload managed in WordPress</span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <label className="text-xs text-gray-500 whitespace-nowrap">File Format:</label>
-                                    <select
-                                      value={link.download_file_format || ''}
-                                      onChange={(e) => updateDownloadLink(sectionIndex, linkIndex, 'download_file_format', e.target.value ? Number(e.target.value) : undefined)}
-                                      className="text-xs px-2 py-1 border border-gray-300 rounded flex-1"
-                                    >
-                                      <option value="">None</option>
-                                      {(terms['file_format'] || []).map((term) => (
-                                        <option key={term.id} value={term.id}>{term.name}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Changelog Tab */}
-            {activeTab === 'changelog' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">Changelog</label>
-                  <button onClick={addChangelogEntry} className="flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700">
-                    <Plus className="w-4 h-4" /> Add Version
-                  </button>
-                </div>
-                {changelog.length === 0 ? (
-                  <p className="text-sm text-gray-500 italic">No changelog entries yet.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {changelog.map((entry, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex gap-3 flex-1">
-                            <input
-                              type="text"
-                              value={entry.changelog_version}
-                              onChange={(e) => updateChangelog(index, 'changelog_version', e.target.value)}
-                              placeholder="v1.0"
-                              className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                            />
-                            <input
-                              type="date"
-                              value={entry.changelog_date}
-                              onChange={(e) => updateChangelog(index, 'changelog_date', e.target.value)}
-                              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                            />
-                          </div>
-                          <button onClick={() => removeChangelog(index)} className="ml-2 p-2 text-red-500 hover:bg-red-50 rounded">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <textarea
-                          value={(entry.changelog_notes || []).join('\n')}
-                          onChange={(e) => updateChangelog(index, 'changelog_notes', e.target.value.split('\n').filter(Boolean))}
-                          placeholder="Notes (one per line)..."
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+            {/* Dynamic Tabs (from field_layout) */}
+            {fieldLayout && fieldLayout[activeTab] && !CORE_TAB_IDS.has(activeTab) && (
+              <DynamicTab
+                key={activeTab}
+                fields={fieldLayout[activeTab] as FieldDefinition[]}
+                values={metaBox}
+                onChange={updateMetaField}
+                terms={terms}
+              />
             )}
 
             {/* AI Fill Tab */}
