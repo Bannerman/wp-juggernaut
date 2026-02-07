@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getConfig, setActiveTarget, getActiveTarget, SITE_TARGETS, getCredentials, setCredentials } from '@/lib/site-config';
+import { getConfig, setActiveTarget, getActiveTarget, getSiteTargets, getCredentials, setCredentials } from '@/lib/site-config';
 
 // GET /api/site-config - Get current config and available targets
 export async function GET() {
@@ -7,10 +7,11 @@ export async function GET() {
     const config = getConfig();
     const activeTarget = getActiveTarget();
     const credentials = getCredentials();
+    const targets = getSiteTargets();
 
     // Build per-site credential status (has credentials + username, never passwords)
     const siteCredentialStatus: Record<string, { hasCredentials: boolean; username: string }> = {};
-    for (const target of SITE_TARGETS) {
+    for (const target of targets) {
       const siteCreds = config.siteCredentials?.[target.id];
       const legacyCreds = config.credentials;
       const creds = siteCreds || legacyCreds;
@@ -22,7 +23,7 @@ export async function GET() {
 
     return NextResponse.json({
       activeTarget,
-      targets: SITE_TARGETS,
+      targets,
       config: { activeTarget: config.activeTarget },
       hasCredentials: Boolean(credentials),
       username: credentials?.username || '',

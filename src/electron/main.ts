@@ -149,6 +149,7 @@ async function startNextServer(): Promise<void> {
     PORT: String(PORT),
     NODE_ENV: 'production',
     HOSTNAME: 'localhost',
+    JUGGERNAUT_ELECTRON: '1',
   };
 
   // Pass decrypted credentials to the server process

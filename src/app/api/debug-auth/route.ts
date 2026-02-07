@@ -4,13 +4,12 @@ import { getWpBaseUrl, getWpCredentials } from '@/lib/wp-client';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  if (process.env.NODE_ENV !== 'development') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const baseUrl = getWpBaseUrl();
   const creds = getWpCredentials();
-
-  // Show credentials (partially masked for security)
-  const maskedPassword = creds.appPassword
-    ? creds.appPassword.substring(0, 4) + '...' + creds.appPassword.substring(creds.appPassword.length - 4)
-    : '(empty)';
 
   // Create auth header same way as wp-client
   const authHeader = 'Basic ' + Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
@@ -36,7 +35,6 @@ export async function GET() {
     baseUrl,
     username: creds.username,
     passwordLength: creds.appPassword?.length || 0,
-    passwordPreview: maskedPassword,
     passwordHasSpaces: creds.appPassword?.includes(' '),
     authHeaderLength: authHeader.length,
     wpResponse,

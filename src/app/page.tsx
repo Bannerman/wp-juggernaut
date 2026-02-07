@@ -383,7 +383,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <Database className="w-8 h-8 text-brand-600" />
+              <img src="/icon.png" alt="Juggernaut" className="w-8 h-8" />
               <h1 className="text-xl font-bold text-gray-900">Juggernaut</h1>
               <Link
                 href="/settings"

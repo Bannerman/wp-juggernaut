@@ -1,6 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { getProfileSites } from '@/lib/profiles';
 
 // Store outside the repo to avoid accidental commits of credentials
 const DEFAULT_CONFIG_DIR = path.join(os.homedir(), '.juggernaut');
@@ -14,26 +15,18 @@ export interface SiteTarget {
   description: string;
 }
 
-export const SITE_TARGETS: SiteTarget[] = [
-  {
-    id: 'local',
-    name: 'Local Development',
-    url: 'http://plexkits-v4.local',
-    description: 'Local WordPress development environment',
-  },
-  {
-    id: 'staging',
-    name: 'Staging',
-    url: 'https://staging.plexkits.com',
-    description: 'Staging environment for testing',
-  },
-  {
-    id: 'production',
-    name: 'Production',
-    url: 'https://plexkits.com',
-    description: 'Live production site',
-  },
-];
+/**
+ * Get site targets from the active profile.
+ * Maps profile SiteConfig entries to SiteTarget format.
+ */
+export function getSiteTargets(): SiteTarget[] {
+  return getProfileSites().map((site) => ({
+    id: site.id,
+    name: site.name,
+    url: site.url,
+    description: site.description || '',
+  }));
+}
 
 interface SiteCredentials {
   username: string;
@@ -70,7 +63,8 @@ export function getConfig(): SiteConfig {
 }
 
 export function setActiveTarget(targetId: string): SiteConfig {
-  const target = SITE_TARGETS.find(t => t.id === targetId);
+  const targets = getSiteTargets();
+  const target = targets.find(t => t.id === targetId);
   if (!target) {
     throw new Error(`Unknown target: ${targetId}`);
   }
@@ -82,9 +76,10 @@ export function setActiveTarget(targetId: string): SiteConfig {
 }
 
 export function getActiveTarget(): SiteTarget {
+  const targets = getSiteTargets();
   const config = getConfig();
-  const target = SITE_TARGETS.find(t => t.id === config.activeTarget);
-  return target || SITE_TARGETS[0];
+  const target = targets.find(t => t.id === config.activeTarget);
+  return target || targets[0];
 }
 
 export function getActiveBaseUrl(): string {

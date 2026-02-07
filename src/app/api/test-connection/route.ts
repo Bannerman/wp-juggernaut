@@ -22,9 +22,10 @@ export async function GET() {
   };
 
   try {
-    // Test API reachability
+    // Test API reachability (no-store to prevent caching stale auth results)
     const apiResponse = await fetch(`${baseUrl}/wp-json/wp/v2/`, {
       headers: { Authorization: authHeader },
+      cache: 'no-store',
     });
 
     result.apiReachable = apiResponse.ok;
@@ -35,9 +36,25 @@ export async function GET() {
     }
 
     // Test authentication by fetching resources
-    const resourceResponse = await fetch(`${baseUrl}/wp-json/wp/v2/resource?per_page=1`, {
-      headers: { Authorization: authHeader },
+    const resourceUrl = `${baseUrl}/wp-json/wp/v2/resource?per_page=1`;
+    console.log('[test-connection] Resource URL:', resourceUrl);
+    console.log('[test-connection] Full auth header:', authHeader);
+
+    // Try with explicit headers matching curl behavior
+    const resourceResponse = await fetch(resourceUrl, {
+      headers: {
+        'Authorization': authHeader,
+        'User-Agent': 'curl/8.1.2',
+        'Accept': '*/*',
+      },
+      cache: 'no-store',
     });
+
+    console.log('[test-connection] Resource response status:', resourceResponse.status);
+    if (!resourceResponse.ok) {
+      const errorBody = await resourceResponse.text();
+      console.log('[test-connection] Error body:', errorBody);
+    }
 
     result.authValid = resourceResponse.ok;
 

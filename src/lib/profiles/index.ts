@@ -382,6 +382,15 @@ export function getProfileTaxonomyMetaFieldMapping(): Record<string, string> {
   return getProfileManager().getTaxonomyMetaFieldMapping();
 }
 
+/**
+ * Get sites from the current profile
+ */
+export function getProfileSites(): SiteConfig[] {
+  ensureProfileLoaded();
+  const profile = getProfileManager().getCurrentProfile();
+  return profile?.sites ?? [];
+}
+
 // Export the ProfileManager class for testing
 export { ProfileManager };
 

@@ -24,6 +24,12 @@ interface Resource {
   meta_box: Record<string, unknown>;
 }
 
+interface TaxonomyColumn {
+  slug: string;
+  label: string;
+  maxDisplay?: number;
+}
+
 interface ResourceTableProps {
   resources: Resource[];
   terms: Record<string, Term[]>;
@@ -36,8 +42,8 @@ interface ResourceTableProps {
   siteUrl?: string;
   /** Post type slug for URL building (e.g., "resource") */
   postTypeSlug?: string;
-  /** Taxonomy labels from profile */
-  taxonomyLabels?: Record<string, string>;
+  /** Taxonomy columns to display in general view */
+  taxonomyColumns?: TaxonomyColumn[];
   /** Post type label for display (e.g., "resources") */
   postTypeLabelPlural?: string;
 }
@@ -55,7 +61,7 @@ export function ResourceTable({
   onUpdate,
   siteUrl = '',
   postTypeSlug = 'resource',
-  taxonomyLabels = {},
+  taxonomyColumns = [],
   postTypeLabelPlural = 'resources',
 }: ResourceTableProps) {
   const [sortField, setSortField] = useState<SortField>('modified_gmt');
@@ -179,12 +185,11 @@ export function ResourceTable({
                       <SortIcon field="status" />
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Topics
-                  </th>
+                  {taxonomyColumns.map((col) => (
+                    <th key={col.slug} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {col.label}
+                    </th>
+                  ))}
                 </>
               )}
 
@@ -267,37 +272,30 @@ export function ResourceTable({
                           {resource.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {getTermNames('resource-type', resource.taxonomies['resource-type'] || []).map((name) => (
-                            <span
-                              key={name}
-                              className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800"
-                            >
-                              {name}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1 max-w-xs">
-                          {getTermNames('topic', resource.taxonomies['topic'] || [])
-                            .slice(0, 3)
-                            .map((name) => (
-                              <span
-                                key={name}
-                                className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700"
-                              >
-                                {name}
-                              </span>
-                            ))}
-                          {(resource.taxonomies['topic']?.length || 0) > 3 && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-500">
-                              +{(resource.taxonomies['topic']?.length || 0) - 3} more
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                      {taxonomyColumns.map((col) => {
+                        const names = getTermNames(col.slug, resource.taxonomies[col.slug] || []);
+                        const maxDisplay = col.maxDisplay ?? names.length;
+                        const totalCount = resource.taxonomies[col.slug]?.length || 0;
+                        return (
+                          <td key={col.slug} className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {names.slice(0, maxDisplay).map((name) => (
+                                <span
+                                  key={name}
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700"
+                                >
+                                  {name}
+                                </span>
+                              ))}
+                              {totalCount > maxDisplay && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-500">
+                                  +{totalCount - maxDisplay} more
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
                     </>
                   )}
 
