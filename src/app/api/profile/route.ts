@@ -11,6 +11,7 @@ import {
   ensureProfileLoaded,
   getProfileConfig,
 } from '@/lib/profiles';
+import { getActiveTarget, setActiveTarget } from '@/lib/site-config';
 import { getPluginRegistry } from '@/lib/plugins/registry';
 import { bundledPlugins } from '@/lib/plugins/bundled';
 import { ensurePluginsInitialized } from '@/lib/plugins/init';
@@ -44,14 +45,18 @@ export async function GET() {
     // Get primary post type
     const primaryPostType = config.postTypes?.find(pt => pt.is_primary) || config.postTypes?.[0];
 
+    // Use the persisted active target from site-config.json (respects user's site selection)
+    // rather than ProfileManager's in-memory default which always uses is_default from the profile
+    const activeTarget = getActiveTarget();
+
     return NextResponse.json({
       profile: {
         id: profile.profile_id,
         name: profile.profile_name,
         version: profile.profile_version,
       },
-      activeSite: config.activeSite,
-      siteUrl: config.activeSite?.url || '',
+      activeSite: activeTarget,
+      siteUrl: activeTarget.url,
       postTypes: config.postTypes,
       postType: primaryPostType ? {
         slug: primaryPostType.slug,
@@ -107,14 +112,20 @@ export async function PATCH(request: NextRequest) {
           { status: 404 }
         );
       }
+      // Also persist to site-config.json so the active target stays in sync
+      try {
+        setActiveTarget(siteId);
+      } catch (e) {
+        console.warn('[API] Failed to persist active target to site-config:', e);
+      }
     }
 
-    // Return updated config
-    const config = getProfileConfig();
+    // Return updated config using the persisted active target
+    const activeTarget = getActiveTarget();
 
     return NextResponse.json({
       success: true,
-      activeSite: config.activeSite,
+      activeSite: activeTarget,
       message: profileId
         ? `Switched to profile: ${profileId}`
         : siteId
