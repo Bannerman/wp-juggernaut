@@ -399,8 +399,11 @@ export interface FieldRendererProps {
  * Field definition from profile
  */
 export interface FieldDefinition {
-  /** Field type (e.g., "text", "textarea", "repeater") */
-  type: string;
+  /** Unique field key (maps to metaBox key) */
+  key: string;
+
+  /** Field type */
+  type: 'text' | 'textarea' | 'number' | 'checkbox' | 'date' | 'datetime' | 'color' | 'select' | 'url' | 'repeater' | 'textarea-list';
 
   /** Display label */
   label: string;
@@ -411,22 +414,46 @@ export interface FieldDefinition {
   /** Placeholder text */
   placeholder?: string;
 
-  /** Number of rows (for textarea) */
+  /** Number of rows (for textarea / textarea-list) */
   rows?: number;
 
-  /** Nested fields (for group/repeater) */
+  /** Nested fields (for repeater) */
   fields?: Record<string, FieldDefinition>;
 
   /** Whether the field is repeatable */
   repeatable?: boolean;
 
+  /** Static options for select fields */
+  options?: Array<{ value: string; label: string }>;
+
+  /** Default value for the field */
+  default_value?: unknown;
+
+  /** Separator for textarea-list (splits/joins string[]) */
+  separator?: string;
+
+  /** Taxonomy slug to source select options from */
+  taxonomy_source?: string;
+
+  /** Width hint for layout */
+  width?: 'full' | 'half' | 'quarter';
+
   /** Conditional display */
   conditional?: {
-    show_when: {
-      field: string;
-      value: unknown;
-    };
+    field: string;
+    operator?: 'eq' | 'neq' | 'truthy' | 'falsy';
+    value?: unknown;
   };
+
+  /** Side-effect triggers: when this field changes, set other fields */
+  triggers?: Array<{
+    /** Pattern to match against the selected term name (case-insensitive substring) */
+    match_term_pattern: string;
+    /** Field key to update */
+    set_field: string;
+    /** Value to set */
+    set_value: unknown;
+  }>;
 }
 
 /**
@@ -560,6 +587,7 @@ export interface SiteConfig {
   id: string;
   name: string;
   url: string;
+  description?: string;
   is_default?: boolean;
 }
 
@@ -600,6 +628,12 @@ export interface TaxonomyConfig {
   hierarchical?: boolean;
   show_in_filter?: boolean;
   filter_position?: number;
+  /** Show this taxonomy as a column in the resource table */
+  show_in_table?: boolean;
+  /** Column position in the table (lower numbers first) */
+  table_position?: number;
+  /** Max terms to display before showing "+N more" */
+  table_max_display?: number;
   /** Meta Box field ID for this taxonomy (e.g., 'tax_resource_type') */
   meta_field?: string;
   /** Whether this taxonomy is editable in the create/edit modal */
@@ -617,6 +651,8 @@ export interface TaxonomyConfig {
  */
 export interface UIConfig {
   tabs?: TabConfig[];
+  /** Maps tab IDs to ordered arrays of field definitions for dynamic rendering */
+  field_layout?: Record<string, FieldDefinition[]>;
   branding?: {
     app_name?: string;
     primary_color?: string;
@@ -639,6 +675,8 @@ export interface TabConfig {
   source: string;
   icon?: string;
   position?: number;
+  /** Whether this tab's content is rendered dynamically from field_layout */
+  dynamic?: boolean;
 }
 
 // ============================================================================
