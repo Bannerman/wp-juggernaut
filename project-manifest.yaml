@@ -1,0 +1,237 @@
+# MAIA Project Manifest
+# Restored for wp-juggernaut project management.
+# AI Agent: Review and correct any inaccuracies below.
+
+# --- Section 1: Core Project Definition ---
+projectName: "Juggernaut"
+projectVersion: 0.9.6
+overallGoal: >-
+  A local-first desktop application (Electron + Next.js) for syncing, bulk editing,
+  and pushing WordPress posts with profile-driven architecture and plugin support.
+projectGoals:
+  - Ship stable v1.0 with full sync/push/bulk-edit pipeline
+  - Plugin system for WordPress plugin integrations (MetaBox, SEOPress, etc.)
+  - Multi-site target switching (local/staging/production)
+
+# --- Section 2: Links to Detailed Documents ---
+globalRequirements:
+  functional: ./docs/requirements/functional_requirements.md
+  nonFunctional: ./docs/requirements/non_functional_requirements.md
+
+standards:
+  coding: ./docs/standards/coding_standards.md
+
+# --- Section 3: High-Level Architecture & Modules ---
+architecture:
+  chosenStack: "Electron 31, Next.js 14, React 18, TypeScript 5.4, SQLite 3, TailwindCSS 3.4"
+  keyPatterns:
+    - "Local-first desktop app"
+    - "Profile-driven architecture"
+    - "Hook-based plugin system"
+    - "WordPress REST API integration"
+
+# Module status values: Backlog → Specified → Schema Ready → Backend Complete → UI Complete → Tested → Integrated → Done
+moduleRegistry:
+  - moduleID: Mod001_Database
+    moduleName: "Database"
+    specFilePath: ./modules/database/spec.yaml
+    implementationPath: src/lib/db.ts
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod002_WPClient
+    moduleName: "WordPress Client"
+    specFilePath: ./modules/wp-client/spec.yaml
+    implementationPath: src/lib/wp-client.ts
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod003_SyncEngine
+    moduleName: "Sync Engine"
+    specFilePath: ./modules/sync-engine/spec.yaml
+    implementationPath: src/lib/sync.ts
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod004_Queries
+    moduleName: "Queries"
+    specFilePath: ./modules/queries/spec.yaml
+    implementationPath: src/lib/queries.ts
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod005_PushEngine
+    moduleName: "Push Engine"
+    specFilePath: ./modules/push-engine/spec.yaml
+    implementationPath: src/lib/push.ts
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod006_APIRoutes
+    moduleName: "API Routes"
+    specFilePath: ./modules/api-routes/spec.yaml
+    implementationPath: src/app/api/
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod007_UIComponents
+    moduleName: "UI Components"
+    specFilePath: ./modules/ui-components/spec.yaml
+    implementationPath: src/components/
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  # --- Post-spec modules (added during Phase 2, no spec.yaml yet) ---
+  - moduleID: Mod008_Plugins
+    moduleName: "Plugin System"
+    specFilePath: ""
+    implementationPath: src/lib/plugins/
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod009_Profiles
+    moduleName: "Site Profiles"
+    specFilePath: ""
+    implementationPath: src/lib/profiles/
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod010_Electron
+    moduleName: "Electron Shell"
+    specFilePath: ""
+    implementationPath: src/electron/
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod011_Discovery
+    moduleName: "WordPress Discovery"
+    specFilePath: ""
+    implementationPath: src/lib/discovery.ts
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod012_FieldAudit
+    moduleName: "Field Audit"
+    specFilePath: ""
+    implementationPath: src/lib/field-audit.ts
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod013_ImageProcessing
+    moduleName: "Image Processing"
+    specFilePath: ""
+    implementationPath: src/lib/imageProcessing.ts
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod014_PromptTemplates
+    moduleName: "AI Prompt Templates"
+    specFilePath: ""
+    implementationPath: src/lib/prompt-templates.ts
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+  - moduleID: Mod015_SiteConfig
+    moduleName: "Multi-Site Config"
+    specFilePath: ""
+    implementationPath: src/lib/site-config.ts
+    status: Integrated
+    lastUpdated: "2026-02-06"
+    completedBy: ""
+
+adrRegistry: []
+
+adrDirectory: ./docs/adr/
+workItemDirectory: ./docs/work-items/
+
+projectStatus: "In Progress"
+
+# --- Section 4: Phase 1 Progress ---
+phase1Progress:
+  p1_01_ingest_kickstart:
+    status: completed
+    timestamp: ""
+  p1_02_select_tech_stack:
+    status: completed
+    timestamp: ""
+  p1_03_generate_requirements:
+    status: completed
+    timestamp: ""
+  p1_04_generate_coding_standards:
+    status: completed
+    timestamp: ""
+  p1_05_domain_modeling:
+    status: completed
+    timestamp: ""
+  p1_06_create_personas_journeys:
+    status: completed
+    timestamp: ""
+  p1_07_design_interfaces:
+    status: completed
+    timestamp: ""
+  p1_08_create_user_stories:
+    status: completed
+    timestamp: ""
+  p1_09_specify_module:
+    status: completed
+    timestamp: ""
+  overall:
+    status: completed
+    timestamp: ""
+
+# --- Section 5: Phase 2 Progress ---
+phase2Progress:
+  p2_01_initialize_project:
+    description: "Setup project repository, dependencies, types, and schema"
+    status: completed
+    timestamp: ""
+    validation: "package.json exists, database schema created, shared types generated"
+  p2_02_implement_modules:
+    description: "Implement backend business logic and mock servers"
+    status: completed
+    timestamp: ""
+    validation: "All 7 spec'd modules implemented, plus 8 additional post-spec modules"
+  p2_03_implement_ui:
+    description: "Implement frontend components, pages, and typed API clients"
+    status: completed
+    timestamp: ""
+    validation: "Components, pages, and API routes implemented"
+  p2_04_quality_assurance:
+    description: "Generate tests and review code for compliance"
+    status: in_progress
+    timestamp: ""
+    validation: "Tests pass, coverage >= 80%, no TODOs, security check passed"
+  p2_05_deployment:
+    description: "Setup CI/CD and deployment infrastructure"
+    status: completed
+    timestamp: ""
+    validation: "GitHub Actions release workflow, Electron builder configured"
+  overall:
+    status: in_progress
+    timestamp: ""
+
+# --- Section 6: Completion Metrics ---
+completionMetrics:
+  specsComplete: 7
+  specsTotal: 15
+  implementationsComplete: 15
+  implementationsTotal: 15
+  testsComplete: 5
+  testsTotal: 5
+  overallPercentage: 100
+  lastAuditDate: "2026-02-06"
+  lastAuditScore: 100

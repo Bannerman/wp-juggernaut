@@ -38,6 +38,9 @@ Before running this app, ensure your WordPress site has:
    WP_USERNAME=your-username
    WP_APP_PASSWORD=xxxx xxxx xxxx xxxx
    ```
+   
+   In browser/dev mode, credentials are stored outside the repo at
+   `~/.juggernaut/site-config.json` (override with `JUGGERNAUT_CONFIG_DIR`).
 
 3. **Start the development server:**
    ```bash
@@ -141,6 +144,8 @@ Supported custom fields from MB REST API:
 ## Security
 
 - Credentials stored in `.env.local` (gitignored)
+- Electron app stores credentials via OS secure storage (macOS Keychain)
+- Browser/dev mode stores credentials in `~/.juggernaut/site-config.json`
 - Application passwords can be revoked in WP Admin
 - HTTPS required in production
 - No credentials exposed to client-side code
