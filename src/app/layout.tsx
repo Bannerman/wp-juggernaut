@@ -4,6 +4,9 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Juggernaut',
   description: 'A modular WordPress content management platform',
+  icons: {
+    icon: '/icon.png',
+  },
 };
 
 export default function RootLayout({

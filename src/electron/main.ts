@@ -260,10 +260,14 @@ autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
 
 autoUpdater.on('error', (error: Error) => {
   console.error('Auto-updater error:', error);
-  mainWindow?.webContents.send('update-status', {
-    status: 'error',
-    message: error.message,
-  });
+  // Suppress network errors (DNS, offline, etc.) — not actionable by user
+  const isNetworkError = /ERR_NAME_NOT_RESOLVED|ENOTFOUND|ETIMEDOUT|ECONNREFUSED|ERR_INTERNET_DISCONNECTED|net::ERR_/i.test(error.message);
+  if (!isNetworkError) {
+    mainWindow?.webContents.send('update-status', {
+      status: 'error',
+      message: error.message,
+    });
+  }
 });
 
 // IPC handlers
