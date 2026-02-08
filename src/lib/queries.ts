@@ -296,8 +296,8 @@ export function updateLocalResource(
   }
 }
 
-export function getDirtyResources(): LocalResource[] {
-  return getResources({ isDirty: true });
+export function getDirtyResources(postType?: string): LocalResource[] {
+  return getResources({ isDirty: true }, postType);
 }
 
 export function markResourceClean(id: number) {

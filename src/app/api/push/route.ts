@@ -5,8 +5,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const skipConflictCheck = body.skipConflictCheck === true;
-    
-    const result = await pushAllDirty(skipConflictCheck);
+    const postType = body.postType as string | undefined;
+
+    const result = await pushAllDirty(skipConflictCheck, postType);
     
     const failedCount = result.results.filter(r => !r.success).length;
     

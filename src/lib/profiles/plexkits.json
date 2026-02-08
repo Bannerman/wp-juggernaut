@@ -49,6 +49,14 @@
       "icon": "FileText",
       "supports": ["title", "editor", "thumbnail", "custom-fields"],
       "is_primary": true
+    },
+    {
+      "slug": "post",
+      "name": "Posts",
+      "rest_base": "posts",
+      "icon": "Newspaper",
+      "supports": ["title", "editor", "thumbnail", "custom-fields"],
+      "is_primary": false
     }
   ],
 
@@ -161,6 +169,31 @@
       "hierarchical": false,
       "show_in_filter": false,
       "editable": false
+    },
+    {
+      "slug": "category",
+      "name": "Category",
+      "rest_base": "categories",
+      "post_types": ["post"],
+      "hierarchical": true,
+      "show_in_filter": true,
+      "filter_position": 1,
+      "show_in_table": true,
+      "table_position": 1,
+      "editable": true
+    },
+    {
+      "slug": "post_tag",
+      "name": "Tag",
+      "rest_base": "tags",
+      "post_types": ["post"],
+      "hierarchical": false,
+      "show_in_filter": true,
+      "filter_position": 2,
+      "show_in_table": true,
+      "table_position": 2,
+      "table_max_display": 3,
+      "editable": true
     }
   ],
 
