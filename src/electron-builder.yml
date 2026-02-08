@@ -8,8 +8,11 @@ directories:
   buildResources: build
 
 # Files to include in the app (inside asar)
+# Only Electron main process code — Next.js runs from standalone extraResource
+# electron-updater is loaded conditionally and gracefully handles being absent
 files:
   - electron/dist/**/*
+  - "!node_modules/**/*"
 
 # Extra resources (outside asar, for execution)
 # The standalone folder must be outside asar since Node.js needs to execute it

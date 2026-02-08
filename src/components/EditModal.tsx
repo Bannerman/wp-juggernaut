@@ -122,6 +122,22 @@ export function EditModal({
 }: EditModalProps) {
   const isCreateMode = resource === null;
 
+  // Rewrite media URLs to match the active site (e.g., production → local)
+  const rewriteMediaUrl = (url: string | unknown): string => {
+    if (typeof url !== 'string' || !url || !siteUrl) return (url as string) || '';
+    try {
+      const parsed = new URL(url);
+      const active = new URL(siteUrl);
+      if (parsed.hostname !== active.hostname) {
+        parsed.protocol = active.protocol;
+        parsed.hostname = active.hostname;
+        parsed.port = active.port;
+        return parsed.toString();
+      }
+    } catch { /* not a valid URL, return as-is */ }
+    return url;
+  };
+
   // Build tab list from profile config or fallback
   const TABS = (() => {
     if (tabConfig.length > 0) {
@@ -1095,9 +1111,9 @@ timer_datetime: {{timer_datetime}}
                   {/* URL Input */}
                   <input
                     type="url"
-                    value={(metaBox.featured_image_url as string) || ''}
+                    value={rewriteMediaUrl(metaBox.featured_image_url)}
                     onChange={(e) => updateMetaField('featured_image_url', e.target.value)}
-                    placeholder="https://plexkits.com/wp-content/uploads/..."
+                    placeholder={`${siteUrl || 'https://example.com'}/wp-content/uploads/...`}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 mb-2"
                   />
                   
@@ -1147,7 +1163,7 @@ timer_datetime: {{timer_datetime}}
                     <div className="mt-3">
                       <p className="text-xs text-gray-500 mb-1">Preview:</p>
                       <img
-                        src={(metaBox.featured_image_url as string)}
+                        src={rewriteMediaUrl(metaBox.featured_image_url)}
                         alt="Featured image preview"
                         className="max-w-xs max-h-48 rounded-lg border border-gray-200 object-cover"
                         onError={(e) => {

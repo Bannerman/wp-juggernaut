@@ -1,8 +1,16 @@
 import { app, BrowserWindow, shell, ipcMain, dialog, utilityProcess, UtilityProcess, safeStorage } from 'electron';
-import { autoUpdater, UpdateInfo, ProgressInfo } from 'electron-updater';
+import type { UpdateInfo, ProgressInfo } from 'electron-updater';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
+
+// Lazy-load electron-updater to avoid crash if module is not bundled
+let autoUpdater: import('electron-updater').AppUpdater | null = null;
+try {
+  autoUpdater = require('electron-updater').autoUpdater;
+} catch {
+  console.warn('electron-updater not available, auto-updates disabled');
+}
 
 // Secure credential storage using macOS Keychain via safeStorage
 const CREDENTIALS_FILE = path.join(app.getPath('userData'), 'credentials.enc');
@@ -68,8 +76,10 @@ const isDev = process.env.NODE_ENV === 'development';
 const PORT = 4853; // Unique port to avoid conflicts with dev servers
 
 // Configure auto-updater for GitHub releases
-autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = true;
+if (autoUpdater) {
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+}
 
 function createWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
@@ -197,81 +207,81 @@ function getAppPath(): string {
 }
 
 // Auto-updater events
-autoUpdater.on('checking-for-update', () => {
-  console.log('Checking for update...');
-  mainWindow?.webContents.send('update-status', { status: 'checking' });
-});
-
-autoUpdater.on('update-available', (info: UpdateInfo) => {
-  console.log('Update available:', info.version);
-  mainWindow?.webContents.send('update-status', {
-    status: 'available',
-    version: info.version,
-    releaseNotes: info.releaseNotes,
+if (autoUpdater) {
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for update...');
+    mainWindow?.webContents.send('update-status', { status: 'checking' });
   });
 
-  // Show dialog to user
-  dialog.showMessageBox(mainWindow!, {
-    type: 'info',
-    title: 'Update Available',
-    message: `A new version (${info.version}) is available. Would you like to download it now?`,
-    buttons: ['Download', 'Later'],
-    defaultId: 0,
-  }).then((result: Electron.MessageBoxReturnValue) => {
-    if (result.response === 0) {
-      autoUpdater.downloadUpdate();
-    }
-  });
-});
-
-autoUpdater.on('update-not-available', () => {
-  console.log('No update available');
-  mainWindow?.webContents.send('update-status', { status: 'not-available' });
-});
-
-autoUpdater.on('download-progress', (progress: ProgressInfo) => {
-  console.log(`Download progress: ${progress.percent.toFixed(1)}%`);
-  mainWindow?.webContents.send('update-status', {
-    status: 'downloading',
-    percent: progress.percent,
-  });
-});
-
-autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-  console.log('Update downloaded:', info.version);
-  mainWindow?.webContents.send('update-status', {
-    status: 'downloaded',
-    version: info.version,
-  });
-
-  // Prompt user to restart
-  dialog.showMessageBox(mainWindow!, {
-    type: 'info',
-    title: 'Update Ready',
-    message: `Version ${info.version} has been downloaded. Restart now to install the update?`,
-    buttons: ['Restart', 'Later'],
-    defaultId: 0,
-  }).then((result: Electron.MessageBoxReturnValue) => {
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall(false, true);
-    }
-  });
-});
-
-autoUpdater.on('error', (error: Error) => {
-  console.error('Auto-updater error:', error);
-  // Suppress network errors (DNS, offline, etc.) — not actionable by user
-  const isNetworkError = /ERR_NAME_NOT_RESOLVED|ENOTFOUND|ETIMEDOUT|ECONNREFUSED|ERR_INTERNET_DISCONNECTED|net::ERR_/i.test(error.message);
-  if (!isNetworkError) {
+  autoUpdater.on('update-available', (info: UpdateInfo) => {
+    console.log('Update available:', info.version);
     mainWindow?.webContents.send('update-status', {
-      status: 'error',
-      message: error.message,
+      status: 'available',
+      version: info.version,
+      releaseNotes: info.releaseNotes,
     });
-  }
-});
+
+    dialog.showMessageBox(mainWindow!, {
+      type: 'info',
+      title: 'Update Available',
+      message: `A new version (${info.version}) is available. Would you like to download it now?`,
+      buttons: ['Download', 'Later'],
+      defaultId: 0,
+    }).then((result: Electron.MessageBoxReturnValue) => {
+      if (result.response === 0) {
+        autoUpdater!.downloadUpdate();
+      }
+    });
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('No update available');
+    mainWindow?.webContents.send('update-status', { status: 'not-available' });
+  });
+
+  autoUpdater.on('download-progress', (progress: ProgressInfo) => {
+    console.log(`Download progress: ${progress.percent.toFixed(1)}%`);
+    mainWindow?.webContents.send('update-status', {
+      status: 'downloading',
+      percent: progress.percent,
+    });
+  });
+
+  autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+    console.log('Update downloaded:', info.version);
+    mainWindow?.webContents.send('update-status', {
+      status: 'downloaded',
+      version: info.version,
+    });
+
+    dialog.showMessageBox(mainWindow!, {
+      type: 'info',
+      title: 'Update Ready',
+      message: `Version ${info.version} has been downloaded. Restart now to install the update?`,
+      buttons: ['Restart', 'Later'],
+      defaultId: 0,
+    }).then((result: Electron.MessageBoxReturnValue) => {
+      if (result.response === 0) {
+        autoUpdater!.quitAndInstall(false, true);
+      }
+    });
+  });
+
+  autoUpdater.on('error', (error: Error) => {
+    console.error('Auto-updater error:', error);
+    const isNetworkError = /ERR_NAME_NOT_RESOLVED|ENOTFOUND|ETIMEDOUT|ECONNREFUSED|ERR_INTERNET_DISCONNECTED|net::ERR_/i.test(error.message);
+    if (!isNetworkError) {
+      mainWindow?.webContents.send('update-status', {
+        status: 'error',
+        message: error.message,
+      });
+    }
+  });
+}
 
 // IPC handlers
 ipcMain.handle('check-for-updates', async () => {
+  if (!autoUpdater) return { success: false, error: 'Auto-updater not available' };
   try {
     const result = await autoUpdater.checkForUpdates();
     return { success: true, version: result?.updateInfo?.version };
@@ -281,6 +291,7 @@ ipcMain.handle('check-for-updates', async () => {
 });
 
 ipcMain.handle('download-update', async () => {
+  if (!autoUpdater) return { success: false, error: 'Auto-updater not available' };
   try {
     await autoUpdater.downloadUpdate();
     return { success: true };
@@ -290,7 +301,7 @@ ipcMain.handle('download-update', async () => {
 });
 
 ipcMain.handle('install-update', () => {
-  autoUpdater.quitAndInstall(false, true);
+  autoUpdater?.quitAndInstall(false, true);
 });
 
 ipcMain.handle('get-app-version', () => {
@@ -361,7 +372,7 @@ app.whenReady().then(async () => {
   // Check for updates after window loads (only in production)
   if (!isDev) {
     setTimeout(() => {
-      autoUpdater.checkForUpdates().catch(console.error);
+      autoUpdater?.checkForUpdates().catch(console.error);
     }, 3000);
   }
 
