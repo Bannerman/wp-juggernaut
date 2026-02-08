@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getResources } from '@/lib/queries';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const resources = getResources();
+    const postType = request.nextUrl.searchParams.get('postType') || undefined;
+    const resources = getResources({}, postType);
     return NextResponse.json(resources);
   } catch (error) {
     console.error('Error fetching resources:', error);

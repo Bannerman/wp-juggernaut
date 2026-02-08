@@ -10,6 +10,16 @@ import * as db from '../db';
 // Mock dependencies
 jest.mock('../wp-client');
 jest.mock('../db');
+jest.mock('../profiles', () => ({
+  getProfileManager: () => ({
+    getPostTypes: () => [
+      { slug: 'resource', rest_base: 'resource', name: 'Resources', is_primary: true },
+      { slug: 'post', rest_base: 'posts', name: 'Posts', is_primary: false },
+    ],
+    getPrimaryPostType: () => ({ slug: 'resource', rest_base: 'resource', name: 'Resources', is_primary: true }),
+  }),
+  ensureProfileLoaded: () => ({}),
+}));
 
 describe('Sync Engine Module', () => {
   const mockWpClient = wpClient as jest.Mocked<typeof wpClient>;
@@ -92,10 +102,10 @@ describe('Sync Engine Module', () => {
     it('should detect and delete resources removed from WordPress', async () => {
       mockWpClient.fetchAllTaxonomies.mockResolvedValue({} as any);
       mockWpClient.fetchAllResources.mockResolvedValue([]);
-      
-      // Server has resources 1-5
+
+      // Server has resources 1-5 for both post types
       mockWpClient.fetchResourceIds.mockResolvedValue([1, 2, 3, 4, 5]);
-      
+
       // Local database has resources 1-10
       const mockDbInstance = mockDb.getDb();
       const mockPrepare = mockDbInstance.prepare as jest.Mock;
@@ -109,8 +119,8 @@ describe('Sync Engine Module', () => {
 
       const result = await fullSync();
 
-      // Should delete resources 6-10
-      expect(result.resourcesDeleted).toBe(5);
+      // Should delete resources 6-10 for each post type (resource + post)
+      expect(result.resourcesDeleted).toBe(10);
     });
 
     it('should collect errors but continue syncing', async () => {
@@ -159,8 +169,9 @@ describe('Sync Engine Module', () => {
 
       await incrementalSync();
 
-      // Should pass modified_after to fetchAllResources
-      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(lastSync);
+      // Should pass modified_after to fetchAllResources for each post type
+      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(lastSync, 'resource');
+      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(lastSync, 'posts');
     });
 
     it('should skip deletion detection', async () => {
@@ -197,8 +208,9 @@ describe('Sync Engine Module', () => {
 
       await incrementalSync();
 
-      // Should not pass modified_after (full sync)
-      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(undefined);
+      // Should not pass modified_after (null last sync means fetch all)
+      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(undefined, 'resource');
+      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(undefined, 'posts');
     });
   });
 
