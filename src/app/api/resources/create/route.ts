@@ -16,7 +16,9 @@ export async function POST(request: NextRequest) {
     // Extract featured_media from meta_box if present (WordPress expects it at top level)
     const featuredMediaId = body.meta_box?.featured_media_id as number | undefined;
 
-    // Create on WordPress
+    const postType = body.postType as string | undefined;
+
+    // Create on WordPress (pass REST base for the post type)
     const resource = await createResource({
       title: body.title,
       slug: body.slug,
@@ -25,10 +27,10 @@ export async function POST(request: NextRequest) {
       featured_media: featuredMediaId,
       ...body.taxonomies,
       meta_box: body.meta_box,
-    });
+    }, postType);
 
-    // Save to local database
-    saveResource(resource);
+    // Save to local database with the correct post type slug
+    saveResource(resource, undefined, postType);
 
     return NextResponse.json(resource, { status: 201 });
   } catch (error) {

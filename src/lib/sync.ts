@@ -6,9 +6,11 @@ import {
   getTaxonomies,
   getWpBaseUrl,
   getWpCredentials,
+  getPrimaryPostTypeRestBase,
   type WPResource,
   type WPTerm,
 } from './wp-client';
+import { getProfileManager, ensureProfileLoaded } from './profiles';
 import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
 import { collectMetaBoxKeys, runFieldAudit, saveAuditResults } from './field-audit';
 import { decodeHtmlEntities } from './utils';
@@ -134,9 +136,10 @@ export function saveTerm(term: WPTerm) {
   `).run(term.id, term.taxonomy, term.name, term.slug, term.parent || 0);
 }
 
-export function saveResource(resource: WPResource, featuredImageUrl?: string) {
+export function saveResource(resource: WPResource, featuredImageUrl?: string, postType?: string) {
   const db = getDb();
   const now = new Date().toISOString();
+  const type = postType || 'resource';
 
   // Handle potentially missing rendered fields and decode HTML entities
   const title = decodeHtmlEntities(resource.title?.rendered || '');
@@ -145,9 +148,10 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string) {
 
   db.prepare(`
     INSERT OR REPLACE INTO posts (id, post_type, title, slug, status, content, excerpt, featured_media, date_gmt, modified_gmt, synced_at, is_dirty)
-    VALUES (?, 'resource', ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT is_dirty FROM posts WHERE id = ?), 0))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT is_dirty FROM posts WHERE id = ?), 0))
   `).run(
     resource.id,
+    type,
     title,
     resource.slug,
     resource.status,
@@ -268,15 +272,42 @@ export async function syncTaxonomies(): Promise<number> {
   return count;
 }
 
-export async function syncResources(incremental: boolean = false): Promise<{
+/** Get the primary post type slug from the profile */
+function getPrimaryPostTypeSlug(): string {
+  try {
+    ensureProfileLoaded();
+    const pt = getProfileManager().getPrimaryPostType();
+    return pt?.slug || 'resource';
+  } catch {
+    return 'resource';
+  }
+}
+
+/** Resolve a REST base back to its post type slug */
+function resolvePostTypeSlug(restBase: string): string {
+  try {
+    ensureProfileLoaded();
+    const postTypes = getProfileManager().getPostTypes();
+    const match = postTypes.find(pt => pt.rest_base === restBase || pt.slug === restBase);
+    return match?.slug || restBase;
+  } catch {
+    return restBase;
+  }
+}
+
+export async function syncResources(incremental: boolean = false, postType?: string): Promise<{
   updated: number;
   deleted: number;
   rawResources: WPResource[];
 }> {
   const lastSync = incremental ? getLastSyncTime() : null;
-  console.log(`Fetching resources (incremental: ${incremental}, lastSync: ${lastSync})`);
-  const resources = await fetchAllResources(lastSync || undefined);
-  console.log(`Fetched ${resources.length} resources from WordPress`);
+  // Resolve the REST base for the WP API and the slug for local storage
+  const restBase = postType || getPrimaryPostTypeRestBase();
+  const typeSlug = postType ? resolvePostTypeSlug(postType) : getPrimaryPostTypeSlug();
+
+  console.log(`Fetching ${typeSlug} (incremental: ${incremental}, lastSync: ${lastSync})`);
+  const resources = await fetchAllResources(lastSync || undefined, restBase);
+  console.log(`Fetched ${resources.length} ${typeSlug} from WordPress`);
 
   // Clear media cache at start of sync
   mediaUrlCache.clear();
@@ -303,11 +334,11 @@ export async function syncResources(incremental: boolean = false): Promise<{
     if (resource.featured_media && resource.featured_media > 0) {
       featuredImageUrl = mediaUrlCache.get(resource.featured_media) || undefined;
     }
-    saveResource(resource, featuredImageUrl);
+    saveResource(resource, featuredImageUrl, typeSlug);
   }
 
   // Fetch and save SEO data for all resources in parallel
-  console.log(`Fetching SEO data for ${resources.length} resources...`);
+  console.log(`Fetching SEO data for ${resources.length} ${typeSlug}...`);
   const seoResults = await Promise.all(
     resources.map(async (resource) => {
       const seo = await fetchSeoData(resource.id);
@@ -322,16 +353,16 @@ export async function syncResources(incremental: boolean = false): Promise<{
       seoSaved++;
     }
   }
-  console.log(`Saved SEO data for ${seoSaved} resources`);
+  console.log(`Saved SEO data for ${seoSaved} ${typeSlug}`);
 
   // Check for deleted resources
   let deletedCount = 0;
   if (!incremental) {
-    const serverIds = new Set(await fetchResourceIds());
+    const serverIds = new Set(await fetchResourceIds(restBase));
     const db = getDb();
     const localIds = db
       .prepare('SELECT id FROM posts WHERE post_type = ?')
-      .all('resource') as { id: number }[];
+      .all(typeSlug) as { id: number }[];
 
     for (const { id } of localIds) {
       if (!serverIds.has(id)) {
@@ -342,6 +373,16 @@ export async function syncResources(incremental: boolean = false): Promise<{
   }
 
   return { updated: resources.length, deleted: deletedCount, rawResources: resources };
+}
+
+/** Get all configured post types from the profile */
+function getConfiguredPostTypes(): Array<{ slug: string; rest_base: string }> {
+  try {
+    ensureProfileLoaded();
+    return getProfileManager().getPostTypes();
+  } catch {
+    return [{ slug: 'resource', rest_base: 'resource' }];
+  }
 }
 
 export async function fullSync(): Promise<SyncResult> {
@@ -356,14 +397,18 @@ export async function fullSync(): Promise<SyncResult> {
     errors.push(`Taxonomy sync error: ${error}`);
   }
 
+  // Sync all configured post types
   let rawResources: WPResource[] = [];
-  try {
-    const result = await syncResources(false);
-    resourcesUpdated = result.updated;
-    resourcesDeleted = result.deleted;
-    rawResources = result.rawResources;
-  } catch (error) {
-    errors.push(`Resource sync error: ${error}`);
+  const postTypes = getConfiguredPostTypes();
+  for (const pt of postTypes) {
+    try {
+      const result = await syncResources(false, pt.rest_base);
+      resourcesUpdated += result.updated;
+      resourcesDeleted += result.deleted;
+      rawResources = rawResources.concat(result.rawResources);
+    } catch (error) {
+      errors.push(`Sync error for ${pt.slug}: ${error}`);
+    }
   }
 
   // Run field audit (non-fatal — errors logged but don't fail sync)
@@ -396,11 +441,15 @@ export async function incrementalSync(): Promise<SyncResult> {
     errors.push(`Taxonomy sync error: ${error}`);
   }
 
-  try {
-    const result = await syncResources(true);
-    resourcesUpdated = result.updated;
-  } catch (error) {
-    errors.push(`Resource sync error: ${error}`);
+  // Incremental sync all configured post types
+  const postTypes = getConfiguredPostTypes();
+  for (const pt of postTypes) {
+    try {
+      const result = await syncResources(true, pt.rest_base);
+      resourcesUpdated += result.updated;
+    } catch (error) {
+      errors.push(`Sync error for ${pt.slug}: ${error}`);
+    }
   }
 
   if (errors.length === 0) {
