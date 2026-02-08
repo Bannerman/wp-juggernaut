@@ -20,6 +20,7 @@ import { ResourceTable } from '@/components/ResourceTable';
 import { FilterPanel } from '@/components/FilterPanel';
 import { EditModal } from '@/components/EditModal';
 import { UpdateNotifier } from '@/components/UpdateNotifier';
+import { PostTypeSwitcher } from '@/components/PostTypeSwitcher';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import type { FieldDefinition } from '@/lib/plugins/types';
 
@@ -82,6 +83,7 @@ export default function Home() {
     slug: string;
     name: string;
     rest_base: string;
+    post_types?: string[];
     hierarchical?: boolean;
     show_in_filter?: boolean;
     filter_position?: number;
@@ -95,6 +97,9 @@ export default function Home() {
   const [siteUrl, setSiteUrl] = useState<string>('');
   const [postTypeSlug, setPostTypeSlug] = useState<string>('resource');
   const [postTypeLabel, setPostTypeLabel] = useState<string>('Resource');
+  const [postTypeRestBase, setPostTypeRestBase] = useState<string>('resource');
+  const [postTypes, setPostTypes] = useState<Array<{ slug: string; name: string; rest_base: string; icon?: string; is_primary?: boolean }>>([]);
+  const [allTaxonomyConfig, setAllTaxonomyConfig] = useState<typeof taxonomyConfig>([]);
   const [editableTaxonomies, setEditableTaxonomies] = useState<string[]>([]);
 
   // Fetch profile config (includes enabled plugins and taxonomy config)
@@ -112,22 +117,35 @@ export default function Home() {
           setTabConfig(data.ui.tabs);
         }
         if (data.taxonomies) {
-          setTaxonomyConfig(data.taxonomies);
-          // Extract editable taxonomies from config
-          const editable = data.taxonomies
+          setAllTaxonomyConfig(data.taxonomies);
+          // Filter taxonomies for the active post type
+          const primarySlug = data.postType?.slug || 'resource';
+          const filtered = data.taxonomies.filter(
+            (t: { post_types?: string[] }) => !t.post_types || t.post_types.includes(primarySlug)
+          );
+          setTaxonomyConfig(filtered);
+          // Extract editable taxonomies from filtered config
+          const editable = filtered
             .filter((t: { editable?: boolean }) => t.editable)
             .map((t: { slug: string }) => t.slug);
           setEditableTaxonomies(editable);
-        }
-        if (data.taxonomyLabels) {
-          setTaxonomyLabels(data.taxonomyLabels);
+          // Build labels for filtered taxonomies
+          const labels: Record<string, string> = {};
+          for (const t of filtered) {
+            labels[t.slug] = t.name;
+          }
+          setTaxonomyLabels(labels);
         }
         if (data.siteUrl) {
           setSiteUrl(data.siteUrl);
         }
+        if (data.postTypes) {
+          setPostTypes(data.postTypes);
+        }
         if (data.postType) {
           setPostTypeSlug(data.postType.slug || 'resource');
           setPostTypeLabel(data.postType.name || 'Resource');
+          setPostTypeRestBase(data.postType.rest_base || 'resource');
         }
       })
       .catch(err => console.error('Failed to fetch profile:', err));
@@ -135,10 +153,11 @@ export default function Home() {
 
   const fetchData = useCallback(async () => {
     try {
+      const params = postTypeSlug ? `?postType=${postTypeSlug}` : '';
       const [resourcesRes, termsRes, statsRes] = await Promise.all([
-        fetch('/api/resources'),
+        fetch(`/api/resources${params}`),
         fetch('/api/terms'),
-        fetch('/api/stats'),
+        fetch(`/api/stats${params}`),
       ]);
 
       if (!resourcesRes.ok || !termsRes.ok || !statsRes.ok) {
@@ -160,7 +179,7 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [postTypeSlug]);
 
   useEffect(() => {
     fetchData();
@@ -234,6 +253,8 @@ export default function Home() {
     try {
       const res = await fetch('/api/push', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postType: postTypeSlug }),
       });
 
       const result = await res.json();
@@ -313,7 +334,7 @@ export default function Home() {
       const res = await fetch('/api/resources/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, postType: postTypeRestBase }),
       });
 
       if (!res.ok) {
@@ -346,6 +367,37 @@ export default function Home() {
       setIsCreating(false);
     }
   };
+
+  const handlePostTypeSwitch = useCallback((pt: { slug: string; name: string; rest_base: string }) => {
+    if (pt.slug === postTypeSlug) return;
+
+    setPostTypeSlug(pt.slug);
+    setPostTypeLabel(pt.name);
+    setPostTypeRestBase(pt.rest_base);
+    setIsLoading(true);
+
+    // Reset filters when switching post types
+    setSearchQuery('');
+    setStatusFilter('');
+    setShowDirtyOnly(false);
+    setTaxonomyFilters({});
+    setSelectedResources([]);
+
+    // Filter taxonomies for the new post type
+    const filtered = allTaxonomyConfig.filter(
+      (t) => !t.post_types || t.post_types.includes(pt.slug)
+    );
+    setTaxonomyConfig(filtered);
+    const editable = filtered
+      .filter((t) => t.editable)
+      .map((t) => t.slug);
+    setEditableTaxonomies(editable);
+    const labels: Record<string, string> = {};
+    for (const t of filtered) {
+      labels[t.slug] = t.name;
+    }
+    setTaxonomyLabels(labels);
+  }, [postTypeSlug, allTaxonomyConfig]);
 
   const filteredResources = resources.filter((resource) => {
     if (searchQuery) {
@@ -499,6 +551,13 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-6">
+                {postTypes.length > 1 && (
+                  <PostTypeSwitcher
+                    postTypes={postTypes}
+                    activePostType={postTypeSlug}
+                    onSwitch={handlePostTypeSwitch}
+                  />
+                )}
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500">Total:</span>
                   <span className="font-medium text-gray-900">{stats.totalResources} {postTypeLabel.toLowerCase()}s</span>
@@ -514,7 +573,7 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              
+
               <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
                 <button
                   onClick={() => setViewMode('general')}

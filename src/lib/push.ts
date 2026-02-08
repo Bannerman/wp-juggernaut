@@ -291,12 +291,13 @@ export async function pushResource(
 }
 
 export async function pushAllDirty(
-  skipConflictCheck: boolean = false
+  skipConflictCheck: boolean = false,
+  postType?: string
 ): Promise<{
   results: PushResult[];
   conflicts: ConflictInfo[];
 }> {
-  const dirtyResources = getDirtyResources();
+  const dirtyResources = getDirtyResources(postType);
   const resourceIds = dirtyResources.map((r) => r.id);
 
   if (resourceIds.length === 0) {
