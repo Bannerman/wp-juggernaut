@@ -35,11 +35,11 @@ export function getDb(): Database.Database {
 
     // Check schema version and migrate if needed
     const currentVersion = getSchemaVersion(db);
-    if (currentVersion < SCHEMA_VERSION) {
-      migrateSchema(db, currentVersion, SCHEMA_VERSION);
-    } else if (currentVersion === 0) {
+    if (currentVersion === 0 && !tableExists(db, 'resources') && !tableExists(db, 'posts')) {
       // Fresh database - create schema from scratch
       initializeSchema(db);
+    } else if (currentVersion < SCHEMA_VERSION) {
+      migrateSchema(db, currentVersion, SCHEMA_VERSION);
     }
 
     // Fix any incomplete migrations (change_log might still have resource_id)
