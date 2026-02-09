@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -108,8 +108,23 @@ const MAPPING_COLORS = [
   'border-teal-400 bg-teal-50',
 ];
 
+const MAPPING_LINE_COLORS = [
+  '#818cf8', // indigo-400
+  '#34d399', // emerald-400
+  '#fbbf24', // amber-400
+  '#fb7185', // rose-400
+  '#22d3ee', // cyan-400
+  '#a78bfa', // violet-400
+  '#fb923c', // orange-400
+  '#2dd4bf', // teal-400
+];
+
 function getMappingColor(index: number): string {
   return MAPPING_COLORS[index % MAPPING_COLORS.length];
+}
+
+function getMappingLineColor(index: number): string {
+  return MAPPING_LINE_COLORS[index % MAPPING_LINE_COLORS.length];
 }
 
 // ─── Draggable source field ──────────────────────────────────────────────
@@ -118,10 +133,12 @@ function DraggableField({
   field,
   mappingIndex,
   isMapped,
+  fieldRef,
 }: {
   field: MappableField;
   mappingIndex: number;
   isMapped: boolean;
+  fieldRef?: (el: HTMLDivElement | null) => void;
 }): React.ReactElement {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `source-${field.key}`,
@@ -134,7 +151,10 @@ function DraggableField({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(el) => {
+        setNodeRef(el);
+        if (fieldRef) fieldRef(el);
+      }}
       style={style}
       {...listeners}
       {...attributes}
@@ -164,12 +184,14 @@ function DroppableField({
   isMapped,
   mappedSourceLabel,
   onRemove,
+  fieldRef,
 }: {
   field: MappableField;
   mappingIndex: number;
   isMapped: boolean;
   mappedSourceLabel?: string;
   onRemove?: () => void;
+  fieldRef?: (el: HTMLDivElement | null) => void;
 }): React.ReactElement {
   const { isOver, setNodeRef } = useDroppable({
     id: `target-${field.key}`,
@@ -178,7 +200,10 @@ function DroppableField({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(el) => {
+        setNodeRef(el);
+        if (fieldRef) fieldRef(el);
+      }}
       className={cn(
         'flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all',
         isOver && !isMapped && 'border-brand-400 bg-brand-50 shadow-md scale-[1.02]',
@@ -233,6 +258,14 @@ function DragOverlayContent({ field }: { field: MappableField }): React.ReactEle
 
 // ─── Main Editor Component ───────────────────────────────────────────────
 
+interface LineCoordinate {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+}
+
 export function FieldMappingEditor({
   sourcePostType,
   targetPostType,
@@ -245,13 +278,60 @@ export function FieldMappingEditor({
   const [activeField, setActiveField] = useState<MappableField | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [lines, setLines] = useState<LineCoordinate[]>([]);
   const initialRef = useRef(JSON.stringify(initialMappings));
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sourceRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const targetRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
     })
   );
+
+  // Calculate line coordinates when mappings or refs change
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const calculateLines = (): void => {
+      const newLines: LineCoordinate[] = [];
+      const containerRect = containerRef.current?.getBoundingClientRect();
+      if (!containerRect) return;
+
+      mappings.forEach((mapping, index) => {
+        const sourceEl = sourceRefs.current.get(mapping.source.key);
+        const targetEl = targetRefs.current.get(mapping.target.key);
+
+        if (sourceEl && targetEl) {
+          const sourceRect = sourceEl.getBoundingClientRect();
+          const targetRect = targetEl.getBoundingClientRect();
+
+          // Calculate center points relative to container
+          const x1 = sourceRect.right - containerRect.left;
+          const y1 = sourceRect.top + sourceRect.height / 2 - containerRect.top;
+          const x2 = targetRect.left - containerRect.left;
+          const y2 = targetRect.top + targetRect.height / 2 - containerRect.top;
+
+          newLines.push({
+            x1,
+            y1,
+            x2,
+            y2,
+            color: getMappingLineColor(index),
+          });
+        }
+      });
+
+      setLines(newLines);
+    };
+
+    calculateLines();
+
+    // Recalculate on window resize
+    window.addEventListener('resize', calculateLines);
+    return () => window.removeEventListener('resize', calculateLines);
+  }, [mappings]);
 
   // Find mapping index for a field (for color coordination)
   const getSourceMappingIndex = useCallback(
@@ -338,7 +418,7 @@ export function FieldMappingEditor({
   }, [mappings, onSave]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={containerRef}>
       {/* Header bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-sm">
@@ -393,9 +473,31 @@ export function FieldMappingEditor({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-[1fr_auto_1fr] gap-4">
+        <div className="relative grid grid-cols-[1fr_auto_1fr] gap-4">
+          {/* SVG overlay for connection lines */}
+          <svg
+            className="absolute inset-0 pointer-events-none"
+            style={{ zIndex: 0 }}
+          >
+            {lines.map((line, i) => {
+              // Create a smooth cubic bezier curve
+              const midX = (line.x1 + line.x2) / 2;
+              const path = `M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`;
+
+              return (
+                <path
+                  key={i}
+                  d={path}
+                  stroke={line.color}
+                  strokeWidth="2"
+                  fill="none"
+                  opacity="0.6"
+                />
+              );
+            })}
+          </svg>
           {/* Source column */}
-          <div>
+          <div style={{ zIndex: 1 }}>
             <h3 className="text-sm font-semibold text-gray-700 mb-3 px-1">
               Source: {sourcePostType.name}
             </h3>
@@ -408,6 +510,13 @@ export function FieldMappingEditor({
                     field={field}
                     mappingIndex={idx}
                     isMapped={idx >= 0}
+                    fieldRef={(el) => {
+                      if (el) {
+                        sourceRefs.current.set(field.key, el);
+                      } else {
+                        sourceRefs.current.delete(field.key);
+                      }
+                    }}
                   />
                 );
               })}
@@ -415,7 +524,7 @@ export function FieldMappingEditor({
           </div>
 
           {/* Center connector column */}
-          <div className="flex flex-col items-center justify-center pt-8">
+          <div className="flex flex-col items-center justify-center pt-8" style={{ zIndex: 1 }}>
             {mappings.length > 0 ? (
               <div className="flex flex-col gap-1">
                 {mappings.map((_, i) => (
@@ -433,7 +542,7 @@ export function FieldMappingEditor({
           </div>
 
           {/* Target column */}
-          <div>
+          <div style={{ zIndex: 1 }}>
             <h3 className="text-sm font-semibold text-gray-700 mb-3 px-1">
               Target: {targetPostType.name}
             </h3>
@@ -449,6 +558,13 @@ export function FieldMappingEditor({
                     isMapped={idx >= 0}
                     mappedSourceLabel={mappedSource?.label}
                     onRemove={() => handleRemoveMapping(field.key)}
+                    fieldRef={(el) => {
+                      if (el) {
+                        targetRefs.current.set(field.key, el);
+                      } else {
+                        targetRefs.current.delete(field.key);
+                      }
+                    }}
                   />
                 );
               })}
