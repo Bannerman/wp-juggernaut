@@ -3,6 +3,7 @@ import type { UpdateInfo, ProgressInfo } from 'electron-updater';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
+import { isValidExternalUrl } from '../lib/url-validation';
 
 // Lazy-load electron-updater to avoid crash if module is not bundled
 let autoUpdater: import('electron-updater').AppUpdater | null = null;
@@ -105,7 +106,11 @@ function createWindow(): BrowserWindow {
 
   // Open external links in browser
   mainWindow.webContents.setWindowOpenHandler(({ url }: { url: string }) => {
-    shell.openExternal(url);
+    if (isValidExternalUrl(url)) {
+      shell.openExternal(url);
+    } else {
+      console.warn(`Blocked attempt to open invalid external URL: ${url}`);
+    }
     return { action: 'deny' as const };
   });
 
