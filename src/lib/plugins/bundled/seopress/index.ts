@@ -66,12 +66,25 @@ export const DEFAULT_SEO_DATA: SEOData = {
 /**
  * SEOPress API endpoints
  */
+/**
+ * Redirect data structure for SEOPress redirections
+ */
+export interface RedirectData {
+  /** Source URL path (e.g., "/old-slug/") */
+  redirectFrom: string;
+  /** Target URL path or full URL (e.g., "/new-slug/") */
+  redirectTo: string;
+  /** HTTP status code: 301 (permanent) or 302 (temporary) */
+  statusCode: 301 | 302;
+}
+
 const SEOPRESS_ENDPOINTS = {
   posts: (postId: number) => `/wp-json/seopress/v1/posts/${postId}`,
   titleDescription: (postId: number) => `/wp-json/seopress/v1/posts/${postId}/title-description-metas`,
   targetKeywords: (postId: number) => `/wp-json/seopress/v1/posts/${postId}/target-keywords`,
   socialSettings: (postId: number) => `/wp-json/seopress/v1/posts/${postId}/social-settings`,
   metaRobots: (postId: number) => `/wp-json/seopress/v1/posts/${postId}/meta-robot-settings`,
+  redirections: `/wp-json/seopress/v1/redirections`,
 };
 
 /**
@@ -368,6 +381,54 @@ class SEOPressPlugin implements JuggernautPlugin {
     // SEO data is fetched on-demand, not during sync
     // This method is available if we want to pre-fetch SEO data
     return {};
+  }
+
+  // ─── Redirect Methods ───────────────────────────────────────────────────────
+
+  /**
+   * Create a 301/302 redirect via the SEOPress redirections API.
+   *
+   * SEOPress stores redirects as a custom post type (seopress_404).
+   * The REST endpoint creates the redirect rule on the WordPress site.
+   */
+  async createRedirect(
+    redirect: RedirectData,
+    baseUrl: string,
+    authHeader: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch(`${baseUrl}${SEOPRESS_ENDPOINTS.redirections}`, {
+        method: 'POST',
+        headers: {
+          Authorization: authHeader,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          _seopress_redirections_value: redirect.redirectFrom,
+          _seopress_redirections_param: 'exact_match',
+          _seopress_redirections_type: String(redirect.statusCode),
+          _seopress_redirections_enabled: 'yes',
+          _seopress_redirections_logged_status: 'both',
+          // The target URL for the redirect
+          _seopress_redirections_url_redirect: redirect.redirectTo,
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        return { success: false, error: `SEOPress redirect API error ${response.status}: ${text}` };
+      }
+
+      this.coreAPI?.log(
+        `[SEOPress] Created ${redirect.statusCode} redirect: ${redirect.redirectFrom} → ${redirect.redirectTo}`,
+        'info'
+      );
+      return { success: true };
+    } catch (error) {
+      const msg = `Failed to create redirect: ${error}`;
+      this.coreAPI?.log(`[SEOPress] ${msg}`, 'error');
+      return { success: false, error: msg };
+    }
   }
 
   // ─── Local Storage Methods ────────────────────────────────────────────────────
