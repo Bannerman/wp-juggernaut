@@ -576,6 +576,9 @@ export interface SiteProfile {
   /** Plugin-specific settings */
   plugin_settings?: Record<string, Record<string, unknown>>;
 
+  /** Field mappings between post types for conversion */
+  field_mappings?: FieldMappings;
+
   /** UI customization */
   ui?: UIConfig;
 }
@@ -677,7 +680,40 @@ export interface TabConfig {
   position?: number;
   /** Whether this tab's content is rendered dynamically from field_layout */
   dynamic?: boolean;
+  /** Which post types this tab applies to (omit for all post types) */
+  post_types?: string[];
 }
+
+// ============================================================================
+// Field Mapping Types
+// ============================================================================
+
+/**
+ * A single field descriptor used in field mapping
+ */
+export interface MappableField {
+  /** Field key (e.g., "text_content", "content", "resource-type") */
+  key: string;
+  /** Human-readable label */
+  label: string;
+  /** Field category */
+  category: 'core' | 'meta' | 'taxonomy';
+  /** Field data type hint */
+  type?: string;
+}
+
+/**
+ * A mapping between a source field and a target field
+ */
+export interface FieldMappingEntry {
+  source: { key: string; category: 'core' | 'meta' | 'taxonomy' };
+  target: { key: string; category: 'core' | 'meta' | 'taxonomy' };
+}
+
+/**
+ * Field mappings between post types, keyed by "sourceSlug->targetSlug"
+ */
+export type FieldMappings = Record<string, FieldMappingEntry[]>;
 
 // ============================================================================
 // API Types

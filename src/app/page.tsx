@@ -21,6 +21,7 @@ import { FilterPanel } from '@/components/FilterPanel';
 import { EditModal } from '@/components/EditModal';
 import { UpdateNotifier } from '@/components/UpdateNotifier';
 import { PostTypeSwitcher } from '@/components/PostTypeSwitcher';
+import { ConvertPostTypeModal } from '@/components/ConvertPostTypeModal';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import type { FieldDefinition } from '@/lib/plugins/types';
 
@@ -72,6 +73,7 @@ export default function Home() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showSyncDropdown, setShowSyncDropdown] = useState(false);
+  const [convertingResource, setConvertingResource] = useState<Resource | null>(null);
   
   const [viewMode, setViewMode] = useState<'general' | 'power'>('general');
 
@@ -729,6 +731,10 @@ export default function Home() {
           postTypeLabel={postTypeLabel}
           fieldLayout={fieldLayout}
           tabConfig={tabConfig}
+          onConvertPostType={postTypes.length > 1 ? () => {
+            setConvertingResource(editingResource);
+            setEditingResource(null);
+          } : undefined}
         />
       )}
 
@@ -749,6 +755,22 @@ export default function Home() {
           postTypeLabel={postTypeLabel}
           fieldLayout={fieldLayout}
           tabConfig={tabConfig}
+        />
+      )}
+
+      {/* Convert Post Type Modal */}
+      {convertingResource && (
+        <ConvertPostTypeModal
+          resource={convertingResource}
+          currentPostType={postTypes.find(pt => pt.slug === postTypeSlug) || { slug: postTypeSlug, name: postTypeLabel, rest_base: postTypeRestBase }}
+          postTypes={postTypes}
+          taxonomyConfig={allTaxonomyConfig}
+          onClose={() => setConvertingResource(null)}
+          onConvert={() => {
+            setConvertingResource(null);
+            setSuccess('Post type converted successfully');
+            fetchData();
+          }}
         />
       )}
     </div>

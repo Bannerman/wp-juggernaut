@@ -3,7 +3,6 @@
   "profile_name": "PLEXKITS Resources",
   "profile_version": "1.0.0",
   "juggernaut_version": ">=1.0.0",
-
   "sites": [
     {
       "id": "local",
@@ -25,7 +24,6 @@
       "is_default": true
     }
   ],
-
   "required_plugins": [
     {
       "id": "metabox",
@@ -40,14 +38,18 @@
       "auto_enable": true
     }
   ],
-
   "post_types": [
     {
       "slug": "resource",
       "name": "Resources",
       "rest_base": "resource",
       "icon": "FileText",
-      "supports": ["title", "editor", "thumbnail", "custom-fields"],
+      "supports": [
+        "title",
+        "editor",
+        "thumbnail",
+        "custom-fields"
+      ],
       "is_primary": true
     },
     {
@@ -55,17 +57,23 @@
       "name": "Posts",
       "rest_base": "posts",
       "icon": "Newspaper",
-      "supports": ["title", "editor", "thumbnail", "custom-fields"],
+      "supports": [
+        "title",
+        "editor",
+        "thumbnail",
+        "custom-fields"
+      ],
       "is_primary": false
     }
   ],
-
   "taxonomies": [
     {
       "slug": "resource-type",
       "name": "Resource Type",
       "rest_base": "resource-type",
-      "post_types": ["resource"],
+      "post_types": [
+        "resource"
+      ],
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 1,
@@ -78,7 +86,9 @@
       "slug": "topic",
       "name": "Topic",
       "rest_base": "topic",
-      "post_types": ["resource"],
+      "post_types": [
+        "resource"
+      ],
       "hierarchical": true,
       "show_in_filter": true,
       "filter_position": 2,
@@ -92,7 +102,9 @@
       "slug": "intent",
       "name": "Intent",
       "rest_base": "intent",
-      "post_types": ["resource"],
+      "post_types": [
+        "resource"
+      ],
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 3,
@@ -103,7 +115,9 @@
       "slug": "audience",
       "name": "Audience",
       "rest_base": "audience",
-      "post_types": ["resource"],
+      "post_types": [
+        "resource"
+      ],
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 4,
@@ -114,7 +128,9 @@
       "slug": "leagues",
       "name": "League",
       "rest_base": "leagues",
-      "post_types": ["resource"],
+      "post_types": [
+        "resource"
+      ],
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 5,
@@ -131,7 +147,9 @@
       "slug": "bracket-size",
       "name": "Bracket Size",
       "rest_base": "bracket-size",
-      "post_types": ["resource"],
+      "post_types": [
+        "resource"
+      ],
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 6,
@@ -148,7 +166,9 @@
       "slug": "competition_format",
       "name": "Competition Format",
       "rest_base": "competition_format",
-      "post_types": ["resource"],
+      "post_types": [
+        "resource"
+      ],
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 7,
@@ -165,7 +185,9 @@
       "slug": "file_format",
       "name": "File Format",
       "rest_base": "file_format",
-      "post_types": ["resource"],
+      "post_types": [
+        "resource"
+      ],
       "hierarchical": false,
       "show_in_filter": false,
       "editable": false
@@ -174,7 +196,9 @@
       "slug": "category",
       "name": "Category",
       "rest_base": "categories",
-      "post_types": ["post"],
+      "post_types": [
+        "post"
+      ],
       "hierarchical": true,
       "show_in_filter": true,
       "filter_position": 1,
@@ -186,7 +210,9 @@
       "slug": "post_tag",
       "name": "Tag",
       "rest_base": "tags",
-      "post_types": ["post"],
+      "post_types": [
+        "post"
+      ],
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 2,
@@ -196,7 +222,6 @@
       "editable": true
     }
   ],
-
   "plugin_settings": {
     "metabox": {
       "auto_sync_meta": true
@@ -209,52 +234,211 @@
       }
     }
   },
-
   "ui": {
     "tabs": [
-      { "id": "basic", "label": "Basic", "source": "core", "position": 1 },
-      { "id": "seo", "label": "SEO", "source": "seopress", "position": 2 },
-      { "id": "content", "label": "Content", "source": "metabox", "position": 3, "dynamic": true },
-      { "id": "features", "label": "Features", "source": "metabox", "position": 4, "dynamic": true },
-      { "id": "classification", "label": "Classification", "source": "core", "position": 5 },
-      { "id": "timer", "label": "Timer", "source": "metabox", "position": 6, "dynamic": true },
-      { "id": "downloads", "label": "Downloads", "source": "metabox", "position": 7, "dynamic": true },
-      { "id": "changelog", "label": "Changelog", "source": "metabox", "position": 8, "dynamic": true },
-      { "id": "ai", "label": "AI Fill", "source": "core", "icon": "sparkles", "position": 9 }
+      {
+        "id": "basic",
+        "label": "Basic",
+        "source": "core",
+        "position": 1
+      },
+      {
+        "id": "seo",
+        "label": "SEO",
+        "source": "seopress",
+        "position": 2
+      },
+      {
+        "id": "content",
+        "label": "Content",
+        "source": "metabox",
+        "position": 3,
+        "dynamic": true,
+        "post_types": ["resource"]
+      },
+      {
+        "id": "features",
+        "label": "Features",
+        "source": "metabox",
+        "position": 4,
+        "dynamic": true,
+        "post_types": ["resource"]
+      },
+      {
+        "id": "classification",
+        "label": "Classification",
+        "source": "core",
+        "position": 5
+      },
+      {
+        "id": "timer",
+        "label": "Timer",
+        "source": "metabox",
+        "position": 6,
+        "dynamic": true,
+        "post_types": ["resource"]
+      },
+      {
+        "id": "downloads",
+        "label": "Downloads",
+        "source": "metabox",
+        "position": 7,
+        "dynamic": true,
+        "post_types": ["resource"]
+      },
+      {
+        "id": "changelog",
+        "label": "Changelog",
+        "source": "metabox",
+        "position": 8,
+        "dynamic": true,
+        "post_types": ["resource"]
+      },
+      {
+        "id": "ai",
+        "label": "AI Fill",
+        "source": "core",
+        "icon": "sparkles",
+        "position": 9
+      }
     ],
     "field_layout": {
       "content": [
-        { "key": "intro_text", "type": "textarea", "label": "Intro Text", "rows": 3, "placeholder": "Introduction paragraph..." },
-        { "key": "text_content", "type": "textarea", "label": "Main Content Text", "rows": 6, "placeholder": "Main content..." },
-        { "key": "text_", "type": "textarea", "label": "Additional Content", "rows": 4, "placeholder": "Additional content block..." }
+        {
+          "key": "intro_text",
+          "type": "textarea",
+          "label": "Intro Text",
+          "rows": 3,
+          "placeholder": "Introduction paragraph..."
+        },
+        {
+          "key": "text_content",
+          "type": "textarea",
+          "label": "Main Content Text",
+          "rows": 6,
+          "placeholder": "Main content..."
+        },
+        {
+          "key": "text_",
+          "type": "textarea",
+          "label": "Additional Content",
+          "rows": 4,
+          "placeholder": "Additional content block..."
+        }
       ],
       "features": [
         {
-          "key": "group_features", "type": "repeater", "label": "Feature List",
+          "key": "group_features",
+          "type": "repeater",
+          "label": "Feature List",
           "fields": {
-            "feature_text": { "key": "feature_text", "type": "text", "label": "Feature", "placeholder": "Feature description..." }
+            "feature_text": {
+              "key": "feature_text",
+              "type": "text",
+              "label": "Feature",
+              "placeholder": "Feature description..."
+            }
           }
         }
       ],
       "timer": [
-        { "key": "timer_enable", "type": "checkbox", "label": "Enable Timer" },
-        { "key": "timer_title", "type": "text", "label": "Timer Title", "placeholder": "e.g., TOURNAMENT STARTS", "conditional": { "field": "timer_enable", "operator": "truthy" } },
-        { "key": "timer_single_datetime", "type": "datetime", "label": "Timer Date/Time", "conditional": { "field": "timer_enable", "operator": "truthy" } }
+        {
+          "key": "timer_enable",
+          "type": "checkbox",
+          "label": "Enable Timer"
+        },
+        {
+          "key": "timer_title",
+          "type": "text",
+          "label": "Timer Title",
+          "placeholder": "e.g., TOURNAMENT STARTS",
+          "conditional": {
+            "field": "timer_enable",
+            "operator": "truthy"
+          }
+        },
+        {
+          "key": "timer_single_datetime",
+          "type": "datetime",
+          "label": "Timer Date/Time",
+          "conditional": {
+            "field": "timer_enable",
+            "operator": "truthy"
+          }
+        }
       ],
       "downloads": [
         {
-          "key": "download_sections", "type": "repeater", "label": "Download Sections",
+          "key": "download_sections",
+          "type": "repeater",
+          "label": "Download Sections",
           "fields": {
-            "download_section_heading": { "key": "download_section_heading", "type": "text", "label": "Section Heading", "placeholder": "Section heading..." },
-            "download_section_color": { "key": "download_section_color", "type": "color", "label": "Section Color" },
-            "download_archive": { "key": "download_archive", "type": "checkbox", "label": "Archive Section" },
+            "download_section_heading": {
+              "key": "download_section_heading",
+              "type": "text",
+              "label": "Section Heading",
+              "placeholder": "Section heading..."
+            },
+            "download_section_color": {
+              "key": "download_section_color",
+              "type": "color",
+              "label": "Section Color"
+            },
+            "download_archive": {
+              "key": "download_archive",
+              "type": "checkbox",
+              "label": "Archive Section"
+            },
             "download_links": {
-              "key": "download_links", "type": "repeater", "label": "Download Links",
+              "key": "download_links",
+              "type": "repeater",
+              "label": "Download Links",
               "fields": {
-                "link_text": { "key": "link_text", "type": "text", "label": "Link Text", "placeholder": "Link text..." },
-                "download_file_format": { "key": "download_file_format", "type": "select", "label": "File Format", "width": "half", "taxonomy_source": "file_format", "triggers": [{ "match_term_pattern": "google", "set_field": "download_link_type", "set_value": "link" }] },
-                "download_link_type": { "key": "download_link_type", "type": "select", "label": "Link Type", "width": "half", "options": [{ "value": "link", "label": "External Link" }, { "value": "upload", "label": "Upload File" }] },
-                "download_link_url": { "key": "download_link_url", "type": "url", "label": "URL", "conditional": { "field": "download_link_type", "value": "link" } }
+                "link_text": {
+                  "key": "link_text",
+                  "type": "text",
+                  "label": "Link Text",
+                  "placeholder": "Link text..."
+                },
+                "download_file_format": {
+                  "key": "download_file_format",
+                  "type": "select",
+                  "label": "File Format",
+                  "width": "half",
+                  "taxonomy_source": "file_format",
+                  "triggers": [
+                    {
+                      "match_term_pattern": "google",
+                      "set_field": "download_link_type",
+                      "set_value": "link"
+                    }
+                  ]
+                },
+                "download_link_type": {
+                  "key": "download_link_type",
+                  "type": "select",
+                  "label": "Link Type",
+                  "width": "half",
+                  "options": [
+                    {
+                      "value": "link",
+                      "label": "External Link"
+                    },
+                    {
+                      "value": "upload",
+                      "label": "Upload File"
+                    }
+                  ]
+                },
+                "download_link_url": {
+                  "key": "download_link_url",
+                  "type": "url",
+                  "label": "URL",
+                  "conditional": {
+                    "field": "download_link_type",
+                    "value": "link"
+                  }
+                }
               }
             }
           }
@@ -262,11 +446,31 @@
       ],
       "changelog": [
         {
-          "key": "group_changelog", "type": "repeater", "label": "Changelog",
+          "key": "group_changelog",
+          "type": "repeater",
+          "label": "Changelog",
           "fields": {
-            "changelog_version": { "key": "changelog_version", "type": "text", "label": "Version", "placeholder": "v1.0", "width": "half" },
-            "changelog_date": { "key": "changelog_date", "type": "date", "label": "Date", "width": "half" },
-            "changelog_notes": { "key": "changelog_notes", "type": "textarea-list", "label": "Notes", "rows": 3, "separator": "\n", "placeholder": "Notes (one per line)..." }
+            "changelog_version": {
+              "key": "changelog_version",
+              "type": "text",
+              "label": "Version",
+              "placeholder": "v1.0",
+              "width": "half"
+            },
+            "changelog_date": {
+              "key": "changelog_date",
+              "type": "date",
+              "label": "Date",
+              "width": "half"
+            },
+            "changelog_notes": {
+              "key": "changelog_notes",
+              "type": "textarea-list",
+              "label": "Notes",
+              "rows": 3,
+              "separator": "\n",
+              "placeholder": "Notes (one per line)..."
+            }
           }
         }
       ]
@@ -281,5 +485,30 @@
       "bulk_edit": true,
       "diagnostics": true
     }
+  },
+  "field_mappings": {
+    "resource->post": [
+      {
+        "source": {
+          "key": "title",
+          "category": "core"
+        },
+        "target": {
+          "key": "title",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "text_content",
+          "category": "meta"
+        },
+        "target": {
+          "key": "content",
+          "category": "core"
+        }
+      }
+    ],
+    "post->resource": []
   }
 }

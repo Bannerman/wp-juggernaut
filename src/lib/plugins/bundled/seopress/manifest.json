@@ -21,7 +21,7 @@
   "provides": {
     "tabs": ["seo"],
     "field_types": ["seo_title", "seo_description", "seo_keywords", "seo_social", "seo_robots"],
-    "api_extensions": ["seopress"]
+    "api_extensions": ["seopress", "redirections"]
   },
   "settings_schema": {
     "auto_sync_seo": {
