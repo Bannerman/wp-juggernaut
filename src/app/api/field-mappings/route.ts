@@ -32,10 +32,18 @@ function getFieldsForPostType(postTypeSlug: string): MappableField[] {
   const manager = getProfileManager();
   const fields: MappableField[] = [...CORE_FIELDS];
 
-  // Add meta_box fields from field_layout
+  // Add meta_box fields from field_layout, but only for tabs scoped to this post type
   const ui = manager.getUIConfig();
-  if (ui?.field_layout) {
-    for (const [, tabFields] of Object.entries(ui.field_layout)) {
+  if (ui?.field_layout && ui?.tabs) {
+    // Build a set of tab IDs that apply to this post type
+    const applicableTabIds = new Set(
+      ui.tabs
+        .filter(tab => tab.dynamic && (!tab.post_types || tab.post_types.includes(postTypeSlug)))
+        .map(tab => tab.id)
+    );
+
+    for (const [tabId, tabFields] of Object.entries(ui.field_layout)) {
+      if (!applicableTabIds.has(tabId)) continue;
       for (const field of tabFields) {
         fields.push({
           key: field.key,

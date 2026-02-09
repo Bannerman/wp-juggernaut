@@ -176,20 +176,33 @@ export default function FieldMappingsPage(): React.ReactElement {
             </label>
             <select
               value={sourceType}
-              onChange={(e) => setSourceType(e.target.value)}
+              onChange={(e) => {
+                const newSource = e.target.value;
+                if (newSource === targetType) {
+                  setTargetType(sourceType);
+                }
+                setSourceType(newSource);
+              }}
               className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             >
               {postTypes.map((pt) => (
-                <option key={pt.slug} value={pt.slug} disabled={pt.slug === targetType}>
+                <option key={pt.slug} value={pt.slug}>
                   {pt.name}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="pt-5 text-gray-400">
+          <button
+            onClick={() => {
+              setSourceType(targetType);
+              setTargetType(sourceType);
+            }}
+            className="pt-5 text-gray-400 hover:text-brand-600 transition-colors"
+            title="Swap source and target"
+          >
             <ArrowLeft className="w-4 h-4 rotate-180" />
-          </div>
+          </button>
 
           <div className="flex-1">
             <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">
@@ -197,11 +210,17 @@ export default function FieldMappingsPage(): React.ReactElement {
             </label>
             <select
               value={targetType}
-              onChange={(e) => setTargetType(e.target.value)}
+              onChange={(e) => {
+                const newTarget = e.target.value;
+                if (newTarget === sourceType) {
+                  setSourceType(targetType);
+                }
+                setTargetType(newTarget);
+              }}
               className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             >
               {postTypes.map((pt) => (
-                <option key={pt.slug} value={pt.slug} disabled={pt.slug === sourceType}>
+                <option key={pt.slug} value={pt.slug}>
                   {pt.name}
                 </option>
               ))}

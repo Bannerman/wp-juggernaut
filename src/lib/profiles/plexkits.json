@@ -253,14 +253,16 @@
         "label": "Content",
         "source": "metabox",
         "position": 3,
-        "dynamic": true
+        "dynamic": true,
+        "post_types": ["resource"]
       },
       {
         "id": "features",
         "label": "Features",
         "source": "metabox",
         "position": 4,
-        "dynamic": true
+        "dynamic": true,
+        "post_types": ["resource"]
       },
       {
         "id": "classification",
@@ -273,21 +275,24 @@
         "label": "Timer",
         "source": "metabox",
         "position": 6,
-        "dynamic": true
+        "dynamic": true,
+        "post_types": ["resource"]
       },
       {
         "id": "downloads",
         "label": "Downloads",
         "source": "metabox",
         "position": 7,
-        "dynamic": true
+        "dynamic": true,
+        "post_types": ["resource"]
       },
       {
         "id": "changelog",
         "label": "Changelog",
         "source": "metabox",
         "position": 8,
-        "dynamic": true
+        "dynamic": true,
+        "post_types": ["resource"]
       },
       {
         "id": "ai",
