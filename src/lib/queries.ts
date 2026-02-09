@@ -255,10 +255,28 @@ export function updateLocalResource(
     db.prepare('UPDATE posts SET is_dirty = 1 WHERE id = ?').run(id);
   }
 
-  // Update taxonomy terms
+  // Update taxonomy terms and track which ones were edited
   if (updates.taxonomies) {
+    // Get current dirty_taxonomies set from meta
+    const existingDirtyMeta = db.prepare(
+      "SELECT value FROM post_meta WHERE post_id = ? AND field_id = '_dirty_taxonomies'"
+    ).get(id) as { value: string } | undefined;
+    const dirtyTaxonomies: Set<string> = new Set(
+      existingDirtyMeta ? JSON.parse(existingDirtyMeta.value) : []
+    );
+
     for (const [taxonomy, termIds] of Object.entries(updates.taxonomies)) {
       if (termIds !== undefined) {
+        // Compare against current values to detect actual changes
+        const currentTerms = (resource.taxonomies[taxonomy] || []).slice().sort();
+        const newTerms = termIds.slice().sort();
+        const changed = currentTerms.length !== newTerms.length ||
+          currentTerms.some((v, i) => v !== newTerms[i]);
+
+        if (changed) {
+          dirtyTaxonomies.add(taxonomy);
+        }
+
         // Delete existing terms for this taxonomy
         db.prepare(
           'DELETE FROM post_terms WHERE post_id = ? AND taxonomy = ?'
@@ -273,11 +291,16 @@ export function updateLocalResource(
           termStmt.run(id, termId, taxonomy);
         }
 
-        if (termIds.length > 0) {
-          console.log(`[queries] Saved ${taxonomy} = [${termIds.join(', ')}] for post ${id}`);
+        if (changed) {
+          console.log(`[queries] Saved ${taxonomy} = [${termIds.join(', ')}] for post ${id} (changed)`);
         }
       }
     }
+
+    // Persist dirty taxonomy set
+    db.prepare(
+      "INSERT OR REPLACE INTO post_meta (post_id, field_id, value) VALUES (?, '_dirty_taxonomies', ?)"
+    ).run(id, JSON.stringify([...dirtyTaxonomies]));
 
     db.prepare('UPDATE posts SET is_dirty = 1 WHERE id = ?').run(id);
   }

@@ -198,8 +198,8 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
   // Build meta_box: start with existing meta fields, filtering out synthetic ones
   const metaBox: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(resource.meta_box)) {
-    // Skip synthetic fields that aren't real Meta Box fields
-    if (key === 'featured_image_url' || key === 'featured_media_id') continue;
+    // Skip synthetic/internal fields that aren't real Meta Box fields
+    if (key === 'featured_image_url' || key === 'featured_media_id' || key === '_dirty_taxonomies') continue;
     // Skip taxonomy meta fields — we'll set them from local taxonomy data below
     if (key.startsWith('tax_') || key === 'taax_competition_format') continue;
 
@@ -211,30 +211,34 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
     }
   }
 
-  // Add taxonomy assignments via BOTH:
-  // 1. Top-level REST fields (standard WP REST API way)
-  // 2. Meta Box field names (in case Meta Box intercepts these)
-  // This ensures the assignment works regardless of how the CPT is configured.
-  // Note: file_format is auto-synced from download_file_format in download links, so skip it.
+  // Only push taxonomies that were explicitly edited by the user.
+  // This avoids accidentally clearing taxonomies that were never loaded/synced locally.
+  // The _dirty_taxonomies meta field tracks which taxonomies were modified in the UI.
+  const dirtyTaxonomiesRaw = resource.meta_box?.['_dirty_taxonomies'];
+  const dirtyTaxonomies: Set<string> = new Set(
+    Array.isArray(dirtyTaxonomiesRaw) ? dirtyTaxonomiesRaw as string[] : []
+  );
+
   const taxSummary: Record<string, number[]> = {};
   const taxonomies = getTaxonomies();
   for (const taxonomy of taxonomies) {
     // Skip file_format - WP auto-syncs it from download_file_format in download links
     if (taxonomy === 'file_format') continue;
+    // Only include taxonomies the user actually edited
+    if (!dirtyTaxonomies.has(taxonomy)) continue;
 
     const termIds = resource.taxonomies[taxonomy] || [];
-    if (termIds.length > 0) {
-      // Top-level taxonomy field (e.g., 'topic', 'resource-type')
-      (payload as Record<string, unknown>)[taxonomy] = termIds;
 
-      // Meta Box field (e.g., 'tax_topic', 'tax_resource_type')
-      const metaField = TAXONOMY_META_FIELD[taxonomy];
-      if (metaField) {
-        metaBox[metaField] = termIds;
-      }
+    // Top-level REST field (e.g., 'topic', 'resource-type')
+    (payload as Record<string, unknown>)[taxonomy] = termIds;
 
-      taxSummary[taxonomy] = termIds;
+    // Meta Box field (e.g., 'tax_topic', 'tax_resource_type')
+    const metaField = TAXONOMY_META_FIELD[taxonomy];
+    if (metaField) {
+      metaBox[metaField] = termIds;
     }
+
+    taxSummary[taxonomy] = termIds;
   }
 
   console.log(`[push] Payload for resource ${resourceId}: taxonomies =`, JSON.stringify(taxSummary));
@@ -272,12 +276,13 @@ export async function pushResource(
       console.warn(`[push] SEO push warning for resource ${resourceId}: ${seoResult.error}`);
     }
 
-    // Update local modified_gmt and mark as clean
+    // Update local modified_gmt, mark as clean, and clear dirty taxonomy tracking
     const db = getDb();
     db.prepare('UPDATE posts SET modified_gmt = ?, is_dirty = 0 WHERE id = ?').run(
       updated.modified_gmt,
       resourceId
     );
+    db.prepare("DELETE FROM post_meta WHERE post_id = ? AND field_id = '_dirty_taxonomies'").run(resourceId);
 
     return { success: true, resourceId };
   } catch (error) {
