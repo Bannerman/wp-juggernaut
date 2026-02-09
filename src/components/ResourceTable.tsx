@@ -162,11 +162,13 @@ export function ResourceTable({
                   }}
                   onChange={handleSelectAll}
                   className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  aria-label="Select all resources"
                 />
               </th>
               <th
                 className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 onClick={() => handleSort('title')}
+                aria-sort={sortField === 'title' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
               >
                 <div className="flex items-center gap-1">
                   Title
@@ -179,6 +181,7 @@ export function ResourceTable({
                   <th
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('status')}
+                    aria-sort={sortField === 'status' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
                   >
                     <div className="flex items-center gap-1">
                       Status
@@ -201,6 +204,7 @@ export function ResourceTable({
                   <th
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('date_gmt')}
+                    aria-sort={sortField === 'date_gmt' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
                   >
                     <div className="flex items-center gap-1">
                       Created
@@ -213,6 +217,7 @@ export function ResourceTable({
               <th
                 className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 onClick={() => handleSort('modified_gmt')}
+                aria-sort={sortField === 'modified_gmt' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
               >
                 <div className="flex items-center gap-1">
                   Modified
@@ -225,7 +230,13 @@ export function ResourceTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {sortedResources.map((resource) => {
+            {sortedResources.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                  No resources found
+                </td>
+              </tr>
+            ) : sortedResources.map((resource) => {
               const downloadStats = viewMode === 'power' ? getDownloadStats(resource) : null;
               
               return (
@@ -243,6 +254,7 @@ export function ResourceTable({
                       checked={selectedIds.includes(resource.id)}
                       onChange={() => handleSelectOne(resource.id)}
                       className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                      aria-label={`Select ${resource.title}`}
                     />
                   </td>
                   <td className="px-4 py-3">
@@ -328,6 +340,7 @@ export function ResourceTable({
                         onClick={() => onEdit(resource)}
                         className="p-1.5 rounded-lg text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
                         title="Edit"
+                        aria-label={`Edit ${resource.title}`}
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -338,6 +351,7 @@ export function ResourceTable({
                           rel="noopener noreferrer"
                           className="p-1.5 rounded-lg text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
                           title="View on site"
+                          aria-label={`View ${resource.title} on site`}
                         >
                           <ExternalLink className="w-4 h-4" />
                         </a>
