@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { X, ArrowRight, AlertTriangle, Check, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { X, ArrowRight, AlertTriangle, Check, Loader2, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PostTypeConfig {
@@ -29,6 +30,11 @@ interface Resource {
   meta_box: Record<string, unknown>;
 }
 
+interface FieldMappingEntry {
+  source: { key: string; category: 'core' | 'meta' | 'taxonomy' };
+  target: { key: string; category: 'core' | 'meta' | 'taxonomy' };
+}
+
 interface ConvertPostTypeModalProps {
   resource: Resource;
   currentPostType: PostTypeConfig;
@@ -51,25 +57,63 @@ export function ConvertPostTypeModal({
   const [targetPostType, setTargetPostType] = useState<PostTypeConfig | null>(
     availableTargets.length === 1 ? availableTargets[0] : null
   );
-  const [taxonomyMapping, setTaxonomyMapping] = useState<Record<string, string>>({});
-  const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
+  const [savedMappings, setSavedMappings] = useState<FieldMappingEntry[]>([]);
+  const [loadingMappings, setLoadingMappings] = useState(false);
   const [createRedirect, setCreateRedirect] = useState(true);
   const [trashOldPost, setTrashOldPost] = useState(true);
   const [isConverting, setIsConverting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Get taxonomies for source and target
-  const sourceTaxonomies = taxonomyConfig.filter(
-    t => t.post_types?.includes(currentPostType.slug)
-  );
-  const targetTaxonomies = targetPostType
-    ? taxonomyConfig.filter(t => t.post_types?.includes(targetPostType.slug))
-    : [];
+  // Load saved mappings when target post type changes
+  useEffect(() => {
+    if (!targetPostType) {
+      setSavedMappings([]);
+      return;
+    }
 
-  // Get meta_box fields that have values
-  const sourceMetaFields = Object.entries(resource.meta_box || {})
-    .filter(([, value]) => value !== null && value !== undefined && value !== '')
-    .map(([key]) => key);
+    setLoadingMappings(true);
+    fetch(`/api/field-mappings?source=${currentPostType.slug}&target=${targetPostType.slug}`)
+      .then(res => res.json())
+      .then(data => {
+        setSavedMappings(data.mappings || []);
+      })
+      .catch(() => {
+        setSavedMappings([]);
+      })
+      .finally(() => setLoadingMappings(false));
+  }, [targetPostType, currentPostType.slug]);
+
+  // Separate mappings by category for display
+  const coreMappings = savedMappings.filter(
+    m => m.source.category === 'core' || m.target.category === 'core'
+  );
+  const metaMappings = savedMappings.filter(
+    m => m.source.category === 'meta' && m.target.category === 'meta'
+  );
+  const taxonomyMappings = savedMappings.filter(
+    m => m.source.category === 'taxonomy' || m.target.category === 'taxonomy'
+  );
+
+  // Build the fieldMapping and taxonomyMapping objects from saved mappings for the API
+  function buildApiMappings(): {
+    fieldMapping: Record<string, string>;
+    taxonomyMapping: Record<string, string>;
+  } {
+    const fieldMapping: Record<string, string> = {};
+    const taxonomyMapping: Record<string, string> = {};
+
+    for (const m of savedMappings) {
+      if (m.source.category === 'taxonomy' && m.target.category === 'taxonomy') {
+        taxonomyMapping[m.target.key] = m.source.key;
+      } else {
+        // For field mappings (core-to-core, core-to-meta, meta-to-core, meta-to-meta)
+        // The converter API expects { targetField: sourceField }
+        fieldMapping[m.target.key] = m.source.key;
+      }
+    }
+
+    return { fieldMapping, taxonomyMapping };
+  }
 
   const handleConvert = async (): Promise<void> => {
     if (!targetPostType) return;
@@ -78,6 +122,8 @@ export function ConvertPostTypeModal({
     setError(null);
 
     try {
+      const { fieldMapping, taxonomyMapping } = buildApiMappings();
+
       const res = await fetch('/api/resources/convert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -133,11 +179,7 @@ export function ConvertPostTypeModal({
               {availableTargets.map(pt => (
                 <button
                   key={pt.slug}
-                  onClick={() => {
-                    setTargetPostType(pt);
-                    setTaxonomyMapping({});
-                    setFieldMapping({});
-                  }}
+                  onClick={() => setTargetPostType(pt)}
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors',
                     targetPostType?.slug === pt.slug
@@ -153,79 +195,103 @@ export function ConvertPostTypeModal({
 
           {targetPostType && (
             <>
-              {/* Taxonomy Mapping */}
-              {sourceTaxonomies.length > 0 && targetTaxonomies.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">Taxonomy Mapping</h3>
-                  <div className="space-y-2">
-                    {sourceTaxonomies
-                      .filter(st => {
-                        const termIds = resource.taxonomies?.[st.slug];
-                        return termIds && termIds.length > 0;
-                      })
-                      .map(sourceTax => (
-                        <div key={sourceTax.slug} className="flex items-center gap-3">
-                          <div className="flex-1 px-3 py-2 bg-gray-50 rounded-lg text-sm">
-                            {sourceTax.name}
-                            <span className="text-gray-400 ml-1">
-                              ({resource.taxonomies[sourceTax.slug]?.length || 0} terms)
-                            </span>
-                          </div>
-                          <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                          <select
-                            value={taxonomyMapping[sourceTax.slug] || ''}
-                            onChange={e => setTaxonomyMapping(prev => ({
-                              ...prev,
-                              // Store as targetTax: sourceTax for the API
-                              ...(e.target.value
-                                ? { [e.target.value]: sourceTax.slug }
-                                : {}),
-                            }))}
-                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm"
-                          >
-                            <option value="">Skip (don&apos;t map)</option>
-                            {targetTaxonomies.map(tt => (
-                              <option key={tt.slug} value={tt.slug}>{tt.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
-                  </div>
+              {/* Saved Field Mappings */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-gray-700">Field Mappings</h3>
+                  <Link
+                    href="/settings/field-mappings"
+                    className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                    Edit Mappings
+                  </Link>
                 </div>
-              )}
 
-              {/* Meta Field Mapping */}
-              {sourceMetaFields.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">Field Mapping</h3>
-                  <p className="text-xs text-gray-500 mb-2">
-                    Map meta fields from the source to target. Leave blank to skip.
-                  </p>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {sourceMetaFields.map(field => (
-                      <div key={field} className="flex items-center gap-3">
-                        <div className="flex-1 px-3 py-2 bg-gray-50 rounded-lg text-sm font-mono truncate">
-                          {field}
-                        </div>
-                        <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        <input
-                          type="text"
-                          value={fieldMapping[field] || ''}
-                          onChange={e => setFieldMapping(prev => ({
-                            ...prev,
-                            // Store as targetField: sourceField for the API
-                            ...(e.target.value
-                              ? { [e.target.value]: field }
-                              : {}),
-                          }))}
-                          placeholder="Target field name"
-                          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm font-mono"
-                        />
-                      </div>
-                    ))}
+                {loadingMappings ? (
+                  <div className="flex items-center gap-2 py-4 text-sm text-gray-500">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading saved mappings...
                   </div>
-                </div>
-              )}
+                ) : savedMappings.length === 0 ? (
+                  <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-500 text-center">
+                    No field mappings configured.{' '}
+                    <Link
+                      href="/settings/field-mappings"
+                      className="text-brand-600 hover:text-brand-700 underline"
+                    >
+                      Set up field mappings
+                    </Link>{' '}
+                    to control how fields are mapped during conversion.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Core field mappings */}
+                    {coreMappings.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Core Fields</p>
+                        <div className="space-y-1">
+                          {coreMappings.map((m, i) => (
+                            <div key={i} className="flex items-center gap-2 text-sm">
+                              <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium min-w-[100px]">
+                                {m.source.key}
+                              </span>
+                              <ArrowRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                              <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium min-w-[100px]">
+                                {m.target.key}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Meta field mappings */}
+                    {metaMappings.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Meta Fields</p>
+                        <div className="space-y-1">
+                          {metaMappings.map((m, i) => (
+                            <div key={i} className="flex items-center gap-2 text-sm">
+                              <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium font-mono min-w-[100px]">
+                                {m.source.key}
+                              </span>
+                              <ArrowRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                              <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium font-mono min-w-[100px]">
+                                {m.target.key}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Taxonomy mappings */}
+                    {taxonomyMappings.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Taxonomies</p>
+                        <div className="space-y-1">
+                          {taxonomyMappings.map((m, i) => {
+                            const sourceTax = taxonomyConfig.find(t => t.slug === m.source.key);
+                            const targetTax = taxonomyConfig.find(t => t.slug === m.target.key);
+                            return (
+                              <div key={i} className="flex items-center gap-2 text-sm">
+                                <span className="px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium min-w-[100px]">
+                                  {sourceTax?.name || m.source.key}
+                                </span>
+                                <ArrowRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                <span className="px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium min-w-[100px]">
+                                  {targetTax?.name || m.target.key}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Options */}
               <div className="space-y-3">

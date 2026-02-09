@@ -80,18 +80,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // ─── Step 1: Build payload for the new post ─────────────────────────────
 
+    // Core WP fields that go at the top level of the API payload
+    const CORE_FIELDS = new Set(['title', 'content', 'excerpt', 'slug', 'status', 'featured_media']);
+
+    // Helper: get a value from the resource by field key and category
+    function getSourceValue(key: string, category?: string): unknown {
+      if (category === 'core' || CORE_FIELDS.has(key)) {
+        return (resource as Record<string, unknown>)[key];
+      }
+      if (category === 'taxonomy') {
+        return resource.taxonomies?.[key];
+      }
+      // Default: meta_box
+      return resource.meta_box?.[key];
+    }
+
+    // Start with basic fields that always carry over
     const payload: Record<string, unknown> = {
       title: resource.title,
       slug: resource.slug,
       status: resource.status,
-      content: resource.meta_box?.text_content || '',
     };
 
-    // Map meta_box fields
+    // Apply field mappings (handles core↔meta, core↔core, meta↔meta)
     const mappedMeta: Record<string, unknown> = {};
     for (const [targetField, sourceField] of Object.entries(fieldMapping || {})) {
-      if (sourceField && resource.meta_box?.[sourceField] !== undefined) {
-        mappedMeta[targetField] = resource.meta_box[sourceField];
+      if (!sourceField) continue;
+
+      const value = getSourceValue(sourceField);
+      if (value === undefined || value === null) continue;
+
+      if (CORE_FIELDS.has(targetField)) {
+        // Target is a core WP field (e.g., content, excerpt)
+        payload[targetField] = value;
+      } else {
+        // Target is a meta_box field
+        mappedMeta[targetField] = value;
       }
     }
     if (Object.keys(mappedMeta).length > 0) {

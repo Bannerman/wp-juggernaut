@@ -6,7 +6,7 @@
  * and how the UI should be configured.
  */
 
-import type { SiteProfile, SiteConfig } from '../plugins/types';
+import type { SiteProfile, SiteConfig, FieldMappingEntry } from '../plugins/types';
 
 // Import bundled profiles
 import plexkitsProfile from './plexkits.json';
@@ -277,6 +277,33 @@ class ProfileManager {
       }
     }
     return mapping;
+  }
+
+  /**
+   * Get field mappings for a post type pair
+   */
+  getFieldMappings(sourceSlug: string, targetSlug: string): FieldMappingEntry[] {
+    const key = `${sourceSlug}->${targetSlug}`;
+    return this.state.currentProfile?.field_mappings?.[key] ?? [];
+  }
+
+  /**
+   * Get all field mappings from the current profile
+   */
+  getAllFieldMappings(): Record<string, FieldMappingEntry[]> {
+    return this.state.currentProfile?.field_mappings ?? {};
+  }
+
+  /**
+   * Set field mappings for a post type pair (mutates the in-memory profile)
+   */
+  setFieldMappings(sourceSlug: string, targetSlug: string, mappings: FieldMappingEntry[]): void {
+    if (!this.state.currentProfile) return;
+    if (!this.state.currentProfile.field_mappings) {
+      this.state.currentProfile.field_mappings = {};
+    }
+    const key = `${sourceSlug}->${targetSlug}`;
+    this.state.currentProfile.field_mappings[key] = mappings;
   }
 
   /**
