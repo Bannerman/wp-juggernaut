@@ -680,6 +680,8 @@ export interface TabConfig {
   position?: number;
   /** Whether this tab's content is rendered dynamically from field_layout */
   dynamic?: boolean;
+  /** Which post types this tab applies to (omit for all post types) */
+  post_types?: string[];
 }
 
 // ============================================================================
