@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { ensureProfileLoaded, getProfileManager } from '@/lib/profiles';
+import { getWpBaseUrl, getWpCredentials } from '@/lib/wp-client';
+import { discoverFieldsForPostType } from '@/lib/discovery';
 import type { FieldMappingEntry, MappableField } from '@/lib/plugins/types';
 
 /** Resolve path to the profile JSON file */
@@ -27,7 +29,14 @@ const CORE_FIELDS: MappableField[] = [
   { key: 'featured_media', label: 'Featured Image', category: 'core', type: 'number' },
 ];
 
-/** Build the list of mappable fields for a post type */
+/** Convert a meta_box key like "text_content" to "Text Content" */
+function humanizeKey(key: string): string {
+  return key
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Build the list of mappable fields for a post type (profile-based) */
 function getFieldsForPostType(postTypeSlug: string): MappableField[] {
   const manager = getProfileManager();
   const fields: MappableField[] = [...CORE_FIELDS];
@@ -71,6 +80,69 @@ function getFieldsForPostType(postTypeSlug: string): MappableField[] {
   return fields;
 }
 
+/** Merge discovered fields into the profile-based list, deduplicating by key */
+function mergeDiscoveredFields(
+  profileFields: MappableField[],
+  discoveredMeta: MappableField[],
+  discoveredTaxonomies: MappableField[]
+): MappableField[] {
+  const existingKeys = new Set(profileFields.map((f) => f.key));
+  const merged = [...profileFields];
+
+  for (const field of discoveredMeta) {
+    if (!existingKeys.has(field.key)) {
+      merged.push(field);
+      existingKeys.add(field.key);
+    }
+  }
+
+  for (const field of discoveredTaxonomies) {
+    if (!existingKeys.has(field.key)) {
+      merged.push(field);
+      existingKeys.add(field.key);
+    }
+  }
+
+  return merged;
+}
+
+/** Discover fields from WordPress for a post type, returning MappableField arrays */
+async function discoverFields(postTypeSlug: string): Promise<{
+  metaFields: MappableField[];
+  taxonomyFields: MappableField[];
+}> {
+  const manager = getProfileManager();
+  const ptConfig = manager.getPostTypes().find((pt) => pt.slug === postTypeSlug);
+  if (!ptConfig) return { metaFields: [], taxonomyFields: [] };
+
+  const baseUrl = getWpBaseUrl();
+  const creds = getWpCredentials();
+  const authHeader = 'Basic ' + Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
+
+  const discovered = await discoverFieldsForPostType(
+    baseUrl,
+    authHeader,
+    ptConfig.rest_base,
+    ptConfig.slug
+  );
+
+  const metaFields: MappableField[] = discovered.metaKeys.map((key) => ({
+    key,
+    label: humanizeKey(key),
+    category: 'meta' as const,
+    type: 'unknown',
+  }));
+
+  const taxonomyFields: MappableField[] = discovered.taxonomies.map((tax) => ({
+    key: tax.slug,
+    label: tax.name,
+    category: 'taxonomy' as const,
+    type: 'taxonomy',
+  }));
+
+  return { metaFields, taxonomyFields };
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     ensureProfileLoaded();
@@ -82,9 +154,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const postTypes = manager.getPostTypes();
 
     if (source && target) {
-      const sourceFields = getFieldsForPostType(source);
-      const targetFields = getFieldsForPostType(target);
+      let sourceFields = getFieldsForPostType(source);
+      let targetFields = getFieldsForPostType(target);
       const mappings = manager.getFieldMappings(source, target);
+
+      // Discover fields from WordPress and merge (graceful fallback on error)
+      try {
+        const [sourceDiscovered, targetDiscovered] = await Promise.all([
+          discoverFields(source),
+          discoverFields(target),
+        ]);
+        sourceFields = mergeDiscoveredFields(
+          sourceFields, sourceDiscovered.metaFields, sourceDiscovered.taxonomyFields
+        );
+        targetFields = mergeDiscoveredFields(
+          targetFields, targetDiscovered.metaFields, targetDiscovered.taxonomyFields
+        );
+      } catch (err) {
+        console.warn('[field-mappings] Field discovery failed, using profile-only fields:', err);
+      }
 
       return NextResponse.json({
         sourceFields,
