@@ -67,6 +67,8 @@ npm run db:init          # Initialize SQLite database
    - `/api/terms` - Taxonomy terms
    - `/api/profile` - Site configuration
    - `/api/plugins` - Plugin management
+   - `/api/field-mappings` - Field mapping CRUD (auto-discovers fields from WP)
+   - `/api/discover-fields` - Discover meta/taxonomy fields per post type from WP
 
 3. **Business Logic** (`src/lib/`)
    - `wp-client.ts` - WordPress REST API client

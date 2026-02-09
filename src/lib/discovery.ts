@@ -363,6 +363,82 @@ export async function isPluginInstalled(
   return false;
 }
 
+// ─── Field Discovery ────────────────────────────────────────────────────────
+
+export interface DiscoveredFields {
+  metaKeys: string[];
+  taxonomies: DiscoveredTaxonomy[];
+}
+
+/**
+ * Discover available fields for a post type by fetching a sample of resources
+ * and extracting meta_box keys, plus fetching taxonomies for the post type.
+ */
+export async function discoverFieldsForPostType(
+  baseUrl: string,
+  authHeader: string,
+  restBase: string,
+  postTypeSlug: string
+): Promise<DiscoveredFields> {
+  const [metaKeys, taxonomies] = await Promise.all([
+    discoverMetaKeysFromSample(baseUrl, authHeader, restBase),
+    discoverTaxonomiesForPostType(baseUrl, authHeader, postTypeSlug),
+  ]);
+
+  return { metaKeys, taxonomies };
+}
+
+/**
+ * Fetch a small sample of resources and extract all unique meta_box keys
+ */
+async function discoverMetaKeysFromSample(
+  baseUrl: string,
+  authHeader: string,
+  restBase: string
+): Promise<string[]> {
+  try {
+    const url = `${baseUrl}/wp-json/wp/v2/${restBase}?per_page=5&status=any`;
+    const response = await fetch(url, {
+      headers: { Authorization: authHeader },
+    });
+
+    if (!response.ok) return [];
+
+    const resources = await response.json() as Array<Record<string, unknown>>;
+    const keys = new Set<string>();
+
+    for (const resource of resources) {
+      const metaBox = resource.meta_box as Record<string, unknown> | undefined;
+      if (!metaBox) continue;
+      for (const key of Object.keys(metaBox)) {
+        if (!key.startsWith('_')) {
+          keys.add(key);
+        }
+      }
+    }
+
+    return Array.from(keys).sort();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch taxonomies and filter to ones associated with a specific post type
+ */
+async function discoverTaxonomiesForPostType(
+  baseUrl: string,
+  authHeader: string,
+  postTypeSlug: string
+): Promise<DiscoveredTaxonomy[]> {
+  try {
+    const result = await discoverTaxonomies(baseUrl, authHeader);
+    return result.types.filter((tax) => tax.post_types.includes(postTypeSlug));
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Generate a basic profile from discovery results
  */
