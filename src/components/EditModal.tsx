@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Save, AlertTriangle, Sparkles, Check, Wand2, Upload, Image as ImageIcon, Loader2, Search, Globe, Share2 } from 'lucide-react';
+import { X, Save, AlertTriangle, Sparkles, Check, Wand2, Upload, Image as ImageIcon, Loader2, Search, Globe, Share2, Repeat } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { imagePipeline, createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
 import { DynamicTab } from '@/components/fields';
@@ -56,6 +56,8 @@ interface EditModalProps {
   fieldLayout?: Record<string, FieldDefinition[]>;
   /** Tab configuration from profile */
   tabConfig?: Array<{ id: string; label: string; source: string; icon?: string; position?: number; dynamic?: boolean }>;
+  /** Callback to open post type conversion (only shown when multiple post types exist) */
+  onConvertPostType?: () => void;
 }
 
 interface SEOData {
@@ -119,6 +121,7 @@ export function EditModal({
   postTypeLabel = 'Resource',
   fieldLayout,
   tabConfig = [],
+  onConvertPostType,
 }: EditModalProps) {
   const isCreateMode = resource === null;
 
@@ -1614,6 +1617,15 @@ timer_datetime: {{timer_datetime}}
               )}
             </div>
             <div className="flex items-center gap-3">
+              {!isCreateMode && onConvertPostType && (
+                <button
+                  onClick={onConvertPostType}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  <Repeat className="w-3.5 h-3.5" />
+                  Convert Type
+                </button>
+              )}
               <button
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
