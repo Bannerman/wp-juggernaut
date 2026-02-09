@@ -1,0 +1,466 @@
+'use client';
+
+import { useState, useCallback, useRef } from 'react';
+import {
+  DndContext,
+  DragOverlay,
+  useDraggable,
+  useDroppable,
+  type DragStartEvent,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
+import {
+  ArrowRight,
+  GripVertical,
+  X,
+  Save,
+  Loader2,
+  FileText,
+  Type,
+  Tag,
+  Link2,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface MappableField {
+  key: string;
+  label: string;
+  category: 'core' | 'meta' | 'taxonomy';
+  type?: string;
+}
+
+interface FieldMappingEntry {
+  source: { key: string; category: 'core' | 'meta' | 'taxonomy' };
+  target: { key: string; category: 'core' | 'meta' | 'taxonomy' };
+}
+
+interface PostTypeConfig {
+  slug: string;
+  name: string;
+  rest_base: string;
+  icon?: string;
+}
+
+interface FieldMappingEditorProps {
+  sourcePostType: PostTypeConfig;
+  targetPostType: PostTypeConfig;
+  sourceFields: MappableField[];
+  targetFields: MappableField[];
+  initialMappings: FieldMappingEntry[];
+  onSave: (mappings: FieldMappingEntry[]) => Promise<void>;
+}
+
+// ─── Category icon helper ────────────────────────────────────────────────
+
+function CategoryIcon({ category }: { category: string }): React.ReactElement {
+  switch (category) {
+    case 'core':
+      return <FileText className="w-3.5 h-3.5" />;
+    case 'meta':
+      return <Type className="w-3.5 h-3.5" />;
+    case 'taxonomy':
+      return <Tag className="w-3.5 h-3.5" />;
+    default:
+      return <FileText className="w-3.5 h-3.5" />;
+  }
+}
+
+function categoryColor(category: string): string {
+  switch (category) {
+    case 'core':
+      return 'bg-blue-50 border-blue-200 text-blue-700';
+    case 'meta':
+      return 'bg-purple-50 border-purple-200 text-purple-700';
+    case 'taxonomy':
+      return 'bg-green-50 border-green-200 text-green-700';
+    default:
+      return 'bg-gray-50 border-gray-200 text-gray-700';
+  }
+}
+
+function categoryBadgeColor(category: string): string {
+  switch (category) {
+    case 'core':
+      return 'bg-blue-100 text-blue-600';
+    case 'meta':
+      return 'bg-purple-100 text-purple-600';
+    case 'taxonomy':
+      return 'bg-green-100 text-green-600';
+    default:
+      return 'bg-gray-100 text-gray-600';
+  }
+}
+
+// ─── Mapping color generator ─────────────────────────────────────────────
+
+const MAPPING_COLORS = [
+  'border-indigo-400 bg-indigo-50',
+  'border-emerald-400 bg-emerald-50',
+  'border-amber-400 bg-amber-50',
+  'border-rose-400 bg-rose-50',
+  'border-cyan-400 bg-cyan-50',
+  'border-violet-400 bg-violet-50',
+  'border-orange-400 bg-orange-50',
+  'border-teal-400 bg-teal-50',
+];
+
+function getMappingColor(index: number): string {
+  return MAPPING_COLORS[index % MAPPING_COLORS.length];
+}
+
+// ─── Draggable source field ──────────────────────────────────────────────
+
+function DraggableField({
+  field,
+  mappingIndex,
+  isMapped,
+}: {
+  field: MappableField;
+  mappingIndex: number;
+  isMapped: boolean;
+}): React.ReactElement {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `source-${field.key}`,
+    data: { field, side: 'source' },
+  });
+
+  const style = transform
+    ? { transform: CSS.Transform.toString(transform) }
+    : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={cn(
+        'flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 cursor-grab active:cursor-grabbing transition-all select-none',
+        isDragging && 'opacity-30 scale-95',
+        isMapped
+          ? getMappingColor(mappingIndex)
+          : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+      )}
+    >
+      <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
+      <CategoryIcon category={field.category} />
+      <span className="text-sm font-medium flex-1 truncate">{field.label}</span>
+      <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full uppercase', categoryBadgeColor(field.category))}>
+        {field.category}
+      </span>
+    </div>
+  );
+}
+
+// ─── Droppable target field ──────────────────────────────────────────────
+
+function DroppableField({
+  field,
+  mappingIndex,
+  isMapped,
+  mappedSourceLabel,
+  onRemove,
+}: {
+  field: MappableField;
+  mappingIndex: number;
+  isMapped: boolean;
+  mappedSourceLabel?: string;
+  onRemove?: () => void;
+}): React.ReactElement {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `target-${field.key}`,
+    data: { field, side: 'target' },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all',
+        isOver && !isMapped && 'border-brand-400 bg-brand-50 shadow-md scale-[1.02]',
+        isOver && isMapped && 'border-red-300 bg-red-50',
+        !isOver && isMapped && getMappingColor(mappingIndex),
+        !isOver && !isMapped && 'border-dashed border-gray-300 bg-gray-50/50'
+      )}
+    >
+      <CategoryIcon category={field.category} />
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium truncate block">{field.label}</span>
+        {isMapped && mappedSourceLabel && (
+          <span className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
+            <Link2 className="w-3 h-3" />
+            {mappedSourceLabel}
+          </span>
+        )}
+      </div>
+      <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full uppercase', categoryBadgeColor(field.category))}>
+        {field.category}
+      </span>
+      {isMapped && onRemove && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="p-0.5 text-gray-400 hover:text-red-500 transition-colors"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Drag overlay (what you see while dragging) ──────────────────────────
+
+function DragOverlayContent({ field }: { field: MappableField }): React.ReactElement {
+  return (
+    <div className={cn(
+      'flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 shadow-lg',
+      categoryColor(field.category),
+      'cursor-grabbing'
+    )}>
+      <GripVertical className="w-4 h-4 text-gray-400" />
+      <CategoryIcon category={field.category} />
+      <span className="text-sm font-medium">{field.label}</span>
+    </div>
+  );
+}
+
+// ─── Main Editor Component ───────────────────────────────────────────────
+
+export function FieldMappingEditor({
+  sourcePostType,
+  targetPostType,
+  sourceFields,
+  targetFields,
+  initialMappings,
+  onSave,
+}: FieldMappingEditorProps): React.ReactElement {
+  const [mappings, setMappings] = useState<FieldMappingEntry[]>(initialMappings);
+  const [activeField, setActiveField] = useState<MappableField | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const initialRef = useRef(JSON.stringify(initialMappings));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    })
+  );
+
+  // Find mapping index for a field (for color coordination)
+  const getSourceMappingIndex = useCallback(
+    (sourceKey: string): number => {
+      return mappings.findIndex((m) => m.source.key === sourceKey);
+    },
+    [mappings]
+  );
+
+  const getTargetMappingIndex = useCallback(
+    (targetKey: string): number => {
+      return mappings.findIndex((m) => m.target.key === targetKey);
+    },
+    [mappings]
+  );
+
+  const getTargetMappedSource = useCallback(
+    (targetKey: string): MappableField | undefined => {
+      const mapping = mappings.find((m) => m.target.key === targetKey);
+      if (!mapping) return undefined;
+      return sourceFields.find((f) => f.key === mapping.source.key);
+    },
+    [mappings, sourceFields]
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const { field } = event.active.data.current as { field: MappableField };
+    setActiveField(field);
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setActiveField(null);
+
+      const { active, over } = event;
+      if (!over) return;
+
+      const sourceData = active.data.current as { field: MappableField; side: string };
+      const targetData = over.data.current as { field: MappableField; side: string };
+
+      if (sourceData.side !== 'source' || targetData.side !== 'target') return;
+
+      const sourceField = sourceData.field;
+      const targetField = targetData.field;
+
+      setMappings((prev) => {
+        // Remove any existing mapping for this source or target
+        const filtered = prev.filter(
+          (m) => m.source.key !== sourceField.key && m.target.key !== targetField.key
+        );
+
+        const next = [
+          ...filtered,
+          {
+            source: { key: sourceField.key, category: sourceField.category },
+            target: { key: targetField.key, category: targetField.category },
+          },
+        ];
+
+        setHasChanges(JSON.stringify(next) !== initialRef.current);
+        return next;
+      });
+    },
+    []
+  );
+
+  const handleRemoveMapping = useCallback((targetKey: string) => {
+    setMappings((prev) => {
+      const next = prev.filter((m) => m.target.key !== targetKey);
+      setHasChanges(JSON.stringify(next) !== initialRef.current);
+      return next;
+    });
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      await onSave(mappings);
+      initialRef.current = JSON.stringify(mappings);
+      setHasChanges(false);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [mappings, onSave]);
+
+  return (
+    <div className="space-y-6">
+      {/* Header bar */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-sm">
+          <span className="font-semibold text-gray-900">{sourcePostType.name}</span>
+          <ArrowRight className="w-4 h-4 text-gray-400" />
+          <span className="font-semibold text-gray-900">{targetPostType.name}</span>
+          <span className="text-gray-400">
+            ({mappings.length} mapping{mappings.length !== 1 ? 's' : ''})
+          </span>
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={isSaving || !hasChanges}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            hasChanges
+              ? 'bg-brand-600 text-white hover:bg-brand-700'
+              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+          )}
+        >
+          {isSaving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
+          {isSaving ? 'Saving...' : 'Save Mappings'}
+        </button>
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 text-xs text-gray-500">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-200" />
+          Core fields
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-purple-100 border border-purple-200" />
+          Meta Box fields
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-green-100 border border-green-200" />
+          Taxonomies
+        </div>
+        <div className="ml-auto text-gray-400">
+          Drag a source field and drop it on a target field to create a mapping
+        </div>
+      </div>
+
+      {/* DnD context wrapping both columns */}
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="grid grid-cols-[1fr_auto_1fr] gap-4">
+          {/* Source column */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 px-1">
+              Source: {sourcePostType.name}
+            </h3>
+            <div className="space-y-2">
+              {sourceFields.map((field) => {
+                const idx = getSourceMappingIndex(field.key);
+                return (
+                  <DraggableField
+                    key={field.key}
+                    field={field}
+                    mappingIndex={idx}
+                    isMapped={idx >= 0}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Center connector column */}
+          <div className="flex flex-col items-center justify-center pt-8">
+            {mappings.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                {mappings.map((_, i) => (
+                  <ArrowRight
+                    key={i}
+                    className="w-5 h-5 text-gray-300"
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-gray-300 text-xs text-center w-16">
+                Drag to connect
+              </div>
+            )}
+          </div>
+
+          {/* Target column */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 px-1">
+              Target: {targetPostType.name}
+            </h3>
+            <div className="space-y-2">
+              {targetFields.map((field) => {
+                const idx = getTargetMappingIndex(field.key);
+                const mappedSource = getTargetMappedSource(field.key);
+                return (
+                  <DroppableField
+                    key={field.key}
+                    field={field}
+                    mappingIndex={idx}
+                    isMapped={idx >= 0}
+                    mappedSourceLabel={mappedSource?.label}
+                    onRemove={() => handleRemoveMapping(field.key)}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Drag overlay */}
+        <DragOverlay>
+          {activeField ? <DragOverlayContent field={activeField} /> : null}
+        </DragOverlay>
+      </DndContext>
+    </div>
+  );
+}
