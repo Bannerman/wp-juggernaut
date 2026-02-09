@@ -7,6 +7,9 @@
 
 import { getActiveBaseUrl, getCredentials } from './site-config';
 import { getProfileManager, ensureProfileLoaded } from './profiles';
+import { createLogger } from './logger';
+
+const log = createLogger('wp-client');
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -59,7 +62,7 @@ export function getTaxonomies(): string[] {
     return getProfileManager().getTaxonomySlugs();
   } catch {
     // Fallback to empty if no profile loaded
-    console.warn('[wp-client] No profile loaded, returning empty taxonomies');
+    log.warn('No profile loaded, returning empty taxonomies');
     return [];
   }
 }
@@ -197,7 +200,7 @@ export async function fetchAllTaxonomies(): Promise<Record<string, WPTerm[]>> {
   const taxonomyConfigs = profile?.taxonomies || [];
 
   if (taxonomyConfigs.length === 0) {
-    console.warn('[wp-client] No taxonomies configured in profile');
+    log.warn('No taxonomies configured in profile');
     return {};
   }
 
@@ -207,7 +210,7 @@ export async function fetchAllTaxonomies(): Promise<Record<string, WPTerm[]>> {
         const terms = await fetchTaxonomyTerms(taxConfig.slug, taxConfig.rest_base);
         return { taxonomy: taxConfig.slug, terms };
       } catch (error) {
-        console.error(`Error fetching ${taxConfig.slug}:`, error);
+        log.error(`Error fetching ${taxConfig.slug}:`, error);
         return { taxonomy: taxConfig.slug, terms: [] };
       }
     })
@@ -256,18 +259,18 @@ export async function fetchResources(
   const hasAuth = hasValidCredentials();
   const needsAuth = hasAuth && status !== 'publish';
 
-  console.log(`[wp-client] fetchResources - postType: ${restBase}, status: ${status}, hasAuth: ${hasAuth}`);
+  log.info(`fetchResources - postType: ${restBase}, status: ${status}, hasAuth: ${hasAuth}`);
 
   let endpoint = `/${restBase}?per_page=${perPage}&page=${page}&status=${status}`;
   if (modifiedAfter) {
     endpoint += `&modified_after=${encodeURIComponent(modifiedAfter)}`;
   }
 
-  console.log(`[wp-client] Fetching: ${endpoint}`);
+  log.info(`Fetching: ${endpoint}`);
 
   const { data, headers } = await wpFetch<WPResource[]>(endpoint, {}, needsAuth);
 
-  console.log(`[wp-client] Received ${data.length} resources from WordPress`);
+  log.info(`Received ${data.length} resources from WordPress`);
 
   return {
     resources: data,
@@ -337,18 +340,18 @@ export async function updateResource(
 ): Promise<WPResource> {
   const restBase = postType || getPrimaryPostTypeRestBase();
 
-  console.log(`[wp-client] Updating ${restBase} ${id}, payload keys:`, Object.keys(payload));
+  log.info(`Updating ${restBase} ${id}, payload keys:`, Object.keys(payload));
 
   const { data } = await wpFetch<WPResource>(`/${restBase}/${id}`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 
-  console.log(`[wp-client] Response from WP: id=${data.id}, title="${data.title.rendered}", status=${data.status}`);
+  log.info(`Response from WP: id=${data.id}, title="${data.title.rendered}", status=${data.status}`);
 
   // Verify title was updated
   if (payload.title !== undefined && data.title.rendered !== payload.title) {
-    console.warn(`[wp-client] TITLE MISMATCH for resource ${id}: sent="${payload.title}", received="${data.title.rendered}"`);
+    log.warn(`TITLE MISMATCH for resource ${id}: sent="${payload.title}", received="${data.title.rendered}"`);
   }
 
   // Verify taxonomy data (dynamic based on profile)
@@ -361,7 +364,7 @@ export async function updateResource(
       const receivedSorted = received ? [...received].sort() : [];
       const match = JSON.stringify(sentSorted) === JSON.stringify(receivedSorted);
       if (!match) {
-        console.warn(`[wp-client] TAXONOMY MISMATCH for ${taxonomy}: sent=${JSON.stringify(sent)}, received=${JSON.stringify(received)}`);
+        log.warn(`TAXONOMY MISMATCH for ${taxonomy}: sent=${JSON.stringify(sent)}, received=${JSON.stringify(received)}`);
       }
     }
   }
@@ -387,7 +390,7 @@ export interface BatchResponse {
 export async function batchUpdate(requests: BatchRequest[]): Promise<BatchResponse> {
   const url = `${getWpBaseUrl()}/wp-json/batch/v1`;
 
-  console.log(`[wp-client] Batch update: ${requests.length} requests`);
+  log.info(`Batch update: ${requests.length} requests`);
 
   const response = await fetch(url, {
     method: 'POST',

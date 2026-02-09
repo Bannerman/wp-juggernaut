@@ -1,4 +1,5 @@
 import { getDb } from './db';
+import { createLogger } from './logger';
 import {
   updateResource,
   batchUpdate,
@@ -11,6 +12,8 @@ import {
 } from './wp-client';
 import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
 import { getResourceById, markResourceClean, getDirtyResources, getResourceSeo, type LocalSeoData } from './queries';
+
+const log = createLogger('push');
 
 export interface PushResult {
   success: boolean;
@@ -87,7 +90,7 @@ async function pushSeoData(resourceId: number): Promise<{ success: boolean; erro
     seo.robots.noindex || seo.robots.nofollow || seo.robots.nosnippet || seo.robots.noimageindex;
 
   if (!hasData) {
-    console.log(`[push] No SEO data to push for resource ${resourceId}`);
+    log.info(`No SEO data to push for resource ${resourceId}`);
     return { success: true };
   }
 
@@ -119,7 +122,7 @@ async function pushSeoData(resourceId: number): Promise<{ success: boolean; erro
       },
     };
 
-    console.log(`[push] Pushing SEO data for resource ${resourceId}`);
+    log.info(`Pushing SEO data for resource ${resourceId}`);
 
     const response = await fetch(
       `${getWpBaseUrl()}/wp-json/seopress/v1/posts/${resourceId}`,
@@ -135,14 +138,14 @@ async function pushSeoData(resourceId: number): Promise<{ success: boolean; erro
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[push] SEO push failed for resource ${resourceId}: ${response.status} - ${errorText}`);
+      log.error(`SEO push failed for resource ${resourceId}: ${response.status} - ${errorText}`);
       return { success: false, error: `SEO push failed: ${response.status}` };
     }
 
-    console.log(`[push] SEO data pushed successfully for resource ${resourceId}`);
+    log.info(`SEO data pushed successfully for resource ${resourceId}`);
     return { success: true };
   } catch (error) {
-    console.error(`[push] SEO push error for resource ${resourceId}:`, error);
+    log.error(`SEO push error for resource ${resourceId}:`, error);
     return { success: false, error: `SEO push error: ${String(error)}` };
   }
 }
@@ -170,7 +173,7 @@ export async function checkForConflicts(resourceIds: number[]): Promise<Conflict
         });
       }
     } catch (error) {
-      console.error(`Error checking conflict for resource ${id}:`, error);
+      log.error(`Error checking conflict for resource ${id}:`, error);
     }
   }
 
@@ -185,8 +188,8 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
   const metaMediaId = resource.meta_box?.featured_media_id;
   const featuredMediaId = (typeof metaMediaId === 'number' ? metaMediaId : 0) || resource.featured_media || 0;
 
-  console.log(`[push] Resource ${resourceId} featured_media: meta_box.featured_media_id=${metaMediaId}, resource.featured_media=${resource.featured_media}, using=${featuredMediaId}`);
-  console.log(`[push] Resource ${resourceId} featured_image_url: ${resource.meta_box?.featured_image_url}`);
+  log.info(`Resource ${resourceId} featured_media: meta_box.featured_media_id=${metaMediaId}, resource.featured_media=${resource.featured_media}, using=${featuredMediaId}`);
+  log.info(`Resource ${resourceId} featured_image_url: ${resource.meta_box?.featured_image_url}`);
 
   const payload: UpdateResourcePayload = {
     title: resource.title,
@@ -237,7 +240,7 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
     }
   }
 
-  console.log(`[push] Payload for resource ${resourceId}: taxonomies =`, JSON.stringify(taxSummary));
+  log.info(`Payload for resource ${resourceId}: taxonomies =`, JSON.stringify(taxSummary));
 
   if (Object.keys(metaBox).length > 0) {
     payload.meta_box = metaBox;
@@ -269,7 +272,7 @@ export async function pushResource(
     // Push SEO data (non-blocking - log errors but don't fail the push)
     const seoResult = await pushSeoData(resourceId);
     if (!seoResult.success) {
-      console.warn(`[push] SEO push warning for resource ${resourceId}: ${seoResult.error}`);
+      log.warn(`SEO push warning for resource ${resourceId}: ${seoResult.error}`);
     }
 
     // Update local modified_gmt and mark as clean
@@ -281,7 +284,7 @@ export async function pushResource(
 
     return { success: true, resourceId };
   } catch (error) {
-    console.error(`[push] FAILED resource ${resourceId}:`, error);
+    log.error(`FAILED resource ${resourceId}:`, error);
     return {
       success: false,
       resourceId,
@@ -310,9 +313,9 @@ export async function pushAllDirty(
   if (!skipConflictCheck) {
     conflicts = await checkForConflicts(resourceIds);
     if (conflicts.length > 0) {
-      console.warn(`[push] ${conflicts.length} conflict(s) detected — pushing anyway`);
+      log.warn(`${conflicts.length} conflict(s) detected — pushing anyway`);
       for (const c of conflicts) {
-        console.warn(`[push]   Resource ${c.resourceId} "${c.title}": local=${c.localModified}, server=${c.serverModified}`);
+        log.warn(`  Resource ${c.resourceId} "${c.title}": local=${c.localModified}, server=${c.serverModified}`);
       }
     }
   }

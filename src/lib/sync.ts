@@ -1,4 +1,5 @@
 import { getDb } from './db';
+import { createLogger } from './logger';
 import {
   fetchAllTaxonomies,
   fetchAllResources,
@@ -19,6 +20,8 @@ import { saveResourceSeo, type LocalSeoData } from './queries';
 // Cache for media URLs to avoid duplicate requests during sync
 const mediaUrlCache = new Map<number, string>();
 
+const log = createLogger('sync');
+
 // Fetch SEO data from SEOPress for a resource
 async function fetchSeoData(resourceId: number): Promise<LocalSeoData | null> {
   try {
@@ -34,7 +37,7 @@ async function fetchSeoData(resourceId: number): Promise<LocalSeoData | null> {
 
     if (!response.ok) {
       if (response.status === 404) return null;
-      console.warn(`Failed to fetch SEO for resource ${resourceId}: ${response.status}`);
+      log.warn(`Failed to fetch SEO for resource ${resourceId}: ${response.status}`);
       return null;
     }
 
@@ -63,7 +66,7 @@ async function fetchSeoData(resourceId: number): Promise<LocalSeoData | null> {
       },
     };
   } catch (error) {
-    console.error(`Error fetching SEO for resource ${resourceId}:`, error);
+    log.error(`Error fetching SEO for resource ${resourceId}:`, error);
     return null;
   }
 }
@@ -88,7 +91,7 @@ async function fetchMediaUrl(mediaId: number): Promise<string | null> {
     );
 
     if (!response.ok) {
-      console.warn(`Failed to fetch media ${mediaId}: ${response.status}`);
+      log.warn(`Failed to fetch media ${mediaId}: ${response.status}`);
       return null;
     }
 
@@ -100,7 +103,7 @@ async function fetchMediaUrl(mediaId: number): Promise<string | null> {
     
     return url;
   } catch (error) {
-    console.error(`Error fetching media ${mediaId}:`, error);
+    log.error(`Error fetching media ${mediaId}:`, error);
     return null;
   }
 }
@@ -305,9 +308,9 @@ export async function syncResources(incremental: boolean = false, postType?: str
   const restBase = postType || getPrimaryPostTypeRestBase();
   const typeSlug = postType ? resolvePostTypeSlug(postType) : getPrimaryPostTypeSlug();
 
-  console.log(`Fetching ${typeSlug} (incremental: ${incremental}, lastSync: ${lastSync})`);
+  log.info(`Fetching ${typeSlug} (incremental: ${incremental}, lastSync: ${lastSync})`);
   const resources = await fetchAllResources(lastSync || undefined, restBase);
-  console.log(`Fetched ${resources.length} ${typeSlug} from WordPress`);
+  log.info(`Fetched ${resources.length} ${typeSlug} from WordPress`);
 
   // Clear media cache at start of sync
   mediaUrlCache.clear();
@@ -321,7 +324,7 @@ export async function syncResources(incremental: boolean = false, postType?: str
   }
 
   // Fetch all media URLs in parallel
-  console.log(`Fetching ${mediaIdsToFetch.size} media URLs...`);
+  log.info(`Fetching ${mediaIdsToFetch.size} media URLs...`);
   await Promise.all(
     Array.from(mediaIdsToFetch).map(async (mediaId) => {
       await fetchMediaUrl(mediaId);
@@ -338,7 +341,7 @@ export async function syncResources(incremental: boolean = false, postType?: str
   }
 
   // Fetch and save SEO data for all resources in parallel
-  console.log(`Fetching SEO data for ${resources.length} ${typeSlug}...`);
+  log.info(`Fetching SEO data for ${resources.length} ${typeSlug}...`);
   const seoResults = await Promise.all(
     resources.map(async (resource) => {
       const seo = await fetchSeoData(resource.id);
@@ -353,7 +356,7 @@ export async function syncResources(incremental: boolean = false, postType?: str
       seoSaved++;
     }
   }
-  console.log(`Saved SEO data for ${seoSaved} ${typeSlug}`);
+  log.info(`Saved SEO data for ${seoSaved} ${typeSlug}`);
 
   // Check for deleted resources
   let deletedCount = 0;
@@ -417,9 +420,9 @@ export async function fullSync(): Promise<SyncResult> {
       const wpFieldMap = collectMetaBoxKeys(rawResources);
       const auditEntries = runFieldAudit(wpFieldMap);
       const auditTime = saveAuditResults(auditEntries);
-      console.log(`[sync] Field audit completed at ${auditTime}: ${auditEntries.length} fields checked`);
+      log.info(`Field audit completed at ${auditTime}: ${auditEntries.length} fields checked`);
     } catch (error) {
-      console.error('[sync] Field audit failed (non-fatal):', error);
+      log.error('Field audit failed (non-fatal):', error);
     }
   }
 
