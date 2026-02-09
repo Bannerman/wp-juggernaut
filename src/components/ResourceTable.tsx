@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Edit2, ExternalLink, ChevronUp, ChevronDown } from 'lucide-react';
+import { Edit2, ExternalLink, ChevronUp, ChevronDown, Inbox } from 'lucide-react';
 import { cn, formatRelativeTime, STATUS_COLORS, truncate } from '@/lib/utils';
 
 interface Term {
@@ -147,13 +147,29 @@ export function ResourceTable({
     return { activeCount, archivedCount };
   };
 
+  if (resources.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow border border-gray-200 p-12 flex flex-col items-center justify-center text-center">
+        <div className="p-4 bg-gray-50 rounded-full mb-4">
+          <Inbox className="w-8 h-8 text-gray-400" />
+        </div>
+        <h3 className="text-lg font-medium text-gray-900 mb-1">
+          No {postTypeLabelPlural} found
+        </h3>
+        <p className="text-sm text-gray-500 max-w-sm">
+          Try adjusting your filters, searching for a different term, or sync new content from WordPress.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-4 py-3 text-left">
+              <th scope="col" className="px-4 py-3 text-left">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -165,8 +181,17 @@ export function ResourceTable({
                 />
               </th>
               <th
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                scope="col"
+                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                 onClick={() => handleSort('title')}
+                tabIndex={0}
+                aria-sort={sortField === 'title' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSort('title');
+                  }
+                }}
               >
                 <div className="flex items-center gap-1">
                   Title
@@ -177,8 +202,17 @@ export function ResourceTable({
               {viewMode === 'general' && (
                 <>
                   <th
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    scope="col"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                     onClick={() => handleSort('status')}
+                    tabIndex={0}
+                    aria-sort={sortField === 'status' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSort('status');
+                      }
+                    }}
                   >
                     <div className="flex items-center gap-1">
                       Status
@@ -186,7 +220,7 @@ export function ResourceTable({
                     </div>
                   </th>
                   {taxonomyColumns.map((col) => (
-                    <th key={col.slug} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th key={col.slug} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {col.label}
                     </th>
                   ))}
@@ -195,12 +229,21 @@ export function ResourceTable({
 
               {viewMode === 'power' && (
                 <>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Downloads
                   </th>
                   <th
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    scope="col"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                     onClick={() => handleSort('date_gmt')}
+                    tabIndex={0}
+                    aria-sort={sortField === 'date_gmt' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSort('date_gmt');
+                      }
+                    }}
                   >
                     <div className="flex items-center gap-1">
                       Created
@@ -211,15 +254,24 @@ export function ResourceTable({
               )}
 
               <th
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                scope="col"
+                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                 onClick={() => handleSort('modified_gmt')}
+                tabIndex={0}
+                aria-sort={sortField === 'modified_gmt' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSort('modified_gmt');
+                  }
+                }}
               >
                 <div className="flex items-center gap-1">
                   Modified
                   <SortIcon field="modified_gmt" />
                 </div>
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -328,6 +380,7 @@ export function ResourceTable({
                         onClick={() => onEdit(resource)}
                         className="p-1.5 rounded-lg text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
                         title="Edit"
+                        aria-label={`Edit ${resource.title}`}
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -338,6 +391,7 @@ export function ResourceTable({
                           rel="noopener noreferrer"
                           className="p-1.5 rounded-lg text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
                           title="View on site"
+                          aria-label={`View ${resource.title} on site`}
                         >
                           <ExternalLink className="w-4 h-4" />
                         </a>
