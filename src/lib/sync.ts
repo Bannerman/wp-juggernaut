@@ -13,7 +13,7 @@ import {
 import { getProfileManager, ensureProfileLoaded } from './profiles';
 import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
 import { collectMetaBoxKeys, runFieldAudit, saveAuditResults } from './field-audit';
-import { decodeHtmlEntities } from './utils';
+import { decodeHtmlEntities, pMap } from './utils';
 import { saveResourceSeo, type LocalSeoData } from './queries';
 
 // Cache for media URLs to avoid duplicate requests during sync
@@ -320,13 +320,11 @@ export async function syncResources(incremental: boolean = false, postType?: str
     }
   }
 
-  // Fetch all media URLs in parallel
+  // Fetch all media URLs in parallel with concurrency limit
   console.log(`Fetching ${mediaIdsToFetch.size} media URLs...`);
-  await Promise.all(
-    Array.from(mediaIdsToFetch).map(async (mediaId) => {
-      await fetchMediaUrl(mediaId);
-    })
-  );
+  await pMap(Array.from(mediaIdsToFetch), async (mediaId) => {
+    await fetchMediaUrl(mediaId);
+  }, 5);
 
   // Save resources with their featured image URLs
   for (const resource of resources) {
@@ -337,14 +335,12 @@ export async function syncResources(incremental: boolean = false, postType?: str
     saveResource(resource, featuredImageUrl, typeSlug);
   }
 
-  // Fetch and save SEO data for all resources in parallel
+  // Fetch and save SEO data for all resources in parallel with concurrency limit
   console.log(`Fetching SEO data for ${resources.length} ${typeSlug}...`);
-  const seoResults = await Promise.all(
-    resources.map(async (resource) => {
-      const seo = await fetchSeoData(resource.id);
-      return { id: resource.id, seo };
-    })
-  );
+  const seoResults = await pMap(resources, async (resource) => {
+    const seo = await fetchSeoData(resource.id);
+    return { id: resource.id, seo };
+  }, 5);
 
   let seoSaved = 0;
   for (const { id, seo } of seoResults) {
