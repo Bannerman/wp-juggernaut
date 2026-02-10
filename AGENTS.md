@@ -7,12 +7,12 @@ This document is the **single source of truth** for AI agents (Windsurf Cascade,
 **NEVER start building without a documented plan.**
 
 Before making significant changes:
-1. Check if `/docs/v1.0-plan.md` exists and is up to date
+1. Check if `/docs/v1.0-spec.md` exists and is up to date
 2. If no plan exists, CREATE ONE FIRST before writing any code
 3. If the plan is outdated, UPDATE IT before proceeding
 4. For new features, add them to the plan and get user approval
 
-The plan document contains architecture decisions, implementation roadmap, security requirements, and what's completed vs. in progress.
+The spec document (`docs/v1.0-spec.md`) contains architecture decisions, implementation roadmap (§13), PLEXKITS hardcoding audit (§14), blockers (§15), backlog (§16), and what's completed vs. in progress.
 
 **Do not rely on conversation context alone** — plans get lost when conversations compact.
 
