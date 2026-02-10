@@ -19,14 +19,18 @@ function getProfileFilePath(): string {
   return join(process.cwd(), 'lib', 'profiles', 'plexkits.json');
 }
 
-/** Core WP fields that exist on all post types */
-const CORE_FIELDS: MappableField[] = [
+/**
+ * All possible core WP fields. Filtered per post type using the REST schema
+ * (WordPress omits fields the CPT doesn't support, e.g., no `content` without `editor`).
+ */
+const ALL_CORE_FIELDS: MappableField[] = [
   { key: 'title', label: 'Title', category: 'core', type: 'text' },
   { key: 'content', label: 'Content', category: 'core', type: 'textarea' },
   { key: 'excerpt', label: 'Excerpt', category: 'core', type: 'textarea' },
   { key: 'slug', label: 'Slug', category: 'core', type: 'text' },
   { key: 'status', label: 'Status', category: 'core', type: 'select' },
   { key: 'featured_media', label: 'Featured Image', category: 'core', type: 'number' },
+  { key: 'author', label: 'Author', category: 'core', type: 'number' },
 ];
 
 /** Convert a meta_box key like "text_content" to "Text Content" */
@@ -38,10 +42,17 @@ function humanizeKey(key: string): string {
     || key;  // fallback to raw key if result is empty
 }
 
-/** Build the list of mappable fields for a post type (profile-based) */
-function getFieldsForPostType(postTypeSlug: string): MappableField[] {
+/**
+ * Build the list of mappable fields for a post type.
+ * If schemaProperties is provided (from WP OPTIONS), core fields are filtered
+ * to only those the CPT actually supports. Falls back to all core fields.
+ */
+function getFieldsForPostType(postTypeSlug: string, schemaProperties?: string[]): MappableField[] {
   const manager = getProfileManager();
-  const fields: MappableField[] = [...CORE_FIELDS];
+  const coreFields = schemaProperties?.length
+    ? ALL_CORE_FIELDS.filter((f) => schemaProperties.includes(f.key))
+    : ALL_CORE_FIELDS;
+  const fields: MappableField[] = [...coreFields];
 
   // Add meta_box fields from field_layout, but only for tabs scoped to this post type
   const ui = manager.getUIConfig();
@@ -108,10 +119,11 @@ function mergeDiscoveredFields(
   return merged;
 }
 
-/** Discover fields from WordPress for a post type, returning MappableField arrays */
+/** Discover fields from WordPress for a post type, returning MappableField arrays + schema */
 async function discoverFields(postTypeSlug: string): Promise<{
   metaFields: MappableField[];
   taxonomyFields: MappableField[];
+  schemaProperties?: string[];
 }> {
   const manager = getProfileManager();
   const ptConfig = manager.getPostTypes().find((pt) => pt.slug === postTypeSlug);
@@ -152,7 +164,7 @@ async function discoverFields(postTypeSlug: string): Promise<{
     type: 'taxonomy',
   }));
 
-  return { metaFields, taxonomyFields };
+  return { metaFields, taxonomyFields, schemaProperties: discovered.schemaProperties };
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -166,25 +178,42 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const postTypes = manager.getPostTypes();
 
     if (source && target) {
-      let sourceFields = getFieldsForPostType(source);
-      let targetFields = getFieldsForPostType(target);
       const mappings = manager.getFieldMappings(source, target);
 
-      // Discover fields from WordPress and merge (graceful fallback on error)
+      // Discover fields from WordPress (includes REST schema for core field filtering)
+      let sourceSchemaProps: string[] | undefined;
+      let targetSchemaProps: string[] | undefined;
+      let sourceDiscoveredMeta: MappableField[] = [];
+      let sourceDiscoveredTax: MappableField[] = [];
+      let targetDiscoveredMeta: MappableField[] = [];
+      let targetDiscoveredTax: MappableField[] = [];
+
       try {
         const [sourceDiscovered, targetDiscovered] = await Promise.all([
           discoverFields(source),
           discoverFields(target),
         ]);
-        sourceFields = mergeDiscoveredFields(
-          sourceFields, sourceDiscovered.metaFields, sourceDiscovered.taxonomyFields
-        );
-        targetFields = mergeDiscoveredFields(
-          targetFields, targetDiscovered.metaFields, targetDiscovered.taxonomyFields
-        );
+        sourceSchemaProps = sourceDiscovered.schemaProperties;
+        targetSchemaProps = targetDiscovered.schemaProperties;
+        sourceDiscoveredMeta = sourceDiscovered.metaFields;
+        sourceDiscoveredTax = sourceDiscovered.taxonomyFields;
+        targetDiscoveredMeta = targetDiscovered.metaFields;
+        targetDiscoveredTax = targetDiscovered.taxonomyFields;
       } catch (err) {
         console.warn('[field-mappings] Field discovery failed, using profile-only fields:', err);
       }
+
+      // Build field lists — core fields filtered by schema, then merge discovered
+      const sourceFields = mergeDiscoveredFields(
+        getFieldsForPostType(source, sourceSchemaProps),
+        sourceDiscoveredMeta,
+        sourceDiscoveredTax
+      );
+      const targetFields = mergeDiscoveredFields(
+        getFieldsForPostType(target, targetSchemaProps),
+        targetDiscoveredMeta,
+        targetDiscoveredTax
+      );
 
       return NextResponse.json({
         sourceFields,
