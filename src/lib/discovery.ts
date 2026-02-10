@@ -368,6 +368,7 @@ export async function isPluginInstalled(
 export interface DiscoveredFields {
   metaKeys: string[];
   taxonomies: DiscoveredTaxonomy[];
+  schemaProperties?: string[];
 }
 
 /**
@@ -380,12 +381,40 @@ export async function discoverFieldsForPostType(
   restBase: string,
   postTypeSlug: string
 ): Promise<DiscoveredFields> {
-  const [metaKeys, taxonomies] = await Promise.all([
+  const [metaKeys, taxonomies, schemaProperties] = await Promise.all([
     discoverMetaKeysFromSample(baseUrl, authHeader, restBase),
     discoverTaxonomiesForPostType(baseUrl, authHeader, postTypeSlug),
+    discoverSchemaProperties(baseUrl, authHeader, restBase),
   ]);
 
-  return { metaKeys, taxonomies };
+  return { metaKeys, taxonomies, schemaProperties };
+}
+
+/**
+ * Fetch the REST schema for a post type via OPTIONS request.
+ * Returns the list of property keys the CPT actually exposes
+ * (e.g., title, content, excerpt, featured_media).
+ * This is the canonical source — WordPress omits properties
+ * the CPT doesn't support.
+ */
+async function discoverSchemaProperties(
+  baseUrl: string,
+  authHeader: string,
+  restBase: string
+): Promise<string[]> {
+  try {
+    const response = await fetch(`${baseUrl}/wp-json/wp/v2/${restBase}`, {
+      method: 'OPTIONS',
+      headers: { Authorization: authHeader },
+    });
+    if (!response.ok) return [];
+    const data = await response.json() as Record<string, unknown>;
+    const schema = data.schema as Record<string, unknown> | undefined;
+    const properties = schema?.properties as Record<string, unknown> | undefined;
+    return properties ? Object.keys(properties) : [];
+  } catch {
+    return [];
+  }
 }
 
 /**
