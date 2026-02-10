@@ -180,10 +180,12 @@ function DraggableField({
       <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
       <CategoryIcon category={field.category} />
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium truncate block">{field.label}</span>
-        {showKey && field.key !== field.label && (
-          <span className="text-[11px] text-gray-500/70 font-mono truncate block">{field.key}</span>
-        )}
+        <span className="text-sm truncate block">
+          <span className="font-medium">{field.label}</span>
+          {showKey && field.key !== field.label && (
+            <span className="text-[11px] text-gray-500/70 font-mono ml-1.5">{field.key}</span>
+          )}
+        </span>
         {previewValue && (
           <span
             className="text-xs text-gray-400 break-words line-clamp-5 block cursor-default"
@@ -244,10 +246,12 @@ function DroppableField({
     >
       <CategoryIcon category={field.category} />
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium truncate block">{field.label}</span>
-        {showKey && field.key !== field.label && (
-          <span className="text-[11px] text-gray-500/70 font-mono truncate block">{field.key}</span>
-        )}
+        <span className="text-sm truncate block">
+          <span className="font-medium">{field.label}</span>
+          {showKey && field.key !== field.label && (
+            <span className="text-[11px] text-gray-500/70 font-mono ml-1.5">{field.key}</span>
+          )}
+        </span>
         {isMapped && mappedSourceLabel && (
           <span className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
             <Link2 className="w-3 h-3" />
