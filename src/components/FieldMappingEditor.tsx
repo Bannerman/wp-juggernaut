@@ -330,14 +330,22 @@ export function FieldMappingEditor({
       setLines(newLines);
     };
 
-    // Small delay to ensure DOM is ready
-    const timer = setTimeout(calculateLines, 10);
+    // Use requestAnimationFrame to ensure DOM is fully rendered
+    let rafId: number;
+    const scheduleCalculation = (): void => {
+      rafId = requestAnimationFrame(() => {
+        // Double RAF to ensure paint is complete
+        rafId = requestAnimationFrame(calculateLines);
+      });
+    };
+
+    scheduleCalculation();
 
     // Recalculate on window resize
-    window.addEventListener('resize', calculateLines);
+    window.addEventListener('resize', scheduleCalculation);
     return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', calculateLines);
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', scheduleCalculation);
     };
   }, [mappings]);
 
