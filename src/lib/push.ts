@@ -201,7 +201,7 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
     // Skip synthetic/internal fields that aren't real Meta Box fields
     if (key === 'featured_image_url' || key === 'featured_media_id' || key === '_dirty_taxonomies') continue;
     // Skip taxonomy meta fields — we'll set them from local taxonomy data below
-    if (key.startsWith('tax_') || key === 'taax_competition_format') continue;
+    if (key.startsWith('tax_')) continue;
 
     // Normalize download_sections to ensure download_file_format is always a number
     if (key === 'download_sections' && Array.isArray(value)) {

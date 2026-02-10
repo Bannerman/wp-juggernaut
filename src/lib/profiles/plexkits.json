@@ -172,7 +172,7 @@
       "hierarchical": false,
       "show_in_filter": true,
       "filter_position": 7,
-      "meta_field": "taax_competition_format",
+      "meta_field": "tax_competition_format",
       "editable": false,
       "conditional": {
         "show_when": {
@@ -254,7 +254,9 @@
         "source": "metabox",
         "position": 3,
         "dynamic": true,
-        "post_types": ["resource"]
+        "post_types": [
+          "resource"
+        ]
       },
       {
         "id": "features",
@@ -262,7 +264,9 @@
         "source": "metabox",
         "position": 4,
         "dynamic": true,
-        "post_types": ["resource"]
+        "post_types": [
+          "resource"
+        ]
       },
       {
         "id": "classification",
@@ -276,7 +280,9 @@
         "source": "metabox",
         "position": 6,
         "dynamic": true,
-        "post_types": ["resource"]
+        "post_types": [
+          "resource"
+        ]
       },
       {
         "id": "downloads",
@@ -284,7 +290,9 @@
         "source": "metabox",
         "position": 7,
         "dynamic": true,
-        "post_types": ["resource"]
+        "post_types": [
+          "resource"
+        ]
       },
       {
         "id": "changelog",
@@ -292,7 +300,9 @@
         "source": "metabox",
         "position": 8,
         "dynamic": true,
-        "post_types": ["resource"]
+        "post_types": [
+          "resource"
+        ]
       },
       {
         "id": "ai",
@@ -319,11 +329,10 @@
           "placeholder": "Main content..."
         },
         {
-          "key": "text_",
-          "type": "textarea",
-          "label": "Additional Content",
-          "rows": 4,
-          "placeholder": "Additional content block..."
+          "key": "text_additional",
+          "label": "Text Additional",
+          "type": "text",
+          "width": "full"
         }
       ],
       "features": [
@@ -339,6 +348,12 @@
               "placeholder": "Feature description..."
             }
           }
+        },
+        {
+          "key": "text_",
+          "label": "Text ",
+          "type": "text",
+          "width": "full"
         }
       ],
       "timer": [

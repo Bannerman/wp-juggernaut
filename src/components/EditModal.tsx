@@ -102,7 +102,11 @@ const FALLBACK_TABS = [
 ];
 
 // Core tabs that are always handled with hardcoded rendering
-const CORE_TAB_IDS = new Set(['basic', 'seo', 'classification', 'ai']);
+// Note: 'seo' is NOT core — it's provided by the seopress plugin via enabledTabs
+const CORE_TAB_IDS = new Set(['basic', 'classification', 'ai']);
+
+// Tabs with hardcoded rendering (core + plugin tabs that have custom JSX)
+const HARDCODED_TAB_IDS = new Set(['basic', 'seo', 'classification', 'ai']);
 
 const STATUS_OPTIONS = ['publish', 'draft'];
 
@@ -1477,7 +1481,7 @@ timer_datetime: {{timer_datetime}}
             )}
 
             {/* Dynamic Tabs (from field_layout) */}
-            {fieldLayout && fieldLayout[activeTab] && !CORE_TAB_IDS.has(activeTab) && (
+            {fieldLayout && fieldLayout[activeTab] && !HARDCODED_TAB_IDS.has(activeTab) && (
               <DynamicTab
                 key={activeTab}
                 fields={fieldLayout[activeTab] as FieldDefinition[]}

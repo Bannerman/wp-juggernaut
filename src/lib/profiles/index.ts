@@ -6,7 +6,7 @@
  * and how the UI should be configured.
  */
 
-import type { SiteProfile, SiteConfig, FieldMappingEntry } from '../plugins/types';
+import type { SiteProfile, SiteConfig, FieldMappingEntry, TabConfig, FieldDefinition } from '../plugins/types';
 
 // Import bundled profiles
 import plexkitsProfile from './plexkits.json';
@@ -304,6 +304,28 @@ class ProfileManager {
     }
     const key = `${sourceSlug}->${targetSlug}`;
     this.state.currentProfile.field_mappings[key] = mappings;
+  }
+
+  /**
+   * Set tabs in the current profile's UI config (mutates in-memory)
+   */
+  setTabs(tabs: TabConfig[]): void {
+    if (!this.state.currentProfile) return;
+    if (!this.state.currentProfile.ui) {
+      this.state.currentProfile.ui = {};
+    }
+    this.state.currentProfile.ui.tabs = tabs;
+  }
+
+  /**
+   * Set field layout in the current profile's UI config (mutates in-memory)
+   */
+  setFieldLayout(layout: Record<string, FieldDefinition[]>): void {
+    if (!this.state.currentProfile) return;
+    if (!this.state.currentProfile.ui) {
+      this.state.currentProfile.ui = {};
+    }
+    this.state.currentProfile.ui.field_layout = layout;
   }
 
   /**
