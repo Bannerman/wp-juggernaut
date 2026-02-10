@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Save, RotateCcw, Check, AlertCircle, History, FileText, Globe, Server, Sparkles, Activity, Loader2, RefreshCw, Puzzle, ToggleLeft, ToggleRight, Repeat } from 'lucide-react';
+import { ArrowLeft, Save, RotateCcw, Check, AlertCircle, History, FileText, Globe, Server, Sparkles, Activity, Loader2, RefreshCw, Puzzle, ToggleLeft, ToggleRight, Repeat, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PromptTemplate {
@@ -546,6 +546,13 @@ export default function SettingsPage() {
             >
               <Repeat className="w-4 h-4" />
               Field Mapping
+            </Link>
+            <Link
+              href="/settings/tab-layout"
+              className="py-3 px-1 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-2"
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Tab Layout
             </Link>
           </nav>
         </div>

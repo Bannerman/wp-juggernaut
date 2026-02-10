@@ -31,7 +31,7 @@ export const TAXONOMY_META_FIELD: Record<string, string> = {
   'audience': 'tax_audience',
   'leagues': 'tax_league',
   'bracket-size': 'tax_bracket_size',
-  'competition_format': 'taax_competition_format', // typo is in the WP Meta Box config
+  'competition_format': 'tax_competition_format',
   // file_format has no Meta Box field - only works via top-level REST field
 };
 
