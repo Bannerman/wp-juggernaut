@@ -160,7 +160,7 @@ function DraggableField({
       {...attributes}
       className={cn(
         'flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 cursor-grab active:cursor-grabbing transition-all select-none',
-        isDragging && 'opacity-30 scale-95',
+        isDragging && 'opacity-0',
         isMapped
           ? getMappingColor(mappingIndex)
           : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
@@ -307,11 +307,15 @@ export function FieldMappingEditor({
           const sourceRect = sourceEl.getBoundingClientRect();
           const targetRect = targetEl.getBoundingClientRect();
 
-          // Calculate center points relative to container
-          const x1 = sourceRect.right - containerRect.left;
-          const y1 = sourceRect.top + sourceRect.height / 2 - containerRect.top;
-          const x2 = targetRect.left - containerRect.left;
-          const y2 = targetRect.top + targetRect.height / 2 - containerRect.top;
+          // Calculate center points relative to the grid container
+          const gridEl = containerRef.current?.querySelector('.relative.grid');
+          if (!gridEl) return;
+          const gridRect = gridEl.getBoundingClientRect();
+
+          const x1 = sourceRect.right - gridRect.left;
+          const y1 = sourceRect.top + sourceRect.height / 2 - gridRect.top;
+          const x2 = targetRect.left - gridRect.left;
+          const y2 = targetRect.top + targetRect.height / 2 - gridRect.top;
 
           newLines.push({
             x1,
@@ -326,11 +330,15 @@ export function FieldMappingEditor({
       setLines(newLines);
     };
 
-    calculateLines();
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(calculateLines, 10);
 
     // Recalculate on window resize
     window.addEventListener('resize', calculateLines);
-    return () => window.removeEventListener('resize', calculateLines);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', calculateLines);
+    };
   }, [mappings]);
 
   // Find mapping index for a field (for color coordination)
@@ -475,27 +483,29 @@ export function FieldMappingEditor({
       >
         <div className="relative grid grid-cols-[1fr_auto_1fr] gap-4">
           {/* SVG overlay for connection lines */}
-          <svg
-            className="absolute inset-0 pointer-events-none"
-            style={{ zIndex: 0 }}
-          >
-            {lines.map((line, i) => {
-              // Create a smooth cubic bezier curve
-              const midX = (line.x1 + line.x2) / 2;
-              const path = `M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`;
+          {lines.length > 0 && (
+            <svg
+              className="absolute inset-0 pointer-events-none w-full h-full"
+              style={{ zIndex: 0 }}
+            >
+              {lines.map((line, i) => {
+                // Create a smooth cubic bezier curve
+                const midX = (line.x1 + line.x2) / 2;
+                const path = `M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`;
 
-              return (
-                <path
-                  key={i}
-                  d={path}
-                  stroke={line.color}
-                  strokeWidth="2"
-                  fill="none"
-                  opacity="0.6"
-                />
-              );
-            })}
-          </svg>
+                return (
+                  <path
+                    key={i}
+                    d={path}
+                    stroke={line.color}
+                    strokeWidth="2.5"
+                    fill="none"
+                    opacity="0.7"
+                  />
+                );
+              })}
+            </svg>
+          )}
           {/* Source column */}
           <div style={{ zIndex: 1 }}>
             <h3 className="text-sm font-semibold text-gray-700 mb-3 px-1">
