@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Eye, EyeOff, Code } from 'lucide-react';
 import { FieldMappingEditor } from '@/components/FieldMappingEditor';
 
 interface MappableField {
@@ -35,6 +35,7 @@ export default function FieldMappingsPage(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [previewEnabled, setPreviewEnabled] = useState(false);
+  const [showFieldKeys, setShowFieldKeys] = useState(false);
   const [sourcePosts, setSourcePosts] = useState<{ id: number; title: string }[]>([]);
   const [targetPosts, setTargetPosts] = useState<{ id: number; title: string }[]>([]);
   const [selectedSourcePost, setSelectedSourcePost] = useState<number | null>(null);
@@ -300,21 +301,30 @@ export default function FieldMappingsPage(): React.ReactElement {
         {/* Preview controls */}
         {sourceType && targetType && sourceType !== targetType && (
           <div className="mb-6">
-            <button
-              onClick={() => {
-                setPreviewEnabled((v) => !v);
-                if (previewEnabled) {
-                  setSelectedSourcePost(null);
-                  setSelectedTargetPost(null);
-                  setSourcePreviewValues({});
-                  setTargetPreviewValues({});
-                }
-              }}
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              {previewEnabled ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              {previewEnabled ? 'Hide preview values' : 'Preview values'}
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => {
+                  setPreviewEnabled((v) => !v);
+                  if (previewEnabled) {
+                    setSelectedSourcePost(null);
+                    setSelectedTargetPost(null);
+                    setSourcePreviewValues({});
+                    setTargetPreviewValues({});
+                  }
+                }}
+                className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                {previewEnabled ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {previewEnabled ? 'Hide preview values' : 'Preview values'}
+              </button>
+              <button
+                onClick={() => setShowFieldKeys((v) => !v)}
+                className={`flex items-center gap-2 text-sm transition-colors ${showFieldKeys ? 'text-gray-700' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                <Code className="w-4 h-4" />
+                {showFieldKeys ? 'Hide field keys' : 'Show field keys'}
+              </button>
+            </div>
 
             {previewEnabled && (
               <div className="flex items-center gap-4 mt-3">
@@ -379,6 +389,7 @@ export default function FieldMappingsPage(): React.ReactElement {
               targetPreviewValues={previewEnabled ? targetPreviewValues : undefined}
               sourceFullValues={previewEnabled ? sourceFullValues : undefined}
               targetFullValues={previewEnabled ? targetFullValues : undefined}
+              showFieldKeys={showFieldKeys}
             />
           </div>
         ) : null}

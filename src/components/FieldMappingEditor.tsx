@@ -56,6 +56,7 @@ interface FieldMappingEditorProps {
   targetPreviewValues?: Record<string, string>;
   sourceFullValues?: Record<string, string>;
   targetFullValues?: Record<string, string>;
+  showFieldKeys?: boolean;
 }
 
 // ─── Category icon helper ────────────────────────────────────────────────
@@ -140,6 +141,7 @@ function DraggableField({
   fieldRef,
   previewValue,
   tooltipValue,
+  showKey,
 }: {
   field: MappableField;
   mappingIndex: number;
@@ -147,6 +149,7 @@ function DraggableField({
   fieldRef?: (el: HTMLDivElement | null) => void;
   previewValue?: string;
   tooltipValue?: string;
+  showKey?: boolean;
 }): React.ReactElement {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `source-${field.key}`,
@@ -178,6 +181,9 @@ function DraggableField({
       <CategoryIcon category={field.category} />
       <div className="flex-1 min-w-0">
         <span className="text-sm font-medium truncate block">{field.label}</span>
+        {showKey && field.key !== field.label && (
+          <span className="text-[11px] text-gray-500/70 font-mono truncate block">{field.key}</span>
+        )}
         {previewValue && (
           <span
             className="text-xs text-gray-400 break-words line-clamp-5 block cursor-default"
@@ -205,6 +211,7 @@ function DroppableField({
   fieldRef,
   previewValue,
   tooltipValue,
+  showKey,
 }: {
   field: MappableField;
   mappingIndex: number;
@@ -214,6 +221,7 @@ function DroppableField({
   fieldRef?: (el: HTMLDivElement | null) => void;
   previewValue?: string;
   tooltipValue?: string;
+  showKey?: boolean;
 }): React.ReactElement {
   const { isOver, setNodeRef } = useDroppable({
     id: `target-${field.key}`,
@@ -237,6 +245,9 @@ function DroppableField({
       <CategoryIcon category={field.category} />
       <div className="flex-1 min-w-0">
         <span className="text-sm font-medium truncate block">{field.label}</span>
+        {showKey && field.key !== field.label && (
+          <span className="text-[11px] text-gray-500/70 font-mono truncate block">{field.key}</span>
+        )}
         {isMapped && mappedSourceLabel && (
           <span className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
             <Link2 className="w-3 h-3" />
@@ -307,6 +318,7 @@ export function FieldMappingEditor({
   targetPreviewValues,
   sourceFullValues,
   targetFullValues,
+  showFieldKeys,
 }: FieldMappingEditorProps): React.ReactElement {
   const [mappings, setMappings] = useState<FieldMappingEntry[]>(initialMappings);
   const [activeField, setActiveField] = useState<MappableField | null>(null);
@@ -567,6 +579,7 @@ export function FieldMappingEditor({
                     isMapped={idx >= 0}
                     previewValue={sourcePreviewValues?.[field.key]}
                     tooltipValue={sourceFullValues?.[field.key]}
+                    showKey={showFieldKeys}
                     fieldRef={(el) => {
                       if (el) {
                         sourceRefs.current.set(field.key, el);
@@ -619,6 +632,7 @@ export function FieldMappingEditor({
                     onRemove={() => handleRemoveMapping(field.key)}
                     previewValue={targetPreviewValues?.[field.key]}
                     tooltipValue={targetFullValues?.[field.key]}
+                    showKey={showFieldKeys}
                     fieldRef={(el) => {
                       if (el) {
                         targetRefs.current.set(field.key, el);
