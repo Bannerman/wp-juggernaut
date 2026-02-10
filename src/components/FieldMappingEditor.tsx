@@ -283,6 +283,7 @@ export function FieldMappingEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const sourceRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const targetRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const rafIdRef = useRef<number>();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -290,64 +291,66 @@ export function FieldMappingEditor({
     })
   );
 
-  // Calculate line coordinates when mappings or refs change
-  useEffect(() => {
+  // Calculate line coordinates
+  const calculateLines = useCallback((): void => {
     if (!containerRef.current) return;
 
-    const calculateLines = (): void => {
-      const newLines: LineCoordinate[] = [];
-      const containerRect = containerRef.current?.getBoundingClientRect();
-      if (!containerRect) return;
+    const newLines: LineCoordinate[] = [];
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (!containerRect) return;
 
-      mappings.forEach((mapping, index) => {
-        const sourceEl = sourceRefs.current.get(mapping.source.key);
-        const targetEl = targetRefs.current.get(mapping.target.key);
+    mappings.forEach((mapping, index) => {
+      const sourceEl = sourceRefs.current.get(mapping.source.key);
+      const targetEl = targetRefs.current.get(mapping.target.key);
 
-        if (sourceEl && targetEl) {
-          const sourceRect = sourceEl.getBoundingClientRect();
-          const targetRect = targetEl.getBoundingClientRect();
+      if (sourceEl && targetEl) {
+        const sourceRect = sourceEl.getBoundingClientRect();
+        const targetRect = targetEl.getBoundingClientRect();
 
-          // Calculate center points relative to the grid container
-          const gridEl = containerRef.current?.querySelector('.relative.grid');
-          if (!gridEl) return;
-          const gridRect = gridEl.getBoundingClientRect();
+        // Calculate center points relative to the grid container
+        const gridEl = containerRef.current?.querySelector('.relative.grid');
+        if (!gridEl) return;
+        const gridRect = gridEl.getBoundingClientRect();
 
-          const x1 = sourceRect.right - gridRect.left;
-          const y1 = sourceRect.top + sourceRect.height / 2 - gridRect.top;
-          const x2 = targetRect.left - gridRect.left;
-          const y2 = targetRect.top + targetRect.height / 2 - gridRect.top;
+        const x1 = sourceRect.right - gridRect.left;
+        const y1 = sourceRect.top + sourceRect.height / 2 - gridRect.top;
+        const x2 = targetRect.left - gridRect.left;
+        const y2 = targetRect.top + targetRect.height / 2 - gridRect.top;
 
-          newLines.push({
-            x1,
-            y1,
-            x2,
-            y2,
-            color: getMappingLineColor(index),
-          });
-        }
-      });
+        newLines.push({
+          x1,
+          y1,
+          x2,
+          y2,
+          color: getMappingLineColor(index),
+        });
+      }
+    });
 
-      setLines(newLines);
-    };
+    setLines(newLines);
+  }, [mappings]);
 
-    // Use requestAnimationFrame to ensure DOM is fully rendered
-    let rafId: number;
-    const scheduleCalculation = (): void => {
-      rafId = requestAnimationFrame(() => {
-        // Double RAF to ensure paint is complete
-        rafId = requestAnimationFrame(calculateLines);
-      });
-    };
+  // Schedule line calculation with RAF
+  const scheduleCalculation = useCallback((): void => {
+    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = requestAnimationFrame(calculateLines);
+    });
+  }, [calculateLines]);
 
+  // Recalculate when mappings change
+  useEffect(() => {
     scheduleCalculation();
+  }, [mappings, scheduleCalculation]);
 
-    // Recalculate on window resize
+  // Recalculate on window resize
+  useEffect(() => {
     window.addEventListener('resize', scheduleCalculation);
     return () => {
-      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener('resize', scheduleCalculation);
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
     };
-  }, [mappings]);
+  }, [scheduleCalculation]);
 
   // Find mapping index for a field (for color coordination)
   const getSourceMappingIndex = useCallback(
@@ -531,6 +534,8 @@ export function FieldMappingEditor({
                     fieldRef={(el) => {
                       if (el) {
                         sourceRefs.current.set(field.key, el);
+                        // Recalculate lines when ref is set
+                        scheduleCalculation();
                       } else {
                         sourceRefs.current.delete(field.key);
                       }
@@ -579,6 +584,8 @@ export function FieldMappingEditor({
                     fieldRef={(el) => {
                       if (el) {
                         targetRefs.current.set(field.key, el);
+                        // Recalculate lines when ref is set
+                        scheduleCalculation();
                       } else {
                         targetRefs.current.delete(field.key);
                       }
