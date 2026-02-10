@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getShortpixelApiKey } from '@/lib/site-config';
 
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = getShortpixelApiKey();
+    // API key is passed via environment variable from Electron secure storage
+    const apiKey = process.env.SHORTPIXEL_API_KEY;
+
     if (!apiKey) {
       return NextResponse.json(
         { error: 'Shortpixel API Key not configured' },

@@ -3,7 +3,7 @@ import type { UpdateInfo, ProgressInfo } from 'electron-updater';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
-import { isValidExternalUrl } from '../lib/url-validation';
+import { isValidExternalUrl } from './utils';
 
 // Lazy-load electron-updater to avoid crash if module is not bundled
 let autoUpdater: import('electron-updater').AppUpdater | null = null;
@@ -19,6 +19,7 @@ const CREDENTIALS_FILE = path.join(app.getPath('userData'), 'credentials.enc');
 interface StoredCredentials {
   username: string;
   appPassword: string;
+  shortpixelApiKey?: string;
 }
 
 function getSecureCredentials(): StoredCredentials | null {
@@ -171,6 +172,9 @@ async function startNextServer(): Promise<void> {
   if (credentials) {
     serverEnv.WP_USERNAME = credentials.username;
     serverEnv.WP_APP_PASSWORD = credentials.appPassword;
+    if (credentials.shortpixelApiKey) {
+      serverEnv.SHORTPIXEL_API_KEY = credentials.shortpixelApiKey;
+    }
     console.log('Credentials loaded from secure storage for user:', credentials.username);
   }
 
@@ -324,7 +328,15 @@ ipcMain.handle('get-credentials', () => {
 });
 
 ipcMain.handle('set-credentials', async (_event, { username, appPassword }: { username: string; appPassword: string }) => {
-  const success = setSecureCredentials({ username, appPassword });
+  // Preserve existing other credentials if possible
+  const existing = getSecureCredentials();
+  const success = setSecureCredentials({
+    ...existing,
+    username,
+    appPassword,
+    shortpixelApiKey: existing?.shortpixelApiKey // Preserve API key if it exists
+  });
+
   if (success && !isDev) {
     // Restart the Next.js server so it picks up new credentials
     console.log('Credentials updated - restarting Next.js server...');
@@ -355,6 +367,40 @@ ipcMain.handle('delete-credentials', () => {
   if (success) {
     delete process.env.WP_USERNAME;
     delete process.env.WP_APP_PASSWORD;
+    delete process.env.SHORTPIXEL_API_KEY;
+  }
+  return { success };
+});
+
+ipcMain.handle('get-shortpixel-key', () => {
+  const creds = getSecureCredentials();
+  return { key: creds?.shortpixelApiKey || '' };
+});
+
+ipcMain.handle('set-shortpixel-key', async (_event, key: string) => {
+  const existing = getSecureCredentials();
+  if (!existing) {
+    return { success: false, error: 'Must set WordPress credentials first' };
+  }
+
+  const success = setSecureCredentials({
+    ...existing,
+    shortpixelApiKey: key
+  });
+
+  if (success && !isDev) {
+    console.log('Shortpixel key updated - restarting Next.js server...');
+    try {
+      stopNextServer();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await startNextServer();
+      const serverReady = await waitForServer(`http://localhost:${PORT}`);
+      if (serverReady) {
+        mainWindow?.webContents.reload();
+      }
+    } catch (error) {
+      console.error('Error restarting server:', error);
+    }
   }
   return { success };
 });

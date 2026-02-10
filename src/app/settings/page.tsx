@@ -137,9 +137,16 @@ export default function SettingsPage() {
         }
 
         // Set Shortpixel key status
-        setHasShortpixelKey(data.hasShortpixelKey || false);
-        if (data.shortpixelApiKey) {
-          setShortpixelKey(data.shortpixelApiKey);
+        if (window.electronAPI) {
+          try {
+            const result = await window.electronAPI.getShortpixelKey();
+            if (result.key) {
+              setHasShortpixelKey(true);
+              setShortpixelKey(result.key);
+            }
+          } catch (err) {
+            console.error('Failed to get Shortpixel key:', err);
+          }
         }
       } catch (err) {
         console.error('Failed to fetch site config:', err);
@@ -228,17 +235,16 @@ export default function SettingsPage() {
     setMessage(null);
 
     try {
-      const res = await fetch('/api/site-config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shortpixelApiKey: shortpixelKey }),
-      });
-
-      if (!res.ok) throw new Error('Failed to save API key');
-
-      const data = await res.json();
-      setHasShortpixelKey(true);
-      setMessage({ type: 'success', text: 'Shortpixel API Key saved' });
+      if (window.electronAPI) {
+        const result = await window.electronAPI.setShortpixelKey(shortpixelKey);
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to save API key to secure storage');
+        }
+        setHasShortpixelKey(true);
+        setMessage({ type: 'success', text: 'Shortpixel API Key saved securely' });
+      } else {
+        throw new Error('Secure storage not available (are you in browser mode?)');
+      }
     } catch (err) {
       setMessage({ type: 'error', text: String(err) });
     } finally {

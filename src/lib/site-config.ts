@@ -39,7 +39,6 @@ interface SiteConfig {
   siteCredentials?: Record<string, SiteCredentials>;
   // Legacy: single credentials for all sites (migrated to siteCredentials on first write)
   credentials?: SiteCredentials;
-  shortpixelApiKey?: string;
 }
 
 export function getConfig(): SiteConfig {
@@ -72,18 +71,6 @@ export function setActiveTarget(targetId: string): SiteConfig {
 
   const config = getConfig();
   const newConfig: SiteConfig = { ...config, activeTarget: targetId };
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2));
-  return newConfig;
-}
-
-export function getShortpixelApiKey(): string | null {
-  const config = getConfig();
-  return config.shortpixelApiKey || null;
-}
-
-export function setShortpixelApiKey(apiKey: string): SiteConfig {
-  const config = getConfig();
-  const newConfig: SiteConfig = { ...config, shortpixelApiKey: apiKey };
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2));
   return newConfig;
 }

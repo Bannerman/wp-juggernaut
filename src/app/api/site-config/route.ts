@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getConfig, setActiveTarget, getActiveTarget, getSiteTargets, getCredentials, setCredentials, getShortpixelApiKey, setShortpixelApiKey } from '@/lib/site-config';
+import { getConfig, setActiveTarget, getActiveTarget, getSiteTargets, getCredentials, setCredentials } from '@/lib/site-config';
 
 // GET /api/site-config - Get current config and available targets
 export async function GET() {
@@ -8,7 +8,6 @@ export async function GET() {
     const activeTarget = getActiveTarget();
     const credentials = getCredentials();
     const targets = getSiteTargets();
-    const shortpixelApiKey = getShortpixelApiKey();
 
     // Build per-site credential status (has credentials + username, never passwords)
     const siteCredentialStatus: Record<string, { hasCredentials: boolean; username: string }> = {};
@@ -29,8 +28,6 @@ export async function GET() {
       hasCredentials: Boolean(credentials),
       username: credentials?.username || '',
       siteCredentialStatus,
-      shortpixelApiKey: shortpixelApiKey ? '••••' + shortpixelApiKey.slice(-4) : null,
-      hasShortpixelKey: !!shortpixelApiKey,
     });
   } catch (error) {
     console.error('Error getting site config:', error);
@@ -45,16 +42,7 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { targetId, credentials, shortpixelApiKey } = body;
-
-    // Handle Shortpixel API Key update
-    if (shortpixelApiKey !== undefined) {
-      setShortpixelApiKey(shortpixelApiKey);
-      return NextResponse.json({
-        message: 'Shortpixel API Key updated',
-        hasShortpixelKey: !!shortpixelApiKey,
-      });
-    }
+    const { targetId, credentials } = body;
 
     // Handle credential update (saves for the currently active target)
     if (credentials) {

@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setCredentials: (username: string, appPassword: string) =>
     ipcRenderer.invoke('set-credentials', { username, appPassword }),
   deleteCredentials: () => ipcRenderer.invoke('delete-credentials'),
+  getShortpixelKey: () => ipcRenderer.invoke('get-shortpixel-key'),
+  setShortpixelKey: (key: string) => ipcRenderer.invoke('set-shortpixel-key', key),
 
   // Update status listener
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => {
@@ -52,6 +54,8 @@ export interface ElectronAPI {
   getCredentials: () => Promise<CredentialStatus>;
   setCredentials: (username: string, appPassword: string) => Promise<{ success: boolean }>;
   deleteCredentials: () => Promise<{ success: boolean }>;
+  getShortpixelKey: () => Promise<{ key: string }>;
+  setShortpixelKey: (key: string) => Promise<{ success: boolean; error?: string }>;
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
 }
 
