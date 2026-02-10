@@ -1,6 +1,6 @@
 name: wp-client
 version: 1.0.0
-status: To Do
+status: Implemented
 description: WordPress REST API client for fetching and updating resources and taxonomy terms
 
 purpose: |

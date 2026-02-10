@@ -12,7 +12,10 @@ const SCHEMA_VERSION = 2;
 let db: Database.Database | null = null;
 
 /**
- * Database module for Juggernaut WordPress Manager
+ * Returns the singleton SQLite database instance. Initializes the database on first
+ * call: creates the data directory, applies schema migrations, and enables WAL mode.
+ * Handles legacy plexkits.db → juggernaut.db migration automatically.
+ * @returns The shared better-sqlite3 Database instance
  */
 export function getDb(): Database.Database {
   if (!db) {
@@ -463,7 +466,9 @@ function initializeSchema(database: Database.Database) {
 }
 
 /**
- * Get the primary post type from profile (helper for queries)
+ * Returns the primary post type slug from the active profile.
+ * Falls back to 'resource' if the profile is not loaded or has no primary post type.
+ * @returns The primary post type slug (e.g. 'resource', 'post')
  */
 export function getPrimaryPostType(): string {
   try {
@@ -476,7 +481,11 @@ export function getPrimaryPostType(): string {
   }
 }
 
-export function closeDb() {
+/**
+ * Closes the database connection and resets the singleton. The next call to
+ * `getDb()` will create a fresh connection.
+ */
+export function closeDb(): void {
   if (db) {
     db.close();
     db = null;

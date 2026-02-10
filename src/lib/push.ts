@@ -147,6 +147,12 @@ async function pushSeoData(resourceId: number): Promise<{ success: boolean; erro
   }
 }
 
+/**
+ * Checks for conflicts between local and server versions of resources.
+ * Compares local `modified_gmt` timestamps with the server's current values.
+ * @param resourceIds - Array of resource IDs to check
+ * @returns Array of ConflictInfo objects for resources that have server-side changes
+ */
 export async function checkForConflicts(resourceIds: number[]): Promise<ConflictInfo[]> {
   const db = getDb();
   const conflicts: ConflictInfo[] = [];
@@ -250,6 +256,14 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
   return payload;
 }
 
+/**
+ * Pushes a single dirty resource to WordPress. Builds the update payload from
+ * local data, optionally checks for conflicts, and updates the server.
+ * On success, clears the dirty flag and updates local timestamps.
+ * @param resourceId - The ID of the resource to push
+ * @param skipConflictCheck - If true, skip conflict detection and force push
+ * @returns PushResult with success status, resource ID, and any error message
+ */
 export async function pushResource(
   resourceId: number,
   skipConflictCheck: boolean = false
@@ -295,6 +309,13 @@ export async function pushResource(
   }
 }
 
+/**
+ * Pushes all dirty (locally modified) resources to WordPress in batches of 25.
+ * Returns detailed results including successes, failures, and conflicts.
+ * @param skipConflictCheck - If true, skip conflict detection and force push all
+ * @param postType - Optional post type filter (only push dirty resources of this type)
+ * @returns Object with `results` array, `successCount`, `failureCount`, and `conflicts`
+ */
 export async function pushAllDirty(
   skipConflictCheck: boolean = false,
   postType?: string

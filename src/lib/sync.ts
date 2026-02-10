@@ -112,6 +112,10 @@ export interface SyncResult {
   errors: string[];
 }
 
+/**
+ * Returns the timestamp of the last successful sync, or null if never synced.
+ * @returns ISO timestamp string or null
+ */
 export function getLastSyncTime(): string | null {
   const db = getDb();
   const row = db.prepare('SELECT value FROM sync_meta WHERE key = ?').get('last_sync_time') as
@@ -120,7 +124,11 @@ export function getLastSyncTime(): string | null {
   return row?.value || null;
 }
 
-export function setLastSyncTime(timestamp: string) {
+/**
+ * Updates the last sync timestamp in the sync_meta table.
+ * @param timestamp - ISO timestamp string to store
+ */
+export function setLastSyncTime(timestamp: string): void {
   const db = getDb();
   db.prepare('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)').run(
     'last_sync_time',
@@ -128,7 +136,11 @@ export function setLastSyncTime(timestamp: string) {
   );
 }
 
-export function saveTerm(term: WPTerm) {
+/**
+ * Saves a single taxonomy term to the local database (INSERT OR REPLACE).
+ * @param term - The WordPress term object to persist
+ */
+export function saveTerm(term: WPTerm): void {
   const db = getDb();
   db.prepare(`
     INSERT OR REPLACE INTO terms (id, taxonomy, name, slug, parent_id)
@@ -136,7 +148,15 @@ export function saveTerm(term: WPTerm) {
   `).run(term.id, term.taxonomy, term.name, term.slug, term.parent || 0);
 }
 
-export function saveResource(resource: WPResource, featuredImageUrl?: string, postType?: string) {
+/**
+ * Saves a WordPress resource to the local database, including its meta fields
+ * and taxonomy term assignments. Preserves the `is_dirty` flag if the resource
+ * already exists with local edits. Also fetches and stores SEO data if available.
+ * @param resource - The WordPress resource object from the REST API
+ * @param featuredImageUrl - Optional pre-resolved featured image URL
+ * @param postType - Optional post type slug override (defaults to 'resource')
+ */
+export function saveResource(resource: WPResource, featuredImageUrl?: string, postType?: string): void {
   const db = getDb();
   const now = new Date().toISOString();
   const type = postType || 'resource';
@@ -251,11 +271,21 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
   }
 }
 
-export function deleteResource(id: number) {
+/**
+ * Deletes a resource and its associated meta/terms from the local database.
+ * Cascading deletes handle post_meta and post_terms via foreign keys.
+ * @param id - The resource/post ID to delete
+ */
+export function deleteResource(id: number): void {
   const db = getDb();
   db.prepare('DELETE FROM posts WHERE id = ?').run(id);
 }
 
+/**
+ * Syncs all taxonomy terms from WordPress into the local database.
+ * Fetches terms for all taxonomies defined in the active profile.
+ * @returns The total number of terms synced
+ */
 export async function syncTaxonomies(): Promise<number> {
   const allTerms = await fetchAllTaxonomies();
   let count = 0;
@@ -295,6 +325,14 @@ function resolvePostTypeSlug(restBase: string): string {
   }
 }
 
+/**
+ * Syncs resources from WordPress to the local database.
+ * In full mode, also detects and deletes resources that no longer exist on the server.
+ * In incremental mode, only fetches resources modified since the last sync.
+ * @param incremental - If true, only fetch resources modified since last sync
+ * @param postType - Optional post type REST base override
+ * @returns Object with `updated` count, `deleted` count, and `rawResources` array
+ */
 export async function syncResources(incremental: boolean = false, postType?: string): Promise<{
   updated: number;
   deleted: number;
@@ -381,6 +419,12 @@ function getConfiguredPostTypes(): Array<{ slug: string; rest_base: string }> {
   }
 }
 
+/**
+ * Performs a complete sync: taxonomies first, then all resources, then deletion detection.
+ * Errors are collected (not thrown) — partial success is acceptable.
+ * Updates `last_sync_time` only if no errors occurred.
+ * @returns SyncResult with counts and any errors
+ */
 export async function fullSync(): Promise<SyncResult> {
   const errors: string[] = [];
   let taxonomiesUpdated = 0;
@@ -426,6 +470,11 @@ export async function fullSync(): Promise<SyncResult> {
   return { taxonomiesUpdated, resourcesUpdated, resourcesDeleted, errors };
 }
 
+/**
+ * Performs an incremental sync: refreshes taxonomies, then fetches only resources
+ * modified since the last sync timestamp. Skips deletion detection.
+ * @returns SyncResult with counts and any errors
+ */
 export async function incrementalSync(): Promise<SyncResult> {
   const errors: string[] = [];
   let taxonomiesUpdated = 0;

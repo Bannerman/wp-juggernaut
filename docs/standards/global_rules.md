@@ -48,4 +48,4 @@ This document contains the set of global, non-negotiable rules for all projects 
 **Purpose:** To ensure a consistent and predictable versioning scheme.
 
 * **Rule 6.1: Semantic Versioning:** This project adheres to Semantic Versioning 2.0.0. All version numbers MUST follow the MAJOR.MINOR.PATCH format.
-* **Rule 6.2: Breaking Changes:** All breaking changes MUST result in a MAJOR version increment. A detailed explanation of what constitutes a breaking change can be found in the [MAIA Toolkit Versioning Policy](./versioning_policy.md).
+* **Rule 6.2: Breaking Changes:** All breaking changes MUST result in a MAJOR version increment.

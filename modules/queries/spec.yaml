@@ -1,6 +1,6 @@
 name: queries
 version: 1.0.0
-status: To Do
+status: Implemented
 description: Database query functions for reading and updating local resource data
 
 purpose: |
