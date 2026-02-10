@@ -38,7 +38,6 @@ export async function GET() {
     // Test authentication by fetching resources
     const resourceUrl = `${baseUrl}/wp-json/wp/v2/resource?per_page=1`;
     console.log('[test-connection] Resource URL:', resourceUrl);
-    console.log('[test-connection] Full auth header:', authHeader);
 
     // Try with explicit headers matching curl behavior
     const resourceResponse = await fetch(resourceUrl, {
