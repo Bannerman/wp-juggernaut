@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Save, RotateCcw, Check, AlertCircle, History, FileText, Globe, Server, Sparkles, Activity, Loader2, RefreshCw, Puzzle, ToggleLeft, ToggleRight, Repeat, LayoutGrid } from 'lucide-react';
+import { Save, RotateCcw, Check, AlertCircle, History, FileText, Globe, Loader2, RefreshCw, Puzzle, Activity, ArrowLeft, ToggleLeft, ToggleRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SettingsNav } from '@/components/SettingsNav';
 
 interface PromptTemplate {
   id: string;
@@ -442,121 +443,40 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header - electron-drag allows window to be moved by dragging header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 electron-drag">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4 electron-no-drag">
-              <Link
-                href="/"
-                className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+      <SettingsNav
+        activeTab={activeTab}
+        onTabClick={(tabId) => {
+          if (tabId === 'prompts') { setActiveTab('prompts'); setPromptsView('edit'); }
+          else setActiveTab(tabId);
+        }}
+        actions={
+          activeTab === 'prompts' && promptsView === 'edit' ? (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleResetPrompt}
+                disabled={isSaving || !activeTemplateId}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
               >
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </Link>
-              <h1 className="text-xl font-bold text-gray-900">Settings</h1>
+                <RotateCcw className="w-4 h-4" />
+                Reset
+              </button>
+              <button
+                onClick={handleSavePrompt}
+                disabled={!hasPromptChanges || isSaving}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                  hasPromptChanges
+                    ? 'bg-brand-600 text-white hover:bg-brand-700'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                )}
+              >
+                <Save className="w-4 h-4" />
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
             </div>
-
-            {/* Tab-specific actions */}
-            {activeTab === 'prompts' && promptsView === 'edit' && (
-              <div className="flex items-center gap-3 electron-no-drag">
-                <button
-                  onClick={handleResetPrompt}
-                  disabled={isSaving || !activeTemplateId}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Reset
-                </button>
-                <button
-                  onClick={handleSavePrompt}
-                  disabled={!hasPromptChanges || isSaving}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
-                    hasPromptChanges
-                      ? 'bg-brand-600 text-white hover:bg-brand-700'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  )}
-                >
-                  <Save className="w-4 h-4" />
-                  {isSaving ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Tabs */}
-          <nav className="flex gap-6 -mb-px electron-no-drag">
-            <button
-              onClick={() => setActiveTab('target')}
-              className={cn(
-                'py-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2',
-                activeTab === 'target'
-                  ? 'border-brand-500 text-brand-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              )}
-            >
-              <Server className="w-4 h-4" />
-              Target Site
-            </button>
-            <button
-              onClick={() => { setActiveTab('prompts'); setPromptsView('edit'); }}
-              className={cn(
-                'py-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2',
-                activeTab === 'prompts'
-                  ? 'border-brand-500 text-brand-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              )}
-            >
-              <Sparkles className="w-4 h-4" />
-              Prompts
-            </button>
-            <button
-              onClick={() => setActiveTab('plugins')}
-              className={cn(
-                'py-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2',
-                activeTab === 'plugins'
-                  ? 'border-brand-500 text-brand-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              )}
-            >
-              <Puzzle className="w-4 h-4" />
-              Plugins
-              {pluginStats && pluginStats.enabled > 0 && (
-                <span className="text-xs bg-brand-100 text-brand-700 px-1.5 py-0.5 rounded-full">
-                  {pluginStats.enabled}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('diagnostics')}
-              className={cn(
-                'py-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2',
-                activeTab === 'diagnostics'
-                  ? 'border-brand-500 text-brand-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              )}
-            >
-              <Activity className="w-4 h-4" />
-              Diagnostics
-            </button>
-            <Link
-              href="/settings/field-mappings"
-              className="py-3 px-1 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-2"
-            >
-              <Repeat className="w-4 h-4" />
-              Field Mapping
-            </Link>
-            <Link
-              href="/settings/tab-layout"
-              className="py-3 px-1 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-2"
-            >
-              <LayoutGrid className="w-4 h-4" />
-              Tab Layout
-            </Link>
-          </nav>
-        </div>
-      </header>
+          ) : undefined
+        }
+      />
 
       {/* Message */}
       {message && (

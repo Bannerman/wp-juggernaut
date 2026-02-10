@@ -57,6 +57,8 @@ interface FieldMappingEditorProps {
   sourceFullValues?: Record<string, string>;
   targetFullValues?: Record<string, string>;
   showFieldKeys?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
+  saveRef?: React.MutableRefObject<(() => Promise<void>) | null>;
 }
 
 // ─── Category icon helper ────────────────────────────────────────────────
@@ -323,6 +325,8 @@ export function FieldMappingEditor({
   sourceFullValues,
   targetFullValues,
   showFieldKeys,
+  onDirtyChange,
+  saveRef,
 }: FieldMappingEditorProps): React.ReactElement {
   const [mappings, setMappings] = useState<FieldMappingEntry[]>(initialMappings);
   const [activeField, setActiveField] = useState<MappableField | null>(null);
@@ -486,35 +490,27 @@ export function FieldMappingEditor({
     }
   }, [mappings, onSave]);
 
+  // Expose save function to parent via ref
+  useEffect(() => {
+    if (saveRef) saveRef.current = handleSave;
+    return () => { if (saveRef) saveRef.current = null; };
+  }, [saveRef, handleSave]);
+
+  // Notify parent of dirty state changes
+  useEffect(() => {
+    onDirtyChange?.(hasChanges);
+  }, [hasChanges, onDirtyChange]);
+
   return (
     <div className="space-y-6" ref={containerRef}>
       {/* Header bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 text-sm">
-          <span className="font-semibold text-gray-900">{sourcePostType.name}</span>
-          <ArrowRight className="w-4 h-4 text-gray-400" />
-          <span className="font-semibold text-gray-900">{targetPostType.name}</span>
-          <span className="text-gray-400">
-            ({mappings.length} mapping{mappings.length !== 1 ? 's' : ''})
-          </span>
-        </div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving || !hasChanges}
-          className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-            hasChanges
-              ? 'bg-brand-600 text-white hover:bg-brand-700'
-              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-          )}
-        >
-          {isSaving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
-          {isSaving ? 'Saving...' : 'Save Mappings'}
-        </button>
+      <div className="flex items-center gap-3 text-sm">
+        <span className="font-semibold text-gray-900">{sourcePostType.name}</span>
+        <ArrowRight className="w-4 h-4 text-gray-400" />
+        <span className="font-semibold text-gray-900">{targetPostType.name}</span>
+        <span className="text-gray-400">
+          ({mappings.length} mapping{mappings.length !== 1 ? 's' : ''})
+        </span>
       </div>
 
       {/* Legend */}

@@ -356,7 +356,11 @@ export function TabLayoutEditor({
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <Lock className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">This is a core tab and cannot be edited here.</p>
+              <p className="text-gray-500 text-sm">
+                {selectedTabId === 'seo'
+                  ? 'This tab is provided by the SEOPress plugin and cannot be edited here.'
+                  : 'This is a core tab and cannot be edited here.'}
+              </p>
             </div>
           </div>
         ) : (
