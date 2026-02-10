@@ -1,6 +1,6 @@
 name: api-routes
 version: 1.0.0
-status: To Do
+status: Implemented
 description: Next.js API routes providing HTTP interface to core modules
 
 purpose: |
