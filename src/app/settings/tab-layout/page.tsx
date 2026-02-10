@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Save, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
+import { Save, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 import { TabLayoutEditor } from '@/components/TabLayoutEditor';
+import { SettingsNav } from '@/components/SettingsNav';
 import { cn } from '@/lib/utils';
 
 interface PostTypeConfig {
@@ -154,38 +154,24 @@ export default function TabLayoutPage(): React.ReactElement {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 electron-drag">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4 electron-no-drag">
-              <Link
-                href="/settings"
-                className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Settings
-              </Link>
-              <div className="h-6 w-px bg-gray-200" />
-              <h1 className="text-lg font-semibold text-gray-900">Tab Layout</h1>
-            </div>
-
-            <button
-              onClick={handleSave}
-              disabled={!hasChanges || isSaving}
-              className={cn(
-                'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors electron-no-drag',
-                hasChanges
-                  ? 'bg-brand-600 text-white hover:bg-brand-700'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              )}
-            >
-              <Save className="w-4 h-4" />
-              {isSaving ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
-      </header>
+      <SettingsNav
+        activeTab="tab-layout"
+        actions={
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges || isSaving}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+              hasChanges
+                ? 'bg-brand-600 text-white hover:bg-brand-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            )}
+          >
+            <Save className="w-4 h-4" />
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
+        }
+      />
 
       {/* Toast */}
       {(error || success) && (
@@ -205,10 +191,10 @@ export default function TabLayoutPage(): React.ReactElement {
         </div>
       )}
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Description */}
         <p className="text-sm text-gray-500 mb-6">
-          Configure custom tabs and their fields for the edit modal. Core tabs (Basic, SEO, Classification, AI Fill) cannot be modified here.
+          Configure custom tabs and their fields for the edit modal. Core tabs (Basic, Classification, AI Fill) and plugin tabs (SEO) cannot be modified here.
         </p>
 
         {/* Post type selector */}

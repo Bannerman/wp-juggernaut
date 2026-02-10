@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Eye, EyeOff, Code } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Eye, EyeOff, Code, Save } from 'lucide-react';
 import { FieldMappingEditor } from '@/components/FieldMappingEditor';
+import { SettingsNav } from '@/components/SettingsNav';
+import { cn } from '@/lib/utils';
 
 interface MappableField {
   key: string;
@@ -44,6 +45,9 @@ export default function FieldMappingsPage(): React.ReactElement {
   const [targetPreviewValues, setTargetPreviewValues] = useState<Record<string, string>>({});
   const [sourceFullValues, setSourceFullValues] = useState<Record<string, string>>({});
   const [targetFullValues, setTargetFullValues] = useState<Record<string, string>>({});
+  const [hasChanges, setHasChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const saveRef = useRef<(() => Promise<void>) | null>(null);
 
   // Fetch post types on mount
   useEffect(() => {
@@ -188,29 +192,39 @@ export default function FieldMappingsPage(): React.ReactElement {
     [sourceType, targetType]
   );
 
+  const handleHeaderSave = useCallback(async () => {
+    if (!saveRef.current) return;
+    setIsSaving(true);
+    try {
+      await saveRef.current();
+    } finally {
+      setIsSaving(false);
+    }
+  }, []);
+
   const sourcePostType = postTypes.find((pt) => pt.slug === sourceType);
   const targetPostType = postTypes.find((pt) => pt.slug === targetType);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 electron-drag">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
-          <div className="flex items-center h-16 gap-4">
-            <Link
-              href="/"
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors electron-no-drag"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </Link>
-            <div className="h-6 w-px bg-gray-200" />
-            <h1 className="text-lg font-semibold text-gray-900">
-              Field Mapping
-            </h1>
-          </div>
-        </div>
-      </header>
+      <SettingsNav
+        activeTab="field-mappings"
+        actions={
+          <button
+            onClick={handleHeaderSave}
+            disabled={!hasChanges || isSaving}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+              hasChanges
+                ? 'bg-brand-600 text-white hover:bg-brand-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            )}
+          >
+            <Save className="w-4 h-4" />
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
+        }
+      />
 
       {/* Toast */}
       {(error || success) && (
@@ -230,7 +244,7 @@ export default function FieldMappingsPage(): React.ReactElement {
         </div>
       )}
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Description */}
         <p className="text-sm text-gray-500 mb-6">
           Map fields between post types for conversion. When you convert a post from one
@@ -390,6 +404,8 @@ export default function FieldMappingsPage(): React.ReactElement {
               sourceFullValues={previewEnabled ? sourceFullValues : undefined}
               targetFullValues={previewEnabled ? targetFullValues : undefined}
               showFieldKeys={showFieldKeys}
+              onDirtyChange={setHasChanges}
+              saveRef={saveRef}
             />
           </div>
         ) : null}
