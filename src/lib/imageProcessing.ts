@@ -156,19 +156,69 @@ export const seoDataProcessor: ImageProcessor = async (context) => {
 };
 
 /**
- * Placeholder processor for Shortpixel image compression
- * TODO: Implement actual Shortpixel API integration
+ * Processor for Shortpixel image compression
+ * Sends the image to the local API route which communicates with Shortpixel
  */
 export const shortpixelProcessor: ImageProcessor = async (context) => {
-  // Placeholder: In the future, this will:
-  // 1. Send image to Shortpixel API
-  // 2. Wait for compressed version
-  // 3. Replace file with compressed version
-  // For now, just pass through unchanged
-  
-  console.log('[Shortpixel Placeholder] Would compress:', context.filename);
-  
-  return context;
+  console.log('[Shortpixel] Processing:', context.filename);
+
+  try {
+    const formData = new FormData();
+    formData.append('file', context.file);
+    // TODO: Make compression level configurable via settings
+    formData.append('lossy', '1');
+
+    const response = await fetch('/api/shortpixel', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      console.warn('[Shortpixel] API Key not configured. Skipping compression.');
+      return context;
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: response.statusText }));
+      console.error('[Shortpixel] API Error:', errorData.error);
+      // Return original context on error to avoid breaking the pipeline
+      return context;
+    }
+
+    // Get the compressed file blob
+    const blob = await response.blob();
+
+    // Create a new File object
+    const newFile = new File([blob], context.filename, {
+      type: response.headers.get('Content-Type') || context.file.type,
+      lastModified: Date.now(),
+    });
+
+    const savedBytes = context.file.size - newFile.size;
+    const percent = ((savedBytes / context.file.size) * 100).toFixed(1);
+
+    console.log(`[Shortpixel] Compressed: ${context.file.size} -> ${newFile.size} bytes (-${percent}%)`);
+
+    // Return updated context
+    return {
+      ...context,
+      file: newFile,
+      metadata: {
+        ...context.metadata,
+        shortpixel: {
+          originalSize: context.file.size,
+          compressedSize: newFile.size,
+          savedBytes: savedBytes,
+          optimizationPercent: response.headers.get('X-Optimization-Percent') || percent,
+        }
+      }
+    };
+
+  } catch (error) {
+    console.error('[Shortpixel] Processor failed:', error);
+    // Return original context on error
+    return context;
+  }
 };
 
 /**

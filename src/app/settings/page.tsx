@@ -66,11 +66,16 @@ interface PluginStats {
   community: number;
 }
 
-type SettingsTab = 'target' | 'prompts' | 'plugins' | 'diagnostics';
+type SettingsTab = 'target' | 'prompts' | 'plugins' | 'diagnostics' | 'integrations';
 type PromptsView = 'edit' | 'history';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('target');
+
+  // Integrations state
+  const [shortpixelKey, setShortpixelKey] = useState('');
+  const [hasShortpixelKey, setHasShortpixelKey] = useState(false);
+  const [savingIntegration, setSavingIntegration] = useState(false);
 
   // Target state
   const [targets, setTargets] = useState<SiteTarget[]>([]);
@@ -129,6 +134,12 @@ export default function SettingsPage() {
           // Fallback for browser dev mode
           setHasCredentials(data.hasCredentials || false);
           setUsername(data.username || '');
+        }
+
+        // Set Shortpixel key status
+        setHasShortpixelKey(data.hasShortpixelKey || false);
+        if (data.shortpixelApiKey) {
+          setShortpixelKey(data.shortpixelApiKey);
         }
       } catch (err) {
         console.error('Failed to fetch site config:', err);
@@ -206,6 +217,32 @@ export default function SettingsPage() {
       setMessage({ type: 'error', text: String(err) });
     } finally {
       setTargetSwitching(false);
+    }
+  };
+
+  // Save Shortpixel API Key
+  const saveShortpixelKey = async () => {
+    if (!shortpixelKey) return;
+
+    setSavingIntegration(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/site-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shortpixelApiKey: shortpixelKey }),
+      });
+
+      if (!res.ok) throw new Error('Failed to save API key');
+
+      const data = await res.json();
+      setHasShortpixelKey(true);
+      setMessage({ type: 'success', text: 'Shortpixel API Key saved' });
+    } catch (err) {
+      setMessage({ type: 'error', text: String(err) });
+    } finally {
+      setSavingIntegration(false);
     }
   };
 
@@ -539,6 +576,18 @@ export default function SettingsPage() {
             >
               <Activity className="w-4 h-4" />
               Diagnostics
+            </button>
+            <button
+              onClick={() => setActiveTab('integrations')}
+              className={cn(
+                'py-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2',
+                activeTab === 'integrations'
+                  ? 'border-brand-500 text-brand-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              )}
+            >
+              <Globe className="w-4 h-4" />
+              Integrations
             </button>
             <Link
               href="/settings/field-mappings"
@@ -1131,6 +1180,74 @@ export default function SettingsPage() {
                 <FileText className="w-4 h-4" />
                 Open Field Audit
               </Link>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* Integrations Tab */}
+      {activeTab === 'integrations' && (
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">Integrations</h2>
+              <p className="text-sm text-gray-500">
+                Configure third-party services
+              </p>
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Shortpixel Image Compression</h3>
+                  <p className="text-sm text-gray-500 mt-1 max-w-2xl">
+                    Automatically compress images using the Shortpixel API. Requires a valid API key.
+                    <a href="https://shortpixel.com/api-docs" target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline ml-1">
+                      Get an API Key
+                    </a>
+                  </p>
+                </div>
+                {hasShortpixelKey && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <Check className="w-3 h-3 mr-1" />
+                    Configured
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-4 max-w-md">
+                <label htmlFor="shortpixel-key" className="block text-sm font-medium text-gray-700 mb-1">
+                  API Key
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="shortpixel-key"
+                    type="password"
+                    value={shortpixelKey}
+                    onChange={(e) => setShortpixelKey(e.target.value)}
+                    placeholder={hasShortpixelKey && !shortpixelKey ? '••••••••' : 'Enter your Shortpixel API Key'}
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  />
+                  <button
+                    onClick={saveShortpixelKey}
+                    disabled={savingIntegration || !shortpixelKey}
+                    className={cn(
+                      'px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors',
+                      'bg-brand-600 hover:bg-brand-700',
+                      'disabled:opacity-50 disabled:cursor-not-allowed'
+                    )}
+                  >
+                    {savingIntegration ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      'Save'
+                    )}
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  The API key is stored locally in your configuration.
+                </p>
+              </div>
             </div>
           </div>
         </main>
