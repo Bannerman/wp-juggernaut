@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { FieldMappingEditor } from '@/components/FieldMappingEditor';
 
 interface MappableField {
@@ -34,6 +34,15 @@ export default function FieldMappingsPage(): React.ReactElement {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [previewEnabled, setPreviewEnabled] = useState(false);
+  const [sourcePosts, setSourcePosts] = useState<{ id: number; title: string }[]>([]);
+  const [targetPosts, setTargetPosts] = useState<{ id: number; title: string }[]>([]);
+  const [selectedSourcePost, setSelectedSourcePost] = useState<number | null>(null);
+  const [selectedTargetPost, setSelectedTargetPost] = useState<number | null>(null);
+  const [sourcePreviewValues, setSourcePreviewValues] = useState<Record<string, string>>({});
+  const [targetPreviewValues, setTargetPreviewValues] = useState<Record<string, string>>({});
+  const [sourceFullValues, setSourceFullValues] = useState<Record<string, string>>({});
+  const [targetFullValues, setTargetFullValues] = useState<Record<string, string>>({});
 
   // Fetch post types on mount
   useEffect(() => {
@@ -94,6 +103,66 @@ export default function FieldMappingsPage(): React.ReactElement {
       return () => clearTimeout(timer);
     }
   }, [error, success]);
+
+  // Fetch post lists when preview is enabled or post types change
+  useEffect(() => {
+    if (!previewEnabled || !sourceType || !targetType) return;
+
+    setSelectedSourcePost(null);
+    setSelectedTargetPost(null);
+    setSourcePreviewValues({});
+    setTargetPreviewValues({});
+    setSourceFullValues({});
+    setTargetFullValues({});
+
+    fetch(`/api/field-mappings/preview?postType=${sourceType}`)
+      .then((res) => res.json())
+      .then((data) => setSourcePosts(data.posts || []))
+      .catch(() => setSourcePosts([]));
+
+    fetch(`/api/field-mappings/preview?postType=${targetType}`)
+      .then((res) => res.json())
+      .then((data) => setTargetPosts(data.posts || []))
+      .catch(() => setTargetPosts([]));
+  }, [previewEnabled, sourceType, targetType]);
+
+  // Fetch source post field values
+  useEffect(() => {
+    if (!selectedSourcePost) {
+      setSourcePreviewValues({});
+      setSourceFullValues({});
+      return;
+    }
+    fetch(`/api/field-mappings/preview?postId=${selectedSourcePost}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setSourcePreviewValues(data.values || {});
+        setSourceFullValues(data.fullValues || {});
+      })
+      .catch(() => {
+        setSourcePreviewValues({});
+        setSourceFullValues({});
+      });
+  }, [selectedSourcePost]);
+
+  // Fetch target post field values
+  useEffect(() => {
+    if (!selectedTargetPost) {
+      setTargetPreviewValues({});
+      setTargetFullValues({});
+      return;
+    }
+    fetch(`/api/field-mappings/preview?postId=${selectedTargetPost}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setTargetPreviewValues(data.values || {});
+        setTargetFullValues(data.fullValues || {});
+      })
+      .catch(() => {
+        setTargetPreviewValues({});
+        setTargetFullValues({});
+      });
+  }, [selectedTargetPost]);
 
   const handleSave = useCallback(
     async (newMappings: FieldMappingEntry[]) => {
@@ -228,6 +297,66 @@ export default function FieldMappingsPage(): React.ReactElement {
           </div>
         </div>
 
+        {/* Preview controls */}
+        {sourceType && targetType && sourceType !== targetType && (
+          <div className="mb-6">
+            <button
+              onClick={() => {
+                setPreviewEnabled((v) => !v);
+                if (previewEnabled) {
+                  setSelectedSourcePost(null);
+                  setSelectedTargetPost(null);
+                  setSourcePreviewValues({});
+                  setTargetPreviewValues({});
+                }
+              }}
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              {previewEnabled ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {previewEnabled ? 'Hide preview values' : 'Preview values'}
+            </button>
+
+            {previewEnabled && (
+              <div className="flex items-center gap-4 mt-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">
+                    Preview source post
+                  </label>
+                  <select
+                    value={selectedSourcePost ?? ''}
+                    onChange={(e) => setSelectedSourcePost(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  >
+                    <option value="">Select a post...</option>
+                    {sourcePosts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.title} (#{p.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">
+                    Preview target post
+                  </label>
+                  <select
+                    value={selectedTargetPost ?? ''}
+                    onChange={(e) => setSelectedTargetPost(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  >
+                    <option value="">Select a post...</option>
+                    {targetPosts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.title} (#{p.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Editor */}
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
@@ -246,6 +375,10 @@ export default function FieldMappingsPage(): React.ReactElement {
               targetFields={targetFields}
               initialMappings={mappings}
               onSave={handleSave}
+              sourcePreviewValues={previewEnabled ? sourcePreviewValues : undefined}
+              targetPreviewValues={previewEnabled ? targetPreviewValues : undefined}
+              sourceFullValues={previewEnabled ? sourceFullValues : undefined}
+              targetFullValues={previewEnabled ? targetFullValues : undefined}
             />
           </div>
         ) : null}

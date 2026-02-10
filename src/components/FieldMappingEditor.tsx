@@ -52,6 +52,10 @@ interface FieldMappingEditorProps {
   targetFields: MappableField[];
   initialMappings: FieldMappingEntry[];
   onSave: (mappings: FieldMappingEntry[]) => Promise<void>;
+  sourcePreviewValues?: Record<string, string>;
+  targetPreviewValues?: Record<string, string>;
+  sourceFullValues?: Record<string, string>;
+  targetFullValues?: Record<string, string>;
 }
 
 // ─── Category icon helper ────────────────────────────────────────────────
@@ -134,11 +138,15 @@ function DraggableField({
   mappingIndex,
   isMapped,
   fieldRef,
+  previewValue,
+  tooltipValue,
 }: {
   field: MappableField;
   mappingIndex: number;
   isMapped: boolean;
   fieldRef?: (el: HTMLDivElement | null) => void;
+  previewValue?: string;
+  tooltipValue?: string;
 }): React.ReactElement {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `source-${field.key}`,
@@ -168,8 +176,18 @@ function DraggableField({
     >
       <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
       <CategoryIcon category={field.category} />
-      <span className="text-sm font-medium flex-1 truncate">{field.label}</span>
-      <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full uppercase', categoryBadgeColor(field.category))}>
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium truncate block">{field.label}</span>
+        {previewValue && (
+          <span
+            className="text-xs text-gray-400 break-words line-clamp-5 block cursor-default"
+            title={tooltipValue || previewValue}
+          >
+            {previewValue}
+          </span>
+        )}
+      </div>
+      <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full uppercase flex-shrink-0', categoryBadgeColor(field.category))}>
         {field.category}
       </span>
     </div>
@@ -185,6 +203,8 @@ function DroppableField({
   mappedSourceLabel,
   onRemove,
   fieldRef,
+  previewValue,
+  tooltipValue,
 }: {
   field: MappableField;
   mappingIndex: number;
@@ -192,6 +212,8 @@ function DroppableField({
   mappedSourceLabel?: string;
   onRemove?: () => void;
   fieldRef?: (el: HTMLDivElement | null) => void;
+  previewValue?: string;
+  tooltipValue?: string;
 }): React.ReactElement {
   const { isOver, setNodeRef } = useDroppable({
     id: `target-${field.key}`,
@@ -221,8 +243,16 @@ function DroppableField({
             {mappedSourceLabel}
           </span>
         )}
+        {previewValue && (
+          <span
+            className="text-xs text-gray-400 break-words line-clamp-5 block cursor-default"
+            title={tooltipValue || previewValue}
+          >
+            {previewValue}
+          </span>
+        )}
       </div>
-      <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full uppercase', categoryBadgeColor(field.category))}>
+      <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full uppercase flex-shrink-0', categoryBadgeColor(field.category))}>
         {field.category}
       </span>
       {isMapped && onRemove && (
@@ -273,6 +303,10 @@ export function FieldMappingEditor({
   targetFields,
   initialMappings,
   onSave,
+  sourcePreviewValues,
+  targetPreviewValues,
+  sourceFullValues,
+  targetFullValues,
 }: FieldMappingEditorProps): React.ReactElement {
   const [mappings, setMappings] = useState<FieldMappingEntry[]>(initialMappings);
   const [activeField, setActiveField] = useState<MappableField | null>(null);
@@ -518,7 +552,7 @@ export function FieldMappingEditor({
             </svg>
           )}
           {/* Source column */}
-          <div style={{ zIndex: 1 }}>
+          <div className="min-w-0 overflow-hidden" style={{ zIndex: 1 }}>
             <h3 className="text-sm font-semibold text-gray-700 mb-3 px-1">
               Source: {sourcePostType.name}
             </h3>
@@ -531,6 +565,8 @@ export function FieldMappingEditor({
                     field={field}
                     mappingIndex={idx}
                     isMapped={idx >= 0}
+                    previewValue={sourcePreviewValues?.[field.key]}
+                    tooltipValue={sourceFullValues?.[field.key]}
                     fieldRef={(el) => {
                       if (el) {
                         sourceRefs.current.set(field.key, el);
@@ -565,7 +601,7 @@ export function FieldMappingEditor({
           </div>
 
           {/* Target column */}
-          <div style={{ zIndex: 1 }}>
+          <div className="min-w-0 overflow-hidden" style={{ zIndex: 1 }}>
             <h3 className="text-sm font-semibold text-gray-700 mb-3 px-1">
               Target: {targetPostType.name}
             </h3>
@@ -581,6 +617,8 @@ export function FieldMappingEditor({
                     isMapped={idx >= 0}
                     mappedSourceLabel={mappedSource?.label}
                     onRemove={() => handleRemoveMapping(field.key)}
+                    previewValue={targetPreviewValues?.[field.key]}
+                    tooltipValue={targetFullValues?.[field.key]}
                     fieldRef={(el) => {
                       if (el) {
                         targetRefs.current.set(field.key, el);
