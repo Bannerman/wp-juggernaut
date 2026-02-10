@@ -75,6 +75,40 @@ export function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '');
 }
 
+/**
+ * Maps an array of items through an async function with a concurrency limit.
+ */
+export async function pMap<T, R>(
+  items: T[],
+  mapper: (item: T) => Promise<R>,
+  concurrency: number
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let currentIndex = 0;
+  let hasError = false;
+
+  async function worker() {
+    while (currentIndex < items.length && !hasError) {
+      const index = currentIndex++;
+      try {
+        results[index] = await mapper(items[index]);
+      } catch (err) {
+        hasError = true;
+        throw err;
+      }
+    }
+  }
+
+  const workers = [];
+  const numWorkers = Math.min(concurrency, items.length);
+  for (let i = 0; i < numWorkers; i++) {
+    workers.push(worker());
+  }
+
+  await Promise.all(workers);
+  return results;
+}
+
 export const STATUS_COLORS: Record<string, string> = {
   publish: 'bg-green-100 text-green-800',
   draft: 'bg-yellow-100 text-yellow-800',
