@@ -32,8 +32,10 @@ const CORE_FIELDS: MappableField[] = [
 /** Convert a meta_box key like "text_content" to "Text Content" */
 function humanizeKey(key: string): string {
   return key
+    .replace(/^[-_]+|[-_]+$/g, '')  // trim leading/trailing separators
     .replace(/[-_]/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    || key;  // fallback to raw key if result is empty
 }
 
 /** Build the list of mappable fields for a post type (profile-based) */
@@ -126,12 +128,22 @@ async function discoverFields(postTypeSlug: string): Promise<{
     ptConfig.slug
   );
 
-  const metaFields: MappableField[] = discovered.metaKeys.map((key) => ({
-    key,
-    label: humanizeKey(key),
-    category: 'meta' as const,
-    type: 'unknown',
-  }));
+  // Build set of taxonomy meta_field keys (e.g., tax_intent, tax_topic)
+  // These are Meta Box's internal storage for taxonomy assignments,
+  // already handled by taxonomy fields — exclude them to avoid duplication.
+  const taxonomyMetaKeys = new Set<string>();
+  for (const tax of manager.getTaxonomies()) {
+    if (tax.meta_field) taxonomyMetaKeys.add(tax.meta_field);
+  }
+
+  const metaFields: MappableField[] = discovered.metaKeys
+    .filter((key) => !taxonomyMetaKeys.has(key))
+    .map((key) => ({
+      key,
+      label: humanizeKey(key),
+      category: 'meta' as const,
+      type: 'unknown',
+    }));
 
   const taxonomyFields: MappableField[] = discovered.taxonomies.map((tax) => ({
     key: tax.slug,
