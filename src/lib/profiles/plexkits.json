@@ -348,12 +348,6 @@
               "placeholder": "Feature description..."
             }
           }
-        },
-        {
-          "key": "text_",
-          "label": "Text ",
-          "type": "text",
-          "width": "full"
         }
       ],
       "timer": [
@@ -502,7 +496,8 @@
     }
   },
   "field_mappings": {
-    "resource->post": [
+    "resource->post": [],
+    "post->resource": [
       {
         "source": {
           "key": "title",
@@ -515,15 +510,104 @@
       },
       {
         "source": {
+          "key": "content",
+          "category": "core"
+        },
+        "target": {
           "key": "text_content",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "slug",
+          "category": "core"
+        },
+        "target": {
+          "key": "slug",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "status",
+          "category": "core"
+        },
+        "target": {
+          "key": "status",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "featured_media",
+          "category": "core"
+        },
+        "target": {
+          "key": "featured_media",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "excerpt",
+          "category": "core"
+        },
+        "target": {
+          "key": "intro_text",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "group_features",
           "category": "meta"
         },
         "target": {
-          "key": "content",
-          "category": "core"
+          "key": "group_features",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "group_changelog",
+          "category": "meta"
+        },
+        "target": {
+          "key": "group_changelog",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "timer_single_datetime",
+          "category": "meta"
+        },
+        "target": {
+          "key": "timer_single_datetime",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "timer_title",
+          "category": "meta"
+        },
+        "target": {
+          "key": "timer_title",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "timer_enable",
+          "category": "meta"
+        },
+        "target": {
+          "key": "timer_enable",
+          "category": "meta"
         }
       }
-    ],
-    "post->resource": []
+    ]
   }
 }

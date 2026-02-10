@@ -48,6 +48,40 @@ interface TabLayoutEditorProps {
 // Tabs with hardcoded rendering — shown with lock icon, non-editable in the layout editor
 const HARDCODED_TAB_IDS = new Set(['basic', 'seo', 'classification', 'ai']);
 
+// Read-only field summaries for core/hardcoded tabs so users can see what's in them
+const CORE_TAB_FIELDS: Record<string, Array<{ label: string; type: string; note?: string }>> = {
+  basic: [
+    { label: 'Title', type: 'text' },
+    { label: 'URL Slug', type: 'text' },
+    { label: 'Featured Image', type: 'url + upload', note: 'Image preview with upload support' },
+  ],
+  seo: [
+    { label: 'SEO Title', type: 'text', note: '60 character limit' },
+    { label: 'Meta Description', type: 'textarea', note: '160 character limit' },
+    { label: 'Target Keywords', type: 'text', note: 'Comma-separated' },
+    { label: 'Canonical URL', type: 'url' },
+    { label: 'OG Title', type: 'text', note: 'Facebook / Open Graph' },
+    { label: 'OG Description', type: 'text' },
+    { label: 'OG Image URL', type: 'url' },
+    { label: 'Twitter Title', type: 'text', note: 'Twitter / X' },
+    { label: 'Twitter Description', type: 'text' },
+    { label: 'Twitter Image URL', type: 'url' },
+    { label: 'No Index', type: 'checkbox', note: 'Robots' },
+    { label: 'No Follow', type: 'checkbox' },
+    { label: 'No Snippet', type: 'checkbox' },
+    { label: 'No Image Index', type: 'checkbox' },
+  ],
+  classification: [
+    { label: 'Taxonomies', type: 'multi-select', note: 'All configured taxonomies with filter support' },
+  ],
+  ai: [
+    { label: 'Copy AI Fill Prompt', type: 'action', note: 'Generates prompt for all content fields' },
+    { label: 'Copy Image Prompt', type: 'action', note: 'Generates prompt for featured image ideas' },
+    { label: 'Paste AI Response', type: 'textarea', note: 'Paste and parse AI-generated content' },
+    { label: 'Apply to Fields', type: 'action', note: 'Auto-fills title, content, SEO, taxonomies, etc.' },
+  ],
+};
+
 const FIELD_TYPE_OPTIONS: FieldDefinition['type'][] = [
   'text', 'textarea', 'number', 'checkbox', 'date', 'datetime',
   'color', 'select', 'url', 'repeater', 'textarea-list',
@@ -353,15 +387,37 @@ export function TabLayoutEditor({
             Select a tab to configure its fields
           </div>
         ) : isCoreTabs ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <Lock className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">
-                {selectedTabId === 'seo'
-                  ? 'This tab is provided by the SEOPress plugin and cannot be edited here.'
-                  : 'This is a core tab and cannot be edited here.'}
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Fields — {tabs.find((t) => t.id === selectedTabId)?.label}
               </p>
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-xs text-gray-500">
+                <Lock className="w-3 h-3" />
+                {selectedTabId === 'seo' ? 'SEOPress plugin' : 'Core tab'}
+              </span>
             </div>
+            <div className="space-y-2 opacity-50 pointer-events-none select-none">
+              {(CORE_TAB_FIELDS[selectedTabId] ?? []).map((field, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg"
+                >
+                  <span className="flex-1 text-sm text-gray-600">{field.label}</span>
+                  <span className="text-xs px-2 py-1 rounded border border-gray-200 bg-gray-50 text-gray-500">
+                    {field.type}
+                  </span>
+                  {field.note && (
+                    <span className="text-xs text-gray-400 max-w-[180px] truncate">{field.note}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-gray-400 text-center">
+              {selectedTabId === 'seo'
+                ? 'This tab is provided by the SEOPress plugin and cannot be edited here.'
+                : 'This is a core tab and cannot be edited in Tab Layout.'}
+            </p>
           </div>
         ) : (
           <div>

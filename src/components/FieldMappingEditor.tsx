@@ -59,6 +59,7 @@ interface FieldMappingEditorProps {
   showFieldKeys?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>;
+  headerActions?: React.ReactNode;
 }
 
 // ─── Category icon helper ────────────────────────────────────────────────
@@ -327,6 +328,7 @@ export function FieldMappingEditor({
   showFieldKeys,
   onDirtyChange,
   saveRef,
+  headerActions,
 }: FieldMappingEditorProps): React.ReactElement {
   const [mappings, setMappings] = useState<FieldMappingEntry[]>(initialMappings);
   const [activeField, setActiveField] = useState<MappableField | null>(null);
@@ -511,6 +513,7 @@ export function FieldMappingEditor({
         <span className="text-gray-400">
           ({mappings.length} mapping{mappings.length !== 1 ? 's' : ''})
         </span>
+        {headerActions && <div className="ml-auto flex items-center gap-3">{headerActions}</div>}
       </div>
 
       {/* Legend */}
