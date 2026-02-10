@@ -496,7 +496,88 @@
     }
   },
   "field_mappings": {
-    "resource->post": [],
+    "resource->post": [
+      {
+        "source": {
+          "key": "title",
+          "category": "core"
+        },
+        "target": {
+          "key": "title",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "slug",
+          "category": "core"
+        },
+        "target": {
+          "key": "slug",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "status",
+          "category": "core"
+        },
+        "target": {
+          "key": "status",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "featured_media",
+          "category": "core"
+        },
+        "target": {
+          "key": "featured_media",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "text_content",
+          "category": "meta"
+        },
+        "target": {
+          "key": "content",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "intro_text",
+          "category": "meta"
+        },
+        "target": {
+          "key": "excerpt",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "download_sections",
+          "category": "meta"
+        },
+        "target": {
+          "key": "download_sections",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "group_changelog",
+          "category": "meta"
+        },
+        "target": {
+          "key": "group_changelog",
+          "category": "meta"
+        }
+      }
+    ],
     "post->resource": [
       {
         "source": {

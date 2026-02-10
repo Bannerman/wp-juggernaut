@@ -119,6 +119,27 @@ function mergeDiscoveredFields(
   return merged;
 }
 
+/**
+ * Build a map of field key → human-written label from all field_layout entries
+ * across the entire profile. Used to prefer profile labels over auto-generated ones
+ * when a discovered field exists in another post type's tab layout.
+ */
+function getProfileFieldLabels(): Map<string, string> {
+  const manager = getProfileManager();
+  const ui = manager.getUIConfig();
+  const labels = new Map<string, string>();
+  if (ui?.field_layout) {
+    for (const tabFields of Object.values(ui.field_layout)) {
+      for (const field of tabFields) {
+        if (!labels.has(field.key)) {
+          labels.set(field.key, field.label);
+        }
+      }
+    }
+  }
+  return labels;
+}
+
 /** Discover fields from WordPress for a post type, returning MappableField arrays + schema */
 async function discoverFields(postTypeSlug: string): Promise<{
   metaFields: MappableField[];
@@ -148,11 +169,14 @@ async function discoverFields(postTypeSlug: string): Promise<{
     if (tax.meta_field) taxonomyMetaKeys.add(tax.meta_field);
   }
 
+  // Prefer human-written labels from profile over auto-generated ones
+  const profileLabels = getProfileFieldLabels();
+
   const metaFields: MappableField[] = discovered.metaKeys
     .filter((key) => !taxonomyMetaKeys.has(key))
     .map((key) => ({
       key,
-      label: humanizeKey(key),
+      label: profileLabels.get(key) ?? humanizeKey(key),
       category: 'meta' as const,
       type: 'unknown',
     }));
