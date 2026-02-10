@@ -58,6 +58,8 @@ npm run db:init          # Initialize SQLite database
 1. **UI Components** (`src/components/`)
    - Client-side React with `'use client'` directive
    - ResourceTable (tanstack/react-table), EditModal, CreateModal, FilterPanel
+   - TabLayoutEditor - Visual editor for custom tab/field configuration
+   - FieldMappingEditor - Drag-and-drop field mapping between post types
    - UpdateNotifier for Electron auto-updates
 
 2. **API Routes** (`src/app/api/`)
@@ -68,6 +70,7 @@ npm run db:init          # Initialize SQLite database
    - `/api/profile` - Site configuration
    - `/api/plugins` - Plugin management
    - `/api/field-mappings` - Field mapping CRUD (auto-discovers fields from WP)
+   - `/api/tab-layout` - Tab layout CRUD (create/reorder/delete custom tabs, assign fields)
    - `/api/discover-fields` - Discover meta/taxonomy fields per post type from WP
 
 3. **Business Logic** (`src/lib/`)
@@ -92,6 +95,25 @@ npm run db:init          # Initialize SQLite database
 - **Batch push**: Groups of 25 via WP batch API
 - **Plugin system**: Hook-based extensibility
 - **Profile system**: JSON configurations per site
+- **Tab system**: `CORE_TAB_IDS` (basic, classification, ai) always show regardless of plugins; `HARDCODED_TAB_IDS` (+ seo) have custom JSX rendering and can't be edited in Tab Layout; all other tabs are dynamic and rendered via `DynamicTab` + `FieldRenderer`
+- **Taxonomy dual push**: Taxonomy data is sent both as top-level REST fields AND as `meta_box.tax_xyz` fields; `tax_xyz` meta keys are filtered from Tab Layout and Field Mapping available fields to avoid double-editing
+
+## Settings Pages
+
+Settings are accessible from the gear icon in the main UI:
+
+- **`/settings`** - Main settings page (post type configs, plugin management)
+- **`/settings/field-mappings`** - Map fields between post types for conversion
+- **`/settings/tab-layout`** - Visual editor for configuring custom EditModal tabs and their fields per post type
+
+### Tab Layout Architecture
+
+The EditModal has core tabs (Basic, Classification, AI Fill) that always show, plugin tabs (SEO via SEOPress), and dynamic tabs defined in `ui.tabs` + `ui.field_layout` in the profile JSON. The Tab Layout editor allows visual configuration of dynamic tabs:
+
+- **Profile storage**: `plexkits.json` → `ui.tabs[]` (tab definitions) + `ui.field_layout{}` (fields per tab)
+- **Field discovery**: Available fields are discovered from WordPress via `discoverFieldsForPostType()`
+- **Safe merge**: PUT uses `initialTabIds` to diff what was deleted vs. never loaded, preventing accidental deletion of tabs scoped to other post types
+- **In-memory sync**: After file save, `ProfileManager.setTabs()` / `setFieldLayout()` update the singleton
 
 ## Environment Setup
 
