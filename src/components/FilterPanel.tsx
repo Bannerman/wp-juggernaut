@@ -139,6 +139,7 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
                               if (term) toggleTerm(taxonomy, term.id);
                             }}
                             className="hover:text-brand-900"
+                            aria-label={`Remove ${name} filter`}
                           >
                             <X className="w-3 h-3" />
                           </button>

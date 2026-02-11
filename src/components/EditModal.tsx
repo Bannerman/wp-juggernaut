@@ -1186,14 +1186,19 @@ Current data:
       <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onClose} />
 
       <div className="relative min-h-full flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl w-[900px] h-[85vh] flex flex-col overflow-hidden">
+        <div
+          className="relative bg-white rounded-xl shadow-xl w-[900px] h-[85vh] flex flex-col overflow-hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-title"
+        >
           {/* Header */}
           <div className={cn(
             "flex items-center justify-between px-6 py-4 border-b border-gray-200",
             isCreateMode && "bg-green-50"
           )}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 line-clamp-1">
+              <h2 id="modal-title" className="text-lg font-semibold text-gray-900 line-clamp-1">
                 {isCreateMode ? (title || `New ${postTypeLabel}`) : title}
               </h2>
               {!isCreateMode && (
@@ -1216,7 +1221,11 @@ Current data:
               )}
               {isCreateMode && <p className="text-sm text-green-600">Creating new {postTypeLabel.toLowerCase()}</p>}
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              aria-label="Close modal"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -1248,12 +1257,14 @@ Current data:
             {activeTab === 'basic' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                  <label htmlFor="resource-title" className="block text-sm font-medium text-gray-700 mb-1">Title</label>
                   <input
+                    id="resource-title"
                     type="text"
                     value={title}
                     onChange={(e) => handleTitleChange(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    autoFocus
                   />
                 </div>
                 <div>
