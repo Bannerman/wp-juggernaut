@@ -11,8 +11,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getResourceById } from '@/lib/queries';
-import { getPluginData, savePluginData } from '@/lib/queries';
-import { createResource, updateResource } from '@/lib/wp-client';
+import { savePluginData } from '@/lib/queries';
+import { createResource } from '@/lib/wp-client';
 import { getWpBaseUrl, getWpCredentials } from '@/lib/wp-client';
 import { saveResource } from '@/lib/sync';
 import { seopressPlugin } from '@/lib/plugins/bundled/seopress';
@@ -96,10 +96,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Start with basic fields that always carry over
+    // Create as draft so the user can review and push when ready
     const payload: Record<string, unknown> = {
       title: resource.title,
       slug: resource.slug,
-      status: resource.status,
+      status: 'draft',
+      featured_media: resource.featured_media || 0,
     };
 
     // Apply field mappings (handles core↔meta, core↔core, meta↔meta)
@@ -176,7 +178,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // ─── Step 4: Save the new post to local database ────────────────────────
 
-    saveResource(newPost, undefined, targetPostType);
+    // Copy the featured image URL from the source post (already resolved during sync)
+    const sourceImageUrl = resource.meta_box?.featured_image_url as string | undefined;
+    saveResource(newPost, sourceImageUrl || undefined, targetPostType);
+
+    // Mark as dirty so the user can review and push when ready
+    const db = getDb();
+    db.prepare('UPDATE posts SET is_dirty = 1 WHERE id = ?').run(newPost.id);
 
     // Copy SEO data to the new post if it exists
     const seoData = seopressPlugin.getLocalSEOData(resourceId);
@@ -187,20 +195,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // ─── Step 5: Trash the old WP post ──────────────────────────────────────
 
     if (trashOldPost) {
+      // Try to trash on WordPress via DELETE endpoint
       try {
-        // WordPress REST API: POST with status=trash to move to trash
-        await updateResource(resourceId, { status: 'trash' } as Record<string, unknown> & { title: string }, sourceRestBase);
-        console.log(`[convert] Trashed old post #${resourceId}`);
-
-        // Remove from local database
-        const db = getDb();
-        db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(resourceId);
-        db.prepare('DELETE FROM post_terms WHERE post_id = ?').run(resourceId);
-        db.prepare('DELETE FROM plugin_data WHERE post_id = ?').run(resourceId);
-        db.prepare('DELETE FROM posts WHERE id = ?').run(resourceId);
+        const trashUrl = `${baseUrl}/wp-json/wp/v2/${sourceRestBase}/${resourceId}`;
+        console.log(`[convert] Trashing old post: DELETE ${trashUrl}`);
+        const trashResponse = await fetch(trashUrl, {
+          method: 'DELETE',
+          headers: { Authorization: authHeader },
+        });
+        if (!trashResponse.ok) {
+          const trashError = await trashResponse.text();
+          errors.push(`Failed to trash on WordPress: HTTP ${trashResponse.status} - ${trashError}`);
+          console.error(`[convert] Trash failed: ${trashResponse.status} - ${trashError}`);
+        } else {
+          console.log(`[convert] Trashed old post #${resourceId} on WordPress`);
+        }
       } catch (error) {
-        errors.push(`Failed to trash old post: ${error}`);
+        errors.push(`Failed to trash on WordPress: ${error}`);
+        console.error(`[convert] Trash request failed:`, error);
       }
+
+      // Always remove from local database regardless of WP result
+      db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(resourceId);
+      db.prepare('DELETE FROM post_terms WHERE post_id = ?').run(resourceId);
+      db.prepare('DELETE FROM plugin_data WHERE post_id = ?').run(resourceId);
+      db.prepare('DELETE FROM posts WHERE id = ?').run(resourceId);
+      console.log(`[convert] Removed old post #${resourceId} from local database`);
     }
 
     return NextResponse.json({

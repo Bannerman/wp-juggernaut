@@ -41,7 +41,7 @@ interface ConvertPostTypeModalProps {
   postTypes: PostTypeConfig[];
   taxonomyConfig: TaxonomyConfig[];
   onClose: () => void;
-  onConvert: (result: { newPostId: number }) => void;
+  onConvert: (result: { newPostId: number; warnings?: string[] }) => void;
 }
 
 export function ConvertPostTypeModal({
@@ -145,7 +145,9 @@ export function ConvertPostTypeModal({
         throw new Error(result.error || 'Conversion failed');
       }
 
-      onConvert({ newPostId: result.newPostId });
+      // Surface partial errors (e.g. trash failed but conversion succeeded)
+      const warnings = result.errors as string[] | undefined;
+      onConvert({ newPostId: result.newPostId, warnings });
     } catch (err) {
       setError(String(err));
     } finally {
