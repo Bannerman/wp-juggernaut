@@ -33,7 +33,7 @@ The spec document (`docs/v1.0-spec.md`) contains architecture decisions, impleme
 - **Testing:** Jest + Testing Library
 - **UI Libraries:** Tanstack React Table, Lucide icons, clsx + tailwind-merge
 
-**Current Version:** 0.9.6
+**Current Version:** 0.9.8
 
 ### **Project Structure**
 
