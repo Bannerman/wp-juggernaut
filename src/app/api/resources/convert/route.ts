@@ -102,6 +102,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       slug: resource.slug,
       status: 'draft',
       featured_media: resource.featured_media || 0,
+      date_gmt: resource.date_gmt,
     };
 
     // Apply field mappings (handles core↔meta, core↔core, meta↔meta)
