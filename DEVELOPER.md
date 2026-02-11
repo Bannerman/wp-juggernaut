@@ -293,13 +293,19 @@ npm run electron:build:mac  # Builds macOS app (Intel + Apple Silicon)
 
 ### "I want to add support for a new WordPress plugin"
 
-1. Create a directory: `src/lib/plugins/bundled/your-plugin/`
-2. Add `manifest.json` with plugin metadata
-3. Create `index.ts` implementing `JuggernautPlugin`
+See the **[Plugin Authoring Guide](docs/plugin-authoring.md)** for a complete walkthrough with code examples.
+
+**Quick version:**
+
+1. Copy the example skeleton: `cp -r src/lib/plugins/bundled/_example src/lib/plugins/bundled/your-plugin`
+2. Edit `manifest.json` with your plugin's metadata
+3. Implement your plugin class in `index.ts` (lifecycle, hooks, detection)
 4. Register it in `src/lib/plugins/bundled/index.ts`
 5. Add data transform hooks for sync/push if the plugin stores custom fields
-6. Optionally add UI components via `getTabs()` / `getFieldRenderers()`
-7. **Zero changes to core code required** if the plugin system is working correctly
+6. Optionally register custom field renderers via `registerFieldRenderer()` from `@/components/fields`
+7. Optionally register custom tab components via `registerPluginTab()` from `@/components/fields`
+8. Add to a profile's `required_plugins` to activate it
+9. **Zero changes to core code required** — the plugin system handles discovery, lifecycle, and UI wiring
 
 ### "I want to add a new API route"
 

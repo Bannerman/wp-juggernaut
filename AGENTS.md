@@ -166,14 +166,15 @@ These were added during Phase 2 and do not have corresponding `modules/*/spec.ya
 
 ## **5. Plugin System**
 
-Juggernaut uses a modular plugin architecture:
+Juggernaut uses a modular plugin architecture. See **[`docs/plugin-authoring.md`](docs/plugin-authoring.md)** for the full plugin creation guide with step-by-step instructions and a copy-pasteable skeleton (`src/lib/plugins/bundled/_example/`).
 
-- **Bundled Plugins** (`src/lib/plugins/bundled/`): MetaBox, SEOPress
+- **Bundled Plugins** (`src/lib/plugins/bundled/`): MetaBox, SEOPress, _example (template)
 - **Profile System** (`src/lib/profiles/`): Site-specific configurations (e.g., `plexkits.json`)
 - **Hook System** (`src/lib/plugins/hooks.ts`): Event-driven extension points with priority ordering
 - **Plugin Registry** (`src/lib/plugins/registry.ts`): Plugin registration and lifecycle
 - **Plugin Loader** (`src/lib/plugins/loader.ts`): Dynamic plugin loading
 - **Plugin Types** (`src/lib/plugins/types.ts`): Shared type definitions (~700 lines of interfaces)
+- **UI Registration** (`src/components/fields/`): `registerFieldRenderer()` for custom field types, `registerPluginTab()` for custom tab components
 
 ## **6. Settings Pages**
 

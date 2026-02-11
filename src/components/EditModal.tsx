@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { X, Save, AlertTriangle, Sparkles, Check, Wand2, Upload, Image as ImageIcon, Loader2, Search, Globe, Share2, Repeat } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { imagePipeline, createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
-import { DynamicTab } from '@/components/fields';
+import { DynamicTab, getPluginTab } from '@/components/fields';
+import type { PluginTabProps } from '@/components/fields';
 import type { FieldDefinition } from '@/lib/plugins/types';
 
 interface Term {
@@ -1651,6 +1652,22 @@ Current data:
                 resourceTitle={title}
               />
             )}
+
+            {/* Plugin-registered Tabs (custom React components via registerPluginTab) */}
+            {!HARDCODED_TAB_IDS.has(activeTab) && !(fieldLayout && fieldLayout[activeTab]) && (() => {
+              const PluginTab = getPluginTab(activeTab);
+              if (!PluginTab) return null;
+              return (
+                <PluginTab
+                  key={activeTab}
+                  resource={effectiveResource}
+                  terms={terms}
+                  updateMetaField={updateMetaField}
+                  isCreateMode={isCreateMode}
+                  siteUrl={siteUrl}
+                />
+              );
+            })()}
 
             {/* AI Fill Tab */}
             {activeTab === 'ai' && (
