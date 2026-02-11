@@ -12,7 +12,7 @@ const subFieldWidthClasses: Record<string, string> = {
   quarter: 'w-[calc(25%-0.5625rem)]',
 };
 
-export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: FieldRendererProps) {
+export function RepeaterRenderer({ field, value, onChange, terms, depth = 0, resourceTitle }: FieldRendererProps) {
   const items = Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
   const subFields = field.fields ? Object.values(field.fields) : [];
 
@@ -26,7 +26,12 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
       } else if (sf.type === 'textarea-list') {
         empty[sf.key] = [];
       } else {
-        empty[sf.key] = sf.default_value ?? '';
+        let defaultVal = sf.default_value ?? '';
+        // Resolve {{title}} template in default values
+        if (typeof defaultVal === 'string' && resourceTitle) {
+          defaultVal = defaultVal.replace(/\{\{title\}\}/g, resourceTitle);
+        }
+        empty[sf.key] = defaultVal;
       }
     }
     onChange([...items, empty]);
@@ -102,6 +107,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
                 onChange={(val) => updateItem(index, subFields[0].key, val)}
                 terms={terms}
                 depth={depth + 1}
+                resourceTitle={resourceTitle}
               />
               <button
                 type="button"
@@ -151,6 +157,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
                       onChange={(val) => updateItem(index, headerField.key, val)}
                       terms={terms}
                       depth={depth + 1}
+                      resourceTitle={resourceTitle}
                     />
                   </div>
                 )}
@@ -167,6 +174,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
                         updateItem={updateItem}
                         terms={terms}
                         depth={depth}
+                        resourceTitle={resourceTitle}
                       />
                     ))}
                   </div>
@@ -187,6 +195,7 @@ function SubFieldWrapper({
   updateItem,
   terms,
   depth,
+  resourceTitle,
 }: {
   subField: FieldDefinition;
   item: Record<string, unknown>;
@@ -194,6 +203,7 @@ function SubFieldWrapper({
   updateItem: (index: number, key: string, value: unknown) => void;
   terms?: Record<string, Array<{ id: number; name: string }>>;
   depth: number;
+  resourceTitle?: string;
 }) {
   // Evaluate conditional visibility within the repeater item
   if (subField.conditional) {
@@ -237,6 +247,7 @@ function SubFieldWrapper({
         onChange={(val) => updateItem(index, subField.key, val)}
         terms={terms}
         depth={depth + 1}
+        resourceTitle={resourceTitle}
       />
     </div>
   );

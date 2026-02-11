@@ -85,7 +85,28 @@ timer_enabled: {{timer_enabled}}
 timer_title: {{timer_title}}
 timer_datetime: {{timer_datetime}}
 
+---DOWNLOADS---
+Use this EXACT format for each download section. The first section heading MUST follow the pattern "Download the [Post Title]".
+Multiple sections are separated by a blank line. Each link is on its own line starting with "- ".
+Format per section:
+section: [Section Heading]
+color: [hex color, e.g., #6366f1]
+archive: yes|no
+links:
+- text: [Link Text] | format: [File Format] | type: link | url: [URL]
+
+Current data:
+{{downloads}}
+
 ---CHANGELOG---
+Use this EXACT format for changelog entries. Multiple entries are separated by a blank line.
+Format per entry:
+version: [version number]
+date: [YYYY-MM-DD]
+notes:
+- [change description]
+
+Current data:
 {{changelog}}
 
 ---SEO---
@@ -329,6 +350,7 @@ export const PLACEHOLDER_TAGS = [
   { tag: '{{timer_enabled}}', description: 'Timer enabled (yes/no)' },
   { tag: '{{timer_title}}', description: 'Timer title text' },
   { tag: '{{timer_datetime}}', description: 'Timer date/time' },
+  { tag: '{{downloads}}', description: 'Download sections (formatted)' },
   { tag: '{{changelog}}', description: 'Changelog entries (formatted)' },
   { tag: '{{seo_title}}', description: 'SEO title (max 60 chars)' },
   { tag: '{{seo_description}}', description: 'Meta description (max 160 chars)' },

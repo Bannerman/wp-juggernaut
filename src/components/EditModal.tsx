@@ -456,6 +456,45 @@ export function EditModal({
         ).join('\n\n')
       : 'version: 1.0\ndate: [YYYY-MM-DD]\nnotes:\n- Initial release';
 
+    // Build downloads block from existing download_sections
+    const aiDownloads = (metaBox.download_sections as Array<{
+      download_section_heading: string;
+      download_section_color?: string;
+      download_archive?: boolean;
+      download_links?: Array<{
+        link_text: string;
+        download_link_type?: string;
+        download_file_format?: number;
+        download_link_url?: string;
+      }>;
+    }>) || [];
+
+    // Helper to resolve file_format term ID to name
+    const getFileFormatName = (termId?: number): string => {
+      if (!termId) return '';
+      const formatTerms = terms['file_format'] || [];
+      const matched = formatTerms.find(t => t.id === termId);
+      return matched ? matched.name : '';
+    };
+
+    const downloadsBlock = aiDownloads.length > 0
+      ? aiDownloads.map(section => {
+          const lines = [`section: ${section.download_section_heading}`];
+          if (section.download_section_color) lines.push(`color: ${section.download_section_color}`);
+          lines.push(`archive: ${section.download_archive ? 'yes' : 'no'}`);
+          lines.push('links:');
+          (section.download_links || []).forEach(link => {
+            const parts = [`text: ${link.link_text}`];
+            const formatName = getFileFormatName(link.download_file_format);
+            if (formatName) parts.push(`format: ${formatName}`);
+            parts.push(`type: ${link.download_link_type || 'link'}`);
+            if (link.download_link_url) parts.push(`url: ${link.download_link_url}`);
+            lines.push(`- ${parts.join(' | ')}`);
+          });
+          return lines.join('\n');
+        }).join('\n\n')
+      : `section: Download the ${title || '[Post Title]'}\ncolor: [hex color, e.g., #6366f1]\narchive: no\nlinks:\n- text: [Link Text] | format: [File Format] | type: link | url: [URL]`;
+
     // Build placeholder replacements
     const replacements: Record<string, string> = {
       '{{title}}': title || '[Enter a descriptive title]',
@@ -467,6 +506,7 @@ export function EditModal({
       '{{timer_enabled}}': metaBox.timer_enable ? 'yes' : 'no',
       '{{timer_title}}': (metaBox.timer_title as string) || '[e.g., EVENT STARTS]',
       '{{timer_datetime}}': (metaBox.timer_single_datetime as string) || '[YYYY-MM-DDTHH:MM format]',
+      '{{downloads}}': downloadsBlock,
       '{{changelog}}': changelogBlock,
       // SEO fields
       '{{seo_title}}': seoData.title || '[SEO title - max 60 characters]',
@@ -511,7 +551,28 @@ timer_enabled: {{timer_enabled}}
 timer_title: {{timer_title}}
 timer_datetime: {{timer_datetime}}
 
+---DOWNLOADS---
+Use this EXACT format for each download section. The first section heading MUST follow the pattern "Download the [Post Title]".
+Multiple sections are separated by a blank line. Each link is on its own line starting with "- ".
+Format per section:
+section: [Section Heading]
+color: [hex color, e.g., #6366f1]
+archive: yes|no
+links:
+- text: [Link Text] | format: [File Format] | type: link | url: [URL]
+
+Current data:
+{{downloads}}
+
 ---CHANGELOG---
+Use this EXACT format for changelog entries. Multiple entries are separated by a blank line.
+Format per entry:
+version: [version number]
+date: [YYYY-MM-DD]
+notes:
+- [change description]
+
+Current data:
 {{changelog}}
 
 ---END---`;
@@ -649,8 +710,107 @@ timer_datetime: {{timer_datetime}}
         }
       }
 
+      // Parse Downloads
+      const downloadsMatch = content.match(/---DOWNLOADS---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
+      if (downloadsMatch && downloadsMatch[1].trim()) {
+        const downloadsContent = downloadsMatch[1].trim();
+        const sections: Array<{
+          download_section_heading: string;
+          download_section_color?: string;
+          download_archive?: boolean;
+          download_links: Array<{
+            link_text: string;
+            download_link_type: string;
+            download_file_format?: number;
+            download_link_url?: string;
+          }>;
+        }> = [];
+
+        // Split into section blocks by "section:" prefix
+        const sectionBlocks = downloadsContent.split(/(?=section:)/i).filter(Boolean);
+        sectionBlocks.forEach(block => {
+          const headingMatch = block.match(/section:\s*(.+)/i);
+          if (!headingMatch || headingMatch[1].includes('[')) return;
+
+          const colorMatch = block.match(/color:\s*(#[0-9a-fA-F]{3,8})/i);
+          const archiveMatch = block.match(/archive:\s*(yes|no)/i);
+          const linksContent = block.match(/links:\s*([\s\S]*?)(?=section:|$)/i);
+
+          const downloadLinks: Array<{
+            link_text: string;
+            download_link_type: string;
+            download_file_format?: number;
+            download_link_url?: string;
+          }> = [];
+
+          if (linksContent) {
+            // Match each link line — any prefix (-, *, •, or none)
+            // Just check if the line contains "text:" which is the required field
+            const linkLines = linksContent[1].split('\n').filter(l => {
+              const t = l.trim();
+              return t.length > 0 && t.toLowerCase().includes('text:');
+            });
+            linkLines.forEach(line => {
+              const stripped = line.replace(/^[-•*]\s*/, '').trim();
+              if (!stripped || stripped.startsWith('[')) return;
+
+              const textMatch = stripped.match(/text:\s*([^|]+)/i);
+              const formatMatch = stripped.match(/format:\s*([^|]+)/i);
+              const typeMatch = stripped.match(/type:\s*([^|]+)/i);
+              const urlMatch = stripped.match(/url:\s*(.+)/i);
+
+              if (textMatch && textMatch[1].trim()) {
+                const link: {
+                  link_text: string;
+                  download_link_type: string;
+                  download_file_format?: number;
+                  download_link_url?: string;
+                } = {
+                  link_text: textMatch[1].trim(),
+                  download_link_type: typeMatch ? typeMatch[1].trim().toLowerCase() : 'link',
+                };
+
+                // Resolve file format name to term ID
+                if (formatMatch && formatMatch[1].trim()) {
+                  const formatName = formatMatch[1].trim().toLowerCase();
+                  const formatTerms = terms['file_format'] || [];
+                  const matched = formatTerms.find(t => t.name.toLowerCase() === formatName);
+                  if (matched) {
+                    link.download_file_format = matched.id;
+                  }
+                }
+
+                if (urlMatch && urlMatch[1].trim()) {
+                  // Strip markdown link syntax: [url](url) → url
+                  let rawUrl = urlMatch[1].trim();
+                  const mdLink = rawUrl.match(/\[([^\]]+)\]\(([^)]+)\)/);
+                  if (mdLink) {
+                    rawUrl = mdLink[2];
+                  }
+                  link.download_link_url = rawUrl;
+                }
+
+                downloadLinks.push(link);
+              }
+            });
+          }
+
+          sections.push({
+            download_section_heading: headingMatch[1].trim(),
+            download_section_color: colorMatch ? colorMatch[1] : undefined,
+            download_archive: archiveMatch ? archiveMatch[1].toLowerCase() === 'yes' : false,
+            download_links: downloadLinks,
+          });
+        });
+
+        if (sections.length > 0) {
+          updatedMeta.download_sections = sections;
+          fieldsUpdated++;
+        }
+      }
+
       // Parse Changelog - handle notes with or without dash prefix
-      const changelogMatch = content.match(/---CHANGELOG---\s*([\s\S]*?)(?=---END---|$)/);
+      const changelogMatch = content.match(/---CHANGELOG---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
       if (changelogMatch && changelogMatch[1].trim()) {
         const changelogContent = changelogMatch[1].trim();
         const entries: Array<{ changelog_version: string; changelog_date: string; changelog_notes: string[] }> = [];
@@ -1488,6 +1648,7 @@ timer_datetime: {{timer_datetime}}
                 values={metaBox}
                 onChange={updateMetaField}
                 terms={terms}
+                resourceTitle={title}
               />
             )}
 

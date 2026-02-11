@@ -8,4 +8,6 @@ export interface FieldRendererProps {
   terms?: Record<string, Array<{ id: number; name: string }>>;
   /** Nesting depth for repeaters (0 = top level) */
   depth?: number;
+  /** Resource title for dynamic default_value templates (e.g. {{title}}) */
+  resourceTitle?: string;
 }
