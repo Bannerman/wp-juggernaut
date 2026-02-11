@@ -38,5 +38,6 @@ export function FieldRenderer(props: FieldRendererProps) {
     );
   }
 
+  // resourceTitle is passed through via ...props spread to all renderers
   return <Renderer {...props} />;
 }

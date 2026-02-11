@@ -9,6 +9,7 @@ interface DynamicTabProps {
   values: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
   terms?: Record<string, Array<{ id: number; name: string }>>;
+  resourceTitle?: string;
 }
 
 function evaluateConditional(
@@ -39,7 +40,7 @@ const widthClasses: Record<string, string> = {
   quarter: 'w-1/4',
 };
 
-export function DynamicTab({ fields, values, onChange, terms }: DynamicTabProps) {
+export function DynamicTab({ fields, values, onChange, terms, resourceTitle }: DynamicTabProps) {
   if (fields.length === 0) {
     return (
       <p className="text-sm text-gray-500 italic">No fields configured for this tab.</p>
@@ -68,6 +69,7 @@ export function DynamicTab({ fields, values, onChange, terms }: DynamicTabProps)
               onChange={(val) => onChange(field.key, val)}
               terms={terms}
               depth={0}
+              resourceTitle={resourceTitle}
             />
           </div>
         );

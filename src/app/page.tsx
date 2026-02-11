@@ -58,6 +58,7 @@ export default function Home() {
   const [stats, setStats] = useState<SyncStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
   const [isPushing, setIsPushing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -215,6 +216,7 @@ export default function Home() {
 
   const handleSync = async (incremental: boolean = false) => {
     setIsSyncing(true);
+    setSyncProgress(0);
     setError(null);
     setSuccess(null);
 
@@ -222,23 +224,58 @@ export default function Home() {
       const res = await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ incremental }),
+        body: JSON.stringify({ incremental, stream: true }),
       });
 
-      const result = await res.json();
-
       if (!res.ok) {
-        throw new Error(result.error || 'Sync failed');
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Sync failed');
       }
 
-      setSuccess(
-        `Synced ${result.resourcesUpdated} resources, ${result.taxonomiesUpdated} terms`
-      );
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalResult: { resourcesUpdated?: number; taxonomiesUpdated?: number; error?: string } | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let currentEvent = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+            if (currentEvent === 'progress') {
+              setSyncProgress(data.progress);
+            } else if (currentEvent === 'complete') {
+              finalResult = data;
+              setSyncProgress(1);
+            } else if (currentEvent === 'error') {
+              throw new Error(data.error || 'Sync failed');
+            }
+          }
+        }
+      }
+
+      if (finalResult) {
+        setSuccess(
+          `Synced ${finalResult.resourcesUpdated} resources, ${finalResult.taxonomiesUpdated} terms`
+        );
+      }
       await fetchData();
     } catch (err) {
       setError(String(err));
     } finally {
       setIsSyncing(false);
+      setSyncProgress(0);
     }
   };
 
@@ -433,7 +470,16 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       {/* Header - electron-drag allows window to be moved by dragging header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 electron-drag">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 electron-drag relative">
+        {/* Sync progress bar — overlays the bottom border */}
+        {isSyncing && (
+          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gray-200 z-10">
+            <div
+              className="h-full bg-brand-500 transition-all duration-300 ease-out"
+              style={{ width: `${Math.max(syncProgress * 100, 1)}%` }}
+            />
+          </div>
+        )}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
@@ -766,9 +812,13 @@ export default function Home() {
           postTypes={postTypes}
           taxonomyConfig={allTaxonomyConfig}
           onClose={() => setConvertingResource(null)}
-          onConvert={() => {
+          onConvert={({ warnings }) => {
             setConvertingResource(null);
-            setSuccess('Post type converted successfully');
+            if (warnings?.length) {
+              setSuccess(`Post type converted (as draft). Warnings: ${warnings.join('; ')}`);
+            } else {
+              setSuccess('Post type converted as draft. Review and push when ready.');
+            }
             fetchData();
           }}
         />
