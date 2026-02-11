@@ -77,6 +77,7 @@ export function stripHtml(html: string): string {
 
 /**
  * Maps an array of items through an async function with a concurrency limit.
+ * Useful for rate-limiting API requests (e.g. SEO data fetching).
  */
 export async function pMap<T, R>(
   items: T[],
