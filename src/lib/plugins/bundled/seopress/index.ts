@@ -239,136 +239,178 @@ class SEOPressPlugin implements JuggernautPlugin {
   ): Promise<{ success: boolean; errors: string[] }> {
     const errors: string[] = [];
 
-    // Update title and description
-    if (seoData.title !== undefined || seoData.description !== undefined) {
-      const payload: Record<string, string> = {};
-      if (seoData.title !== undefined) payload.title = seoData.title;
-      if (seoData.description !== undefined) payload.description = seoData.description;
+    const addError = (err: string | null) => {
+      if (err) errors.push(err);
+    };
 
-      try {
-        const res = await fetch(`${baseUrl}${SEOPRESS_ENDPOINTS.titleDescription(resourceId)}`, {
-          method: 'PUT',
-          headers: {
-            Authorization: authHeader,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          errors.push(`title-description: ${await res.text()}`);
-        }
-      } catch (err) {
-        errors.push(`title-description: ${err}`);
-      }
-    }
-
-    // Update target keywords
-    if (seoData.targetKeywords !== undefined) {
-      try {
-        const res = await fetch(`${baseUrl}${SEOPRESS_ENDPOINTS.targetKeywords(resourceId)}`, {
-          method: 'PUT',
-          headers: {
-            Authorization: authHeader,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            _seopress_analysis_target_kw: seoData.targetKeywords,
-          }),
-        });
-
-        if (!res.ok) {
-          errors.push(`target-keywords: ${await res.text()}`);
-        }
-      } catch (err) {
-        errors.push(`target-keywords: ${err}`);
-      }
-    }
-
-    // Update social settings
-    if (seoData.og || seoData.twitter) {
-      const socialPayload: Record<string, string> = {};
-
-      if (seoData.og) {
-        if (seoData.og.title !== undefined) socialPayload._seopress_social_fb_title = seoData.og.title;
-        if (seoData.og.description !== undefined) socialPayload._seopress_social_fb_desc = seoData.og.description;
-        if (seoData.og.image !== undefined) socialPayload._seopress_social_fb_img = seoData.og.image;
-      }
-
-      if (seoData.twitter) {
-        if (seoData.twitter.title !== undefined) socialPayload._seopress_social_twitter_title = seoData.twitter.title;
-        if (seoData.twitter.description !== undefined) socialPayload._seopress_social_twitter_desc = seoData.twitter.description;
-        if (seoData.twitter.image !== undefined) socialPayload._seopress_social_twitter_img = seoData.twitter.image;
-      }
-
-      if (Object.keys(socialPayload).length > 0) {
-        try {
-          const res = await fetch(`${baseUrl}${SEOPRESS_ENDPOINTS.socialSettings(resourceId)}`, {
-            method: 'PUT',
-            headers: {
-              Authorization: authHeader,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(socialPayload),
-          });
-
-          if (!res.ok) {
-            errors.push(`social-settings: ${await res.text()}`);
-          }
-        } catch (err) {
-          errors.push(`social-settings: ${err}`);
-        }
-      }
-    }
-
-    // Update robots settings
-    if (seoData.robots || seoData.canonical !== undefined) {
-      const robotsPayload: Record<string, string> = {};
-
-      if (seoData.robots) {
-        // SEOPress uses "yes" for enabling indexing, "no" for disabling
-        if (seoData.robots.noindex !== undefined) {
-          robotsPayload._seopress_robots_index = seoData.robots.noindex ? 'no' : 'yes';
-        }
-        if (seoData.robots.nofollow !== undefined) {
-          robotsPayload._seopress_robots_follow = seoData.robots.nofollow ? 'no' : 'yes';
-        }
-        if (seoData.robots.nosnippet !== undefined) {
-          robotsPayload._seopress_robots_snippet = seoData.robots.nosnippet ? 'no' : 'yes';
-        }
-        if (seoData.robots.noimageindex !== undefined) {
-          robotsPayload._seopress_robots_imageindex = seoData.robots.noimageindex ? 'no' : 'yes';
-        }
-      }
-
-      if (seoData.canonical !== undefined) {
-        robotsPayload._seopress_robots_canonical = seoData.canonical;
-      }
-
-      if (Object.keys(robotsPayload).length > 0) {
-        try {
-          const res = await fetch(`${baseUrl}${SEOPRESS_ENDPOINTS.metaRobots(resourceId)}`, {
-            method: 'PUT',
-            headers: {
-              Authorization: authHeader,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(robotsPayload),
-          });
-
-          if (!res.ok) {
-            errors.push(`meta-robots: ${await res.text()}`);
-          }
-        } catch (err) {
-          errors.push(`meta-robots: ${err}`);
-        }
-      }
-    }
+    addError(await this.updateTitleDescription(resourceId, seoData, baseUrl, authHeader));
+    addError(await this.updateTargetKeywords(resourceId, seoData, baseUrl, authHeader));
+    addError(await this.updateSocialSettings(resourceId, seoData, baseUrl, authHeader));
+    addError(await this.updateRobotsSettings(resourceId, seoData, baseUrl, authHeader));
 
     return {
       success: errors.length === 0,
       errors,
     };
+  }
+
+  /**
+   * Helper to send update request
+   */
+  private async sendUpdate(
+    url: string,
+    payload: Record<string, unknown>,
+    authHeader: string,
+    errorPrefix: string
+  ): Promise<string | null> {
+    try {
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          Authorization: authHeader,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        return `${errorPrefix}: ${await res.text()}`;
+      }
+      return null;
+    } catch (err) {
+      return `${errorPrefix}: ${err}`;
+    }
+  }
+
+  /**
+   * Update title and description
+   */
+  private async updateTitleDescription(
+    resourceId: number,
+    seoData: Partial<SEOData>,
+    baseUrl: string,
+    authHeader: string
+  ): Promise<string | null> {
+    if (seoData.title === undefined && seoData.description === undefined) {
+      return null;
+    }
+
+    const payload: Record<string, string> = {};
+    if (seoData.title !== undefined) payload.title = seoData.title;
+    if (seoData.description !== undefined) payload.description = seoData.description;
+
+    return this.sendUpdate(
+      `${baseUrl}${SEOPRESS_ENDPOINTS.titleDescription(resourceId)}`,
+      payload,
+      authHeader,
+      'title-description'
+    );
+  }
+
+  /**
+   * Update target keywords
+   */
+  private async updateTargetKeywords(
+    resourceId: number,
+    seoData: Partial<SEOData>,
+    baseUrl: string,
+    authHeader: string
+  ): Promise<string | null> {
+    if (seoData.targetKeywords === undefined) {
+      return null;
+    }
+
+    return this.sendUpdate(
+      `${baseUrl}${SEOPRESS_ENDPOINTS.targetKeywords(resourceId)}`,
+      { _seopress_analysis_target_kw: seoData.targetKeywords },
+      authHeader,
+      'target-keywords'
+    );
+  }
+
+  /**
+   * Update social settings (OG and Twitter)
+   */
+  private async updateSocialSettings(
+    resourceId: number,
+    seoData: Partial<SEOData>,
+    baseUrl: string,
+    authHeader: string
+  ): Promise<string | null> {
+    if (!seoData.og && !seoData.twitter) {
+      return null;
+    }
+
+    const payload: Record<string, string> = {};
+
+    if (seoData.og) {
+      if (seoData.og.title !== undefined) payload._seopress_social_fb_title = seoData.og.title;
+      if (seoData.og.description !== undefined) payload._seopress_social_fb_desc = seoData.og.description;
+      if (seoData.og.image !== undefined) payload._seopress_social_fb_img = seoData.og.image;
+    }
+
+    if (seoData.twitter) {
+      if (seoData.twitter.title !== undefined) payload._seopress_social_twitter_title = seoData.twitter.title;
+      if (seoData.twitter.description !== undefined) payload._seopress_social_twitter_desc = seoData.twitter.description;
+      if (seoData.twitter.image !== undefined) payload._seopress_social_twitter_img = seoData.twitter.image;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      return null;
+    }
+
+    return this.sendUpdate(
+      `${baseUrl}${SEOPRESS_ENDPOINTS.socialSettings(resourceId)}`,
+      payload,
+      authHeader,
+      'social-settings'
+    );
+  }
+
+  /**
+   * Update robots and canonical URL
+   */
+  private async updateRobotsSettings(
+    resourceId: number,
+    seoData: Partial<SEOData>,
+    baseUrl: string,
+    authHeader: string
+  ): Promise<string | null> {
+    if (!seoData.robots && seoData.canonical === undefined) {
+      return null;
+    }
+
+    const payload: Record<string, string> = {};
+
+    if (seoData.robots) {
+      if (seoData.robots.noindex !== undefined) {
+        payload._seopress_robots_index = seoData.robots.noindex ? 'no' : 'yes';
+      }
+      if (seoData.robots.nofollow !== undefined) {
+        payload._seopress_robots_follow = seoData.robots.nofollow ? 'no' : 'yes';
+      }
+      if (seoData.robots.nosnippet !== undefined) {
+        payload._seopress_robots_snippet = seoData.robots.nosnippet ? 'no' : 'yes';
+      }
+      if (seoData.robots.noimageindex !== undefined) {
+        payload._seopress_robots_imageindex = seoData.robots.noimageindex ? 'no' : 'yes';
+      }
+    }
+
+    if (seoData.canonical !== undefined) {
+      payload._seopress_robots_canonical = seoData.canonical;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      return null;
+    }
+
+    return this.sendUpdate(
+      `${baseUrl}${SEOPRESS_ENDPOINTS.metaRobots(resourceId)}`,
+      payload,
+      authHeader,
+      'meta-robots'
+    );
   }
 
   /**
