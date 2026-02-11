@@ -9,7 +9,7 @@ import {
   type UpdateResourcePayload,
   type BatchRequest,
 } from './wp-client';
-import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
+import { getTaxonomyMetaFieldMappingFromProfile } from './plugins/bundled/metabox';
 import { getResourceById, markResourceClean, getDirtyResources, getResourceSeo, type LocalSeoData } from './queries';
 import { seopressPlugin } from './plugins/bundled/seopress';
 
@@ -218,7 +218,7 @@ async function resolveMediaIdFromUrl(url: string): Promise<number> {
   }
 }
 
-async function buildUpdatePayload(resourceId: number): Promise<UpdateResourcePayload> {
+export async function buildUpdatePayload(resourceId: number): Promise<UpdateResourcePayload> {
   const resource = getResourceById(resourceId);
   if (!resource) throw new Error(`Resource ${resourceId} not found`);
 
@@ -284,7 +284,8 @@ async function buildUpdatePayload(resourceId: number): Promise<UpdateResourcePay
     (payload as Record<string, unknown>)[taxonomy] = termIds;
 
     // Meta Box field (e.g., 'tax_topic', 'tax_resource_type')
-    const metaField = TAXONOMY_META_FIELD[taxonomy];
+    const taxonomyMapping = getTaxonomyMetaFieldMappingFromProfile();
+    const metaField = taxonomyMapping[taxonomy];
     if (metaField) {
       metaBox[metaField] = termIds;
     }

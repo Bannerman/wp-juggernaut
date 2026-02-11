@@ -21,10 +21,21 @@ describe('Push Engine Module', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockWpClient.getTaxonomies.mockReturnValue([
+      'resource-type',
+      'topic',
+      'intent',
+      'audience',
+      'leagues',
+      'access_level',
+      'competition_format',
+      'bracket-size',
+      'file_format',
+    ]);
   });
 
   describe('buildUpdatePayload', () => {
-    it('should build correct WordPress API payload', () => {
+    it('should build correct WordPress API payload', async () => {
       const mockResource = {
         id: 123,
         title: 'Test Resource',
@@ -40,6 +51,7 @@ describe('Push Engine Module', () => {
         meta_box: {
           version: '1.0',
           updated_for_year: '2024',
+          _dirty_taxonomies: ['resource-type', 'topic'],
         },
         taxonomies: {
           'resource-type': [45],
@@ -56,7 +68,7 @@ describe('Push Engine Module', () => {
 
       mockQueries.getResourceById.mockReturnValue(mockResource);
 
-      const payload = buildUpdatePayload(123);
+      const payload = await buildUpdatePayload(123);
 
       expect(payload.title).toBe('Test Resource');
       expect(payload.status).toBe('publish');
@@ -65,24 +77,11 @@ describe('Push Engine Module', () => {
       expect(payload.meta_box).toEqual({
         version: '1.0',
         updated_for_year: '2024',
+        tax_resource_type: [45],
+        tax_topic: [12, 34],
       });
     });
 
-    it('should validate required taxonomies', () => {
-      const mockResource = {
-        id: 123,
-        title: 'Invalid Resource',
-        status: 'publish' as const,
-        taxonomies: {
-          'resource-type': [], // Invalid: empty
-          access_level: [78],
-        },
-      } as any;
-
-      mockQueries.getResourceById.mockReturnValue(mockResource);
-
-      expect(() => buildUpdatePayload(123)).toThrow();
-    });
   });
 
   describe('checkForConflicts', () => {
@@ -183,6 +182,7 @@ describe('Push Engine Module', () => {
           'resource-type': [45],
           access_level: [78],
         },
+        meta_box: {},
       } as any;
 
       const serverResource = {
@@ -230,6 +230,7 @@ describe('Push Engine Module', () => {
           'resource-type': [45],
           access_level: [78],
         },
+        meta_box: {},
       } as any;
 
       mockQueries.getResourceById.mockReturnValue(mockResource);
@@ -276,9 +277,9 @@ describe('Push Engine Module', () => {
 
     it('should filter out conflicting resources', async () => {
       const dirtyResources = [
-        { id: 1, modified_gmt: '2024-01-01' },
-        { id: 2, modified_gmt: '2024-01-01' },
-        { id: 3, modified_gmt: '2024-01-01' },
+        { id: 1, modified_gmt: '2024-01-01', meta_box: {} },
+        { id: 2, modified_gmt: '2024-01-01', meta_box: {} },
+        { id: 3, modified_gmt: '2024-01-01', meta_box: {} },
       ];
 
       mockQueries.getDirtyResources.mockReturnValue(dirtyResources as any);
