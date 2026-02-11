@@ -447,7 +447,7 @@ export default function SettingsPage() {
         activeTab={activeTab}
         onTabClick={(tabId) => {
           if (tabId === 'prompts') { setActiveTab('prompts'); setPromptsView('edit'); }
-          else setActiveTab(tabId);
+          else setActiveTab(tabId as SettingsTab);
         }}
         actions={
           activeTab === 'prompts' && promptsView === 'edit' ? (
