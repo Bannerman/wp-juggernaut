@@ -7,6 +7,7 @@
 
 import { getActiveBaseUrl, getCredentials } from './site-config';
 import { getProfileManager, ensureProfileLoaded } from './profiles';
+import { pMap } from './utils';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -304,18 +305,35 @@ export async function fetchAllResources(
   postType?: string,
   onProgress?: (fetched: number, total: number) => void
 ): Promise<WPResource[]> {
-  const allResources: WPResource[] = [];
-  let page = 1;
-  let totalPages = 1;
-  let total = 0;
+  // Fetch first page to get total pages count
+  const firstPage = await fetchResources({ page: 1, modifiedAfter, postType });
+  const allResources: WPResource[] = [...firstPage.resources];
+  const { total, totalPages } = firstPage;
 
-  while (page <= totalPages) {
-    const result = await fetchResources({ page, modifiedAfter, postType });
-    allResources.push(...result.resources);
-    totalPages = result.totalPages;
-    total = result.total;
-    if (onProgress) onProgress(allResources.length, total);
-    page++;
+  if (onProgress) onProgress(allResources.length, total);
+
+  // If there are more pages, fetch them in parallel
+  if (totalPages > 1) {
+    const remainingPages = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+    let fetchedCount = allResources.length;
+
+    const remainingResources = await pMap(
+      remainingPages,
+      async (page) => {
+        const result = await fetchResources({ page, modifiedAfter, postType });
+        if (onProgress) {
+          fetchedCount += result.resources.length;
+          onProgress(fetchedCount, total);
+        }
+        return result.resources;
+      },
+      5 // Concurrency limit
+    );
+
+    // Flatten results into main array
+    for (const resources of remainingResources) {
+      allResources.push(...resources);
+    }
   }
 
   return allResources;
