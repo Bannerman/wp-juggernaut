@@ -961,6 +961,14 @@ Current data:
       formData.append('title', processed.title);
       formData.append('alt_text', processed.altText);
 
+      if (processed.seoData) {
+        if (processed.seoData.description) {
+          formData.append('description', processed.seoData.description);
+          // Use description as caption too if available
+          formData.append('caption', processed.seoData.description);
+        }
+      }
+
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,

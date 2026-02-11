@@ -17,6 +17,8 @@ export async function POST(request: NextRequest) {
     const filename = formData.get('filename') as string;
     const title = formData.get('title') as string;
     const altText = formData.get('alt_text') as string;
+    const caption = formData.get('caption') as string;
+    const description = formData.get('description') as string;
 
     if (!file) {
       return NextResponse.json(
@@ -59,8 +61,8 @@ export async function POST(request: NextRequest) {
     const mediaData = await wpResponse.json();
     console.log('[upload] WordPress media response:', JSON.stringify(mediaData, null, 2));
 
-    // Update media metadata if title or alt text provided
-    if (title || altText) {
+    // Update media metadata if title, alt text, caption, or description provided
+    if (title || altText || caption || description) {
       const metaResponse = await fetch(`${url}/${mediaData.id}`, {
         method: 'POST',
         headers: {
@@ -70,6 +72,8 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           title: title || filename || file.name,
           alt_text: altText || '',
+          caption: caption || '',
+          description: description || '',
         }),
       });
       console.log('[upload] Media metadata update status:', metaResponse.status);

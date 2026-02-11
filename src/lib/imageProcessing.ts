@@ -25,6 +25,11 @@ export interface ImageProcessorResult {
   title: string;
   altText: string;
   metadata?: Record<string, unknown>;
+  seoData?: {
+    title?: string;
+    description?: string;
+    keywords?: string[];
+  };
 }
 
 export type ImageProcessor = (context: ImageProcessorContext) => Promise<ImageProcessorContext>;
@@ -80,6 +85,7 @@ export class ImageProcessingPipeline {
       title: currentContext.title,
       altText: currentContext.altText,
       metadata: currentContext.metadata,
+      seoData: currentContext.seoData,
     };
   }
 }
@@ -139,18 +145,67 @@ export function createFilenameProcessor(
 }
 
 /**
- * Placeholder processor for SEO data extraction/enrichment
- * TODO: Implement actual SEO data handling
+ * Processor for SEO data extraction and enrichment
+ * Extracts keywords from title/filename and generates descriptions
  */
 export const seoDataProcessor: ImageProcessor = async (context) => {
-  // Placeholder: In the future, this will extract or enhance SEO data
-  // For now, just pass through with any existing SEO data
+  // Use existing SEO data if provided, or initialize empty
+  const seoData = context.seoData || {};
+
+  // 1. Determine base title
+  // Priority: SEO Title > Context Title > Filename (cleaned)
+  let baseTitle = seoData.title || context.title;
+
+  if (!baseTitle) {
+    // Extract from filename: remove extension, replace separators with spaces
+    const originalName = context.file.name;
+    const lastDotIndex = originalName.lastIndexOf('.');
+    const nameWithoutExt = lastDotIndex > 0 ? originalName.slice(0, lastDotIndex) : originalName;
+
+    baseTitle = nameWithoutExt
+      .replace(/[-_]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Capitalize words
+    baseTitle = baseTitle.replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  // 2. Extract Keywords
+  let keywords = seoData.keywords || [];
+  if (keywords.length === 0 && baseTitle) {
+    const stopWords = new Set([
+      'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+      'is', 'are', 'was', 'were', 'be', 'been', 'has', 'have', 'had', 'do', 'does', 'did',
+      'can', 'could', 'should', 'would', 'will', 'may', 'might', 'must',
+      'over', 'under', 'above', 'below', 'between', 'among', 'through', 'during', 'before', 'after'
+    ]);
+
+    keywords = baseTitle
+      .toLowerCase()
+      .split(/[\s,.-]+/)
+      .filter(word => word.length > 2 && !stopWords.has(word));
+
+    // Remove duplicates
+    keywords = [...new Set(keywords)];
+  }
+
+  // 3. Generate Description
+  let description = seoData.description;
+  if (!description && baseTitle) {
+    const keywordStr = keywords.length > 0 ? ` featuring ${keywords.join(', ')}` : '';
+    description = `${baseTitle}${keywordStr}.`;
+  }
+
+  // 4. Update Context
   return {
     ...context,
-    seoData: context.seoData || {
-      title: context.title,
-      description: '',
-      keywords: [],
+    title: context.title || baseTitle, // Ensure title is populated
+    altText: context.altText || baseTitle, // Ensure altText matches title if missing
+    seoData: {
+      title: baseTitle,
+      description: description || '',
+      keywords: keywords,
     },
   };
 };
