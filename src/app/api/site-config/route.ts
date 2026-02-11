@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getConfig, setActiveTarget, getActiveTarget, getSiteTargets, getCredentials, setCredentials } from '@/lib/site-config';
+import { getConfig, setActiveTarget, getActiveTarget, getSiteTargets, getCredentials, setCredentials, getAllCredentialsStatus } from '@/lib/site-config';
 
 // GET /api/site-config - Get current config and available targets
 export async function GET() {
@@ -9,17 +9,8 @@ export async function GET() {
     const credentials = getCredentials();
     const targets = getSiteTargets();
 
-    // Build per-site credential status (has credentials + username, never passwords)
-    const siteCredentialStatus: Record<string, { hasCredentials: boolean; username: string }> = {};
-    for (const target of targets) {
-      const siteCreds = config.siteCredentials?.[target.id];
-      const legacyCreds = config.credentials;
-      const creds = siteCreds || legacyCreds;
-      siteCredentialStatus[target.id] = {
-        hasCredentials: Boolean(creds?.username && creds?.appPassword),
-        username: creds?.username || '',
-      };
-    }
+    // Use helper to get status securely (handles both Electron secure storage and local fallback)
+    const siteCredentialStatus = getAllCredentialsStatus();
 
     return NextResponse.json({
       activeTarget,

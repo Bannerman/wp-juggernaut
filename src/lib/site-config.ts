@@ -87,27 +87,69 @@ export function getActiveBaseUrl(): string {
   return getActiveTarget().url;
 }
 
-export function getCredentials(): { username: string; appPassword: string } | null {
-  const config = getConfig();
-  const targetId = config.activeTarget;
-
-  // Check per-site credentials first
-  const siteCreds = config.siteCredentials?.[targetId];
-  if (siteCreds?.username && siteCreds?.appPassword) {
-    return siteCreds;
+/**
+ * Get credentials for a specific target.
+ * In Electron, this reads from the injected secure environment variable.
+ * In development (browser), this falls back to site-config.json.
+ */
+export function getStoredCredentials(targetId: string): SiteCredentials | null {
+  // 1. Electron Secure Storage Injection (Production)
+  if (process.env.JUGGERNAUT_ELECTRON === '1') {
+    try {
+      if (process.env.JUGGERNAUT_CREDENTIALS) {
+        const credsMap = JSON.parse(process.env.JUGGERNAUT_CREDENTIALS);
+        if (credsMap[targetId]) {
+          return credsMap[targetId];
+        }
+      }
+      return null;
+    } catch (e) {
+      console.error('Failed to parse JUGGERNAUT_CREDENTIALS:', e);
+      return null;
+    }
   }
 
-  // Fallback to legacy global credentials
-  if (config.credentials?.username && config.credentials?.appPassword) {
+  // 2. Local/Dev Config File Fallback
+  const config = getConfig();
+
+  // Check per-site credentials
+  if (config.siteCredentials?.[targetId]) {
+    return config.siteCredentials[targetId];
+  }
+
+  // Fallback to legacy global credentials if this is the active target
+  // (Legacy credentials were implicitly for the active target)
+  if (targetId === config.activeTarget && config.credentials) {
     return config.credentials;
   }
 
   return null;
 }
 
+/**
+ * Get credentials for the currently active target.
+ */
+export function getCredentials(): SiteCredentials | null {
+  const config = getConfig();
+  return getStoredCredentials(config.activeTarget);
+}
+
+/**
+ * Set credentials for the active target.
+ * Note: In Electron, this should be handled via IPC to the main process.
+ * This function handles the local dev fallback.
+ */
 export function setCredentials(username: string, appPassword: string): SiteConfig {
   const config = getConfig();
   const targetId = config.activeTarget;
+
+  if (process.env.JUGGERNAUT_ELECTRON === '1') {
+    // In Electron, we should rely on IPC to update credentials securely.
+    // The API route should have blocked this, but as a safeguard, we return without writing.
+    console.warn('Attempted to write credentials to disk in Electron mode. Operation skipped.');
+    return config;
+  }
+
   const newConfig: SiteConfig = {
     ...config,
     siteCredentials: {
@@ -115,8 +157,27 @@ export function setCredentials(username: string, appPassword: string): SiteConfi
       [targetId]: { username, appPassword },
     },
   };
-  // Remove legacy credentials field if present
+
+  // Remove legacy credentials field if present to migrate
   delete newConfig.credentials;
+
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2));
   return newConfig;
+}
+
+/**
+ * Get credential status for all targets (used by API).
+ */
+export function getAllCredentialsStatus(): Record<string, { hasCredentials: boolean; username: string }> {
+  const targets = getSiteTargets();
+  const status: Record<string, { hasCredentials: boolean; username: string }> = {};
+
+  for (const target of targets) {
+    const creds = getStoredCredentials(target.id);
+    status[target.id] = {
+      hasCredentials: Boolean(creds?.username && creds?.appPassword),
+      username: creds?.username || '',
+    };
+  }
+  return status;
 }

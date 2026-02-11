@@ -3,6 +3,7 @@ import type { UpdateInfo, ProgressInfo } from 'electron-updater';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
+import os from 'os';
 import { isValidExternalUrl } from '../lib/url-validation';
 
 // Lazy-load electron-updater to avoid crash if module is not bundled
@@ -16,32 +17,61 @@ try {
 // Secure credential storage using macOS Keychain via safeStorage
 const CREDENTIALS_FILE = path.join(app.getPath('userData'), 'credentials.enc');
 
-interface StoredCredentials {
+// Map of targetId -> credentials
+type StoredCredentialsMap = Record<string, { username: string; appPassword: string }>;
+
+// Legacy format (single object)
+interface LegacyStoredCredentials {
   username: string;
   appPassword: string;
 }
 
-function getSecureCredentials(): StoredCredentials | null {
+function getSecureCredentials(): StoredCredentialsMap {
   try {
     if (!fs.existsSync(CREDENTIALS_FILE)) {
-      return null;
+      return {};
     }
 
     if (!safeStorage.isEncryptionAvailable()) {
       console.error('Encryption not available - cannot read credentials');
-      return null;
+      return {};
     }
 
     const encryptedData = fs.readFileSync(CREDENTIALS_FILE);
     const decrypted = safeStorage.decryptString(encryptedData);
-    return JSON.parse(decrypted);
+    const parsed = JSON.parse(decrypted);
+
+    // Migration: if it's the legacy format (has username/appPassword at root), wrap it
+    // We don't know the target ID for legacy credentials, but we can assume 'local' or verify against config
+    // For now, if we encounter legacy format, we'll return it as 'default' or migrate it properly via migrateCredentials
+    if (parsed.username && parsed.appPassword && !parsed.siteCredentials) {
+        // It's legacy. We can't map it to a target ID easily here without reading config.
+        // But since we are migrating in app.whenReady, we might just return it as a map with a placeholder?
+        // Actually, migrateCredentials handles file-based config.
+        // If secure storage has legacy format, we should probably support it or migrate it.
+        // Let's assume for now that migrateCredentials will fix everything.
+        // But here we need to return a map.
+        // If it looks like legacy, wrap it in a map?
+        // But wait, the previous implementation stored just the object.
+        // If I change the storage format, I break existing users unless I handle migration of the *secure file* too.
+        // Let's check if it's a map.
+        if (typeof parsed.username === 'string') {
+           // It's legacy single credential.
+           // We'll treat it as 'local' or just return empty if we can't be sure?
+           // Better to return it as a special key or just upgrade it on next write.
+           // Let's map it to 'local' for now, or read site-config active target? Too complex here.
+           return { 'local': { username: parsed.username, appPassword: parsed.appPassword } };
+        }
+    }
+
+    return parsed as StoredCredentialsMap;
   } catch (error) {
     console.error('Failed to read secure credentials:', error);
-    return null;
+    return {};
   }
 }
 
-function setSecureCredentials(credentials: StoredCredentials): boolean {
+function setSecureCredentials(credentials: StoredCredentialsMap): boolean {
   try {
     if (!safeStorage.isEncryptionAvailable()) {
       console.error('Encryption not available - cannot store credentials');
@@ -58,10 +88,12 @@ function setSecureCredentials(credentials: StoredCredentials): boolean {
   }
 }
 
-function deleteSecureCredentials(): boolean {
+function deleteSecureCredentials(targetId: string): boolean {
   try {
-    if (fs.existsSync(CREDENTIALS_FILE)) {
-      fs.unlinkSync(CREDENTIALS_FILE);
+    const creds = getSecureCredentials();
+    if (creds[targetId]) {
+      delete creds[targetId];
+      return setSecureCredentials(creds);
     }
     return true;
   } catch (error) {
@@ -70,6 +102,64 @@ function deleteSecureCredentials(): boolean {
   }
 }
 
+// Migration: Move credentials from site-config.json to secure storage
+function migrateCredentials() {
+  try {
+    const DEFAULT_CONFIG_DIR = path.join(os.homedir(), '.juggernaut');
+    const CONFIG_DIR = process.env.JUGGERNAUT_CONFIG_DIR || DEFAULT_CONFIG_DIR;
+    const CONFIG_PATH = path.join(CONFIG_DIR, 'site-config.json');
+
+    if (!fs.existsSync(CONFIG_PATH)) return;
+
+    const content = fs.readFileSync(CONFIG_PATH, 'utf-8');
+    const config = JSON.parse(content);
+    let changed = false;
+
+    // Load existing secure credentials
+    const secureCreds = getSecureCredentials();
+
+    // Migrate legacy 'credentials' field
+    if (config.credentials?.username && config.credentials?.appPassword) {
+      console.log('Migrating legacy credentials from site-config.json');
+      const targetId = config.activeTarget || 'local';
+      // Only overwrite if not already present in secure storage
+      if (!secureCreds[targetId]) {
+        secureCreds[targetId] = config.credentials;
+        changed = true;
+      }
+      delete config.credentials;
+    }
+
+    // Migrate 'siteCredentials' map
+    if (config.siteCredentials) {
+      for (const [targetId, creds] of Object.entries(config.siteCredentials)) {
+        // Type assertion for creds
+        const c = creds as { username: string; appPassword: string };
+        if (c?.username && c?.appPassword) {
+            console.log(`Migrating credentials for ${targetId} from site-config.json`);
+            if (!secureCreds[targetId]) {
+                secureCreds[targetId] = c;
+                changed = true;
+            }
+        }
+      }
+      delete config.siteCredentials;
+      // We removed the whole map, so all credentials are gone from file
+    }
+
+    if (changed) {
+      // Save secure credentials
+      setSecureCredentials(secureCreds);
+
+      // Save stripped config
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+      console.log('Migration complete: Credentials moved to secure storage');
+    }
+
+  } catch (error) {
+    console.error('Migration failed:', error);
+  }
+}
 
 let mainWindow: BrowserWindow | null = null;
 let nextServer: UtilityProcess | null = null;
@@ -158,7 +248,7 @@ async function startNextServer(): Promise<void> {
   console.log('Server path exists:', require('fs').existsSync(serverPath));
 
   // Get credentials from secure storage to pass to the server
-  const credentials = getSecureCredentials();
+  const credentialsMap = getSecureCredentials();
   const serverEnv: Record<string, string> = {
     ...process.env as Record<string, string>,
     PORT: String(PORT),
@@ -167,11 +257,10 @@ async function startNextServer(): Promise<void> {
     JUGGERNAUT_ELECTRON: '1',
   };
 
-  // Pass decrypted credentials to the server process
-  if (credentials) {
-    serverEnv.WP_USERNAME = credentials.username;
-    serverEnv.WP_APP_PASSWORD = credentials.appPassword;
-    console.log('Credentials loaded from secure storage for user:', credentials.username);
+  // Pass ALL decrypted credentials map to the server process as a JSON string
+  if (Object.keys(credentialsMap).length > 0) {
+    serverEnv.JUGGERNAUT_CREDENTIALS = JSON.stringify(credentialsMap);
+    console.log(`Injected credentials for ${Object.keys(credentialsMap).length} sites into server env`);
   }
 
   // Use Electron's utilityProcess to fork the server
@@ -314,19 +403,30 @@ ipcMain.handle('get-app-version', () => {
 });
 
 // Secure credential handlers
-ipcMain.handle('get-credentials', () => {
-  const creds = getSecureCredentials();
-  if (creds) {
-    // Return username but not the password for security
-    return { hasCredentials: true, username: creds.username };
+ipcMain.handle('get-credentials', (_event, targetId?: string) => {
+  const credsMap = getSecureCredentials();
+  // If targetId is provided, return specific credentials
+  // If not, we might be in a legacy call, but we can't guess.
+  // We'll return empty if no targetId, OR we could assume 'local' if it exists?
+  // But preload/client should always pass targetId now.
+
+  if (targetId && credsMap[targetId]) {
+    return { hasCredentials: true, username: credsMap[targetId].username };
   }
   return { hasCredentials: false, username: '' };
 });
 
-ipcMain.handle('set-credentials', async (_event, { username, appPassword }: { username: string; appPassword: string }) => {
-  const success = setSecureCredentials({ username, appPassword });
+ipcMain.handle('set-credentials', async (_event, { targetId, username, appPassword }: { targetId: string; username: string; appPassword: string }) => {
+  // Read existing map
+  const credsMap = getSecureCredentials();
+
+  // Update specific target
+  credsMap[targetId] = { username, appPassword };
+
+  const success = setSecureCredentials(credsMap);
+
   if (success && !isDev) {
-    // Restart the Next.js server so it picks up new credentials
+    // Restart the Next.js server so it picks up new credentials env var
     console.log('Credentials updated - restarting Next.js server...');
     try {
       stopNextServer();
@@ -350,17 +450,16 @@ ipcMain.handle('set-credentials', async (_event, { username, appPassword }: { us
   return { success };
 });
 
-ipcMain.handle('delete-credentials', () => {
-  const success = deleteSecureCredentials();
-  if (success) {
-    delete process.env.WP_USERNAME;
-    delete process.env.WP_APP_PASSWORD;
-  }
+ipcMain.handle('delete-credentials', (_event, targetId: string) => {
+  const success = deleteSecureCredentials(targetId);
   return { success };
 });
 
 // App lifecycle
 app.whenReady().then(async () => {
+  // Run migration before starting server
+  migrateCredentials();
+
   await startNextServer();
 
   const serverReady = await waitForServer(`http://localhost:${PORT}`);

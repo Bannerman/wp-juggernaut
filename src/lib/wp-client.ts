@@ -20,28 +20,20 @@ export function getWpBaseUrl(): string {
 
 /**
  * Returns WordPress API credentials from the appropriate source based on runtime context.
- * Priority: Electron env vars > site-config.json > .env.local fallback.
+ * Priority: Electron secure storage > site-config.json > .env.local fallback.
  * @returns Object with `username` and `appPassword` fields
  */
 export function getWpCredentials(): { username: string; appPassword: string } {
-  // In Electron production mode, credentials come from secure storage via env vars
-  if (process.env.JUGGERNAUT_ELECTRON === '1') {
-    if (process.env.WP_USERNAME && process.env.WP_APP_PASSWORD) {
-      return {
-        username: process.env.WP_USERNAME,
-        appPassword: process.env.WP_APP_PASSWORD,
-      };
-    }
-  }
-
-  // In dev/browser mode, prefer config file (set by the UI) over .env.local
-  // This allows credentials saved through the app settings to take effect immediately
+  // Try to get credentials from site-config
+  // In Electron: this reads from JUGGERNAUT_CREDENTIALS env var (securely injected)
+  // In Dev: this reads from site-config.json
   const configCreds = getCredentials();
   if (configCreds) {
     return configCreds;
   }
 
-  // Final fallback to env vars (from .env.local during development)
+  // Fallback to env vars (from .env.local during development)
+  // Also serves as a fallback for legacy single-site Electron setups if migration failed
   if (process.env.WP_USERNAME && process.env.WP_APP_PASSWORD) {
     return {
       username: process.env.WP_USERNAME,

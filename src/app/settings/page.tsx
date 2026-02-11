@@ -121,16 +121,9 @@ export default function SettingsPage() {
         setTargets(data.targets || []);
         setActiveTarget(data.activeTarget || null);
 
-        // Check for credentials via Electron secure storage (macOS Keychain)
-        if (window.electronAPI) {
-          const credStatus = await window.electronAPI.getCredentials();
-          setHasCredentials(credStatus.hasCredentials);
-          setUsername(credStatus.username);
-        } else {
-          // Fallback for browser dev mode
-          setHasCredentials(data.hasCredentials || false);
-          setUsername(data.username || '');
-        }
+        // Check for credentials (now securely handled by API for both Electron and Dev)
+        setHasCredentials(data.hasCredentials || false);
+        setUsername(data.username || '');
       } catch (err) {
         console.error('Failed to fetch site config:', err);
       } finally {
@@ -223,7 +216,10 @@ export default function SettingsPage() {
     try {
       if (window.electronAPI) {
         // Use secure storage (macOS Keychain) in Electron
-        const result = await window.electronAPI.setCredentials(username, appPassword);
+        const targetId = activeTarget?.id;
+        if (!targetId) throw new Error('No active target');
+
+        const result = await window.electronAPI.setCredentials(targetId, username, appPassword);
         if (!result.success) {
           throw new Error('Failed to save credentials to secure storage');
         }
