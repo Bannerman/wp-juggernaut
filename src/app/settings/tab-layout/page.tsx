@@ -153,7 +153,7 @@ export default function TabLayoutPage(): React.ReactElement {
   }, [selectedPostType]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <SettingsNav
         activeTab="tab-layout"
         actions={
@@ -164,7 +164,7 @@ export default function TabLayoutPage(): React.ReactElement {
               'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
               hasChanges
                 ? 'bg-brand-600 text-white hover:bg-brand-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
             )}
           >
             <Save className="w-4 h-4" />
@@ -177,13 +177,13 @@ export default function TabLayoutPage(): React.ReactElement {
       {(error || success) && (
         <div className="fixed top-4 right-4 z-50 max-w-sm">
           {error && (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 text-red-700 shadow-lg border border-red-200">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 shadow-lg border border-red-200 dark:border-red-800">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
             </div>
           )}
           {success && (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 text-green-700 shadow-lg border border-green-200">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 shadow-lg border border-green-200 dark:border-green-800">
               <CheckCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{success}</span>
             </div>
@@ -193,19 +193,19 @@ export default function TabLayoutPage(): React.ReactElement {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Description */}
-        <p className="text-sm text-gray-500 mb-6">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
           Configure custom tabs and their fields for the edit modal. Core tabs (Basic, Classification, AI Fill) and plugin tabs (SEO) cannot be modified here.
         </p>
 
         {/* Post type selector */}
         <div className="mb-8 max-w-xs">
-          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
             Post type
           </label>
           <select
             value={selectedPostType}
             onChange={(e) => setSelectedPostType(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           >
             {postTypes.map((pt) => (
               <option key={pt.slug} value={pt.slug}>
@@ -221,7 +221,7 @@ export default function TabLayoutPage(): React.ReactElement {
             <RefreshCw className="w-8 h-8 text-brand-600 animate-spin" />
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <TabLayoutEditor
               key={selectedPostType}
               tabs={tabs}

@@ -149,14 +149,14 @@ export function ResourceTable({
 
   if (resources.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-12 flex flex-col items-center justify-center text-center">
-        <div className="p-4 bg-gray-50 rounded-full mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-12 flex flex-col items-center justify-center text-center">
+        <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-full mb-4">
           <Inbox className="w-8 h-8 text-gray-400" />
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-1">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">
           No {postTypeLabelPlural} found
         </h3>
-        <p className="text-sm text-gray-500 max-w-sm">
+        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
           Try adjusting your filters, searching for a different term, or sync new content from WordPress.
         </p>
       </div>
@@ -164,10 +164,10 @@ export function ResourceTable({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700">
             <tr>
               <th scope="col" className="px-4 py-3 text-left">
                 <input
@@ -182,7 +182,7 @@ export function ResourceTable({
               </th>
               <th
                 scope="col"
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                 onClick={() => handleSort('title')}
                 tabIndex={0}
                 aria-sort={sortField === 'title' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
@@ -203,7 +203,7 @@ export function ResourceTable({
                 <>
                   <th
                     scope="col"
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                     onClick={() => handleSort('status')}
                     tabIndex={0}
                     aria-sort={sortField === 'status' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
@@ -220,7 +220,7 @@ export function ResourceTable({
                     </div>
                   </th>
                   {taxonomyColumns.map((col) => (
-                    <th key={col.slug} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th key={col.slug} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       {col.label}
                     </th>
                   ))}
@@ -229,12 +229,12 @@ export function ResourceTable({
 
               {viewMode === 'power' && (
                 <>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Downloads
                   </th>
                   <th
                     scope="col"
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                     onClick={() => handleSort('date_gmt')}
                     tabIndex={0}
                     aria-sort={sortField === 'date_gmt' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
@@ -255,7 +255,7 @@ export function ResourceTable({
 
               <th
                 scope="col"
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                 onClick={() => handleSort('modified_gmt')}
                 tabIndex={0}
                 aria-sort={sortField === 'modified_gmt' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
@@ -271,12 +271,12 @@ export function ResourceTable({
                   <SortIcon field="modified_gmt" />
                 </div>
               </th>
-              <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {sortedResources.map((resource) => {
               const downloadStats = viewMode === 'power' ? getDownloadStats(resource) : null;
               
@@ -284,9 +284,9 @@ export function ResourceTable({
                 <tr
                   key={resource.id}
                   className={cn(
-                    'hover:bg-gray-50 transition-colors',
-                    resource.is_dirty && 'bg-yellow-50',
-                    selectedIds.includes(resource.id) && 'bg-brand-50'
+                    'hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors',
+                    resource.is_dirty && 'bg-yellow-50 dark:bg-yellow-900/20',
+                    selectedIds.includes(resource.id) && 'bg-brand-50 dark:bg-brand-900/20'
                   )}
                 >
                   <td className="px-4 py-3">
@@ -303,7 +303,7 @@ export function ResourceTable({
                         <span className="w-2 h-2 bg-yellow-400 rounded-full flex-shrink-0" title="Unsaved changes" />
                       )}
                       <span 
-                        className="font-medium text-gray-900 truncate max-w-xs cursor-pointer hover:text-brand-600" 
+                        className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-xs cursor-pointer hover:text-brand-600 dark:hover:text-brand-400" 
                         title={resource.title}
                         onClick={() => onEdit(resource)}
                       >
@@ -334,13 +334,13 @@ export function ResourceTable({
                               {names.slice(0, maxDisplay).map((name) => (
                                 <span
                                   key={name}
-                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700"
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                                 >
                                   {name}
                                 </span>
                               ))}
                               {totalCount > maxDisplay && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-500">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                                   +{totalCount - maxDisplay} more
                                 </span>
                               )}
@@ -355,7 +355,7 @@ export function ResourceTable({
                     <>
                       <td className="px-4 py-3">
                         <div className="flex flex-col text-xs">
-                          <span className="text-gray-900 font-medium">
+                          <span className="text-gray-900 dark:text-gray-100 font-medium">
                             {downloadStats.activeCount} Active
                           </span>
                           {downloadStats.archivedCount > 0 && (
@@ -365,20 +365,20 @@ export function ResourceTable({
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                         {formatRelativeTime(resource.date_gmt)}
                       </td>
                     </>
                   )}
 
-                  <td className="px-4 py-3 text-sm text-gray-500">
+                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                     {formatRelativeTime(resource.modified_gmt)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => onEdit(resource)}
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                        className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
                         title="Edit"
                         aria-label={`Edit ${resource.title}`}
                       >
@@ -389,7 +389,7 @@ export function ResourceTable({
                           href={`${siteUrl}/${postTypeSlug}/${resource.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                          className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
                           title="View on site"
                           aria-label={`View ${resource.title} on site`}
                         >
@@ -406,7 +406,7 @@ export function ResourceTable({
       </div>
       
       {/* Table Footer */}
-      <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 text-sm text-gray-500">
+      <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 text-sm text-gray-500 dark:text-gray-400">
         {selectedIds.length > 0 ? (
           <span>{selectedIds.length} selected</span>
         ) : (

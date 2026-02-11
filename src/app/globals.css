@@ -17,8 +17,20 @@
   --background-end-rgb: 255, 255, 255;
 }
 
+.dark {
+  --foreground-rgb: 229, 231, 235;
+  --background-start-rgb: 17, 24, 39;
+  --background-end-rgb: 17, 24, 39;
+  color-scheme: dark;
+}
+
 body {
   color: rgb(var(--foreground-rgb));
+}
+
+/* Smooth theme transition */
+html.dark {
+  background-color: rgb(17, 24, 39);
 }
 
 /* Indeterminate sync progress bar */
@@ -58,5 +70,13 @@ body {
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: #cbd5e1;
     border-radius: 3px;
+  }
+
+  .dark .scrollbar-thin {
+    scrollbar-color: #4b5563 transparent;
+  }
+
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #4b5563;
   }
 }

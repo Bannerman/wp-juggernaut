@@ -157,16 +157,16 @@ export function ConvertPostTypeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Convert Post Type</h2>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Convert Post Type</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               Converting &ldquo;{resource.title}&rdquo;
             </p>
           </div>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg">
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -174,7 +174,7 @@ export function ConvertPostTypeModal({
         <div className="px-6 py-5 space-y-6">
           {/* Post Type Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Convert from {currentPostType.name} to:
             </label>
             <div className="flex gap-2">
@@ -185,8 +185,8 @@ export function ConvertPostTypeModal({
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors',
                     targetPostType?.slug === pt.slug
-                      ? 'bg-brand-50 border-brand-300 text-brand-700'
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      ? 'bg-brand-50 dark:bg-brand-900/30 border-brand-300 dark:border-brand-700 text-brand-700 dark:text-brand-400'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   )}
                 >
                   {pt.name}
@@ -200,7 +200,7 @@ export function ConvertPostTypeModal({
               {/* Saved Field Mappings */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-gray-700">Field Mappings</h3>
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Field Mappings</h3>
                   <Link
                     href="/settings/field-mappings"
                     className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700"
@@ -211,12 +211,12 @@ export function ConvertPostTypeModal({
                 </div>
 
                 {loadingMappings ? (
-                  <div className="flex items-center gap-2 py-4 text-sm text-gray-500">
+                  <div className="flex items-center gap-2 py-4 text-sm text-gray-500 dark:text-gray-400">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Loading saved mappings...
                   </div>
                 ) : savedMappings.length === 0 ? (
-                  <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-500 text-center">
+                  <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm text-gray-500 dark:text-gray-400 text-center">
                     No field mappings configured.{' '}
                     <Link
                       href="/settings/field-mappings"
@@ -231,7 +231,7 @@ export function ConvertPostTypeModal({
                     {/* Core field mappings */}
                     {coreMappings.length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Core Fields</p>
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Core Fields</p>
                         <div className="space-y-1">
                           {coreMappings.map((m, i) => (
                             <div key={i} className="flex items-center gap-2 text-sm">
@@ -251,7 +251,7 @@ export function ConvertPostTypeModal({
                     {/* Meta field mappings */}
                     {metaMappings.length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Meta Fields</p>
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Meta Fields</p>
                         <div className="space-y-1">
                           {metaMappings.map((m, i) => (
                             <div key={i} className="flex items-center gap-2 text-sm">
@@ -271,7 +271,7 @@ export function ConvertPostTypeModal({
                     {/* Taxonomy mappings */}
                     {taxonomyMappings.length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Taxonomies</p>
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Taxonomies</p>
                         <div className="space-y-1">
                           {taxonomyMappings.map((m, i) => {
                             const sourceTax = taxonomyConfig.find(t => t.slug === m.source.key);
@@ -297,7 +297,7 @@ export function ConvertPostTypeModal({
 
               {/* Options */}
               <div className="space-y-3">
-                <h3 className="text-sm font-medium text-gray-700">Options</h3>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Options</h3>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -306,8 +306,8 @@ export function ConvertPostTypeModal({
                     className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                   />
                   <div>
-                    <span className="text-sm text-gray-700">Create 301 redirect</span>
-                    <p className="text-xs text-gray-500">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Create 301 redirect</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       Redirects the old URL to the new post (via SEOPress)
                     </p>
                   </div>
@@ -320,8 +320,8 @@ export function ConvertPostTypeModal({
                     className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                   />
                   <div>
-                    <span className="text-sm text-gray-700">Trash old {currentPostType.name.toLowerCase()}</span>
-                    <p className="text-xs text-gray-500">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Trash old {currentPostType.name.toLowerCase()}</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       Moves the original post to trash on WordPress
                     </p>
                   </div>
@@ -329,9 +329,9 @@ export function ConvertPostTypeModal({
               </div>
 
               {/* Warning */}
-              <div className="flex items-start gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-yellow-800">
+              <div className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-yellow-800 dark:text-yellow-300">
                   This will create a new <strong>{targetPostType.name.toLowerCase()}</strong> on
                   WordPress with the mapped fields.
                   {trashOldPost && ' The original post will be moved to trash.'}
@@ -340,7 +340,7 @@ export function ConvertPostTypeModal({
               </div>
 
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
                   {error}
                 </div>
               )}
@@ -349,10 +349,10 @@ export function ConvertPostTypeModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
           >
             Cancel
           </button>

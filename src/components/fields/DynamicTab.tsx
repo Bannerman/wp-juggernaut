@@ -43,7 +43,7 @@ const widthClasses: Record<string, string> = {
 export function DynamicTab({ fields, values, onChange, terms, resourceTitle }: DynamicTabProps) {
   if (fields.length === 0) {
     return (
-      <p className="text-sm text-gray-500 italic">No fields configured for this tab.</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400 italic">No fields configured for this tab.</p>
     );
   }
 
@@ -59,7 +59,7 @@ export function DynamicTab({ fields, values, onChange, terms, resourceTitle }: D
         return (
           <div key={field.key} className={cn(widthClasses[width])}>
             {showLabel && (
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 {field.label}
               </label>
             )}

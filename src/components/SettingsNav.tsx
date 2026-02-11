@@ -23,18 +23,18 @@ const NAV_ITEMS = [
 
 export function SettingsNav({ activeTab, actions, onTabClick }: SettingsNavProps): React.ReactElement {
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-40 electron-drag">
+    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 electron-drag">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-4 electron-no-drag">
             <Link
               href="/"
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               Back
             </Link>
-            <h1 className="text-xl font-bold text-gray-900">Settings</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Settings</h1>
           </div>
           {actions && <div className="electron-no-drag">{actions}</div>}
         </div>
@@ -46,8 +46,8 @@ export function SettingsNav({ activeTab, actions, onTabClick }: SettingsNavProps
             const className = cn(
               'py-3 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-2',
               isActive
-                ? 'border-brand-500 text-brand-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
             );
 
             // In-page tabs use button when onTabClick is provided (main settings page)

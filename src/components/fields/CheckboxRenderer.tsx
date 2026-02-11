@@ -11,7 +11,7 @@ export function CheckboxRenderer({ field, value, onChange }: FieldRendererProps)
         onChange={(e) => onChange(e.target.checked)}
         className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
       />
-      <span className="text-sm font-medium text-gray-700">{field.label}</span>
+      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{field.label}</span>
     </label>
   );
 }

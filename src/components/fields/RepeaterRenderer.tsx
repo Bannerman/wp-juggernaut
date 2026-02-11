@@ -78,7 +78,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0, res
   return (
     <div className={isSimple ? 'space-y-2' : 'space-y-3'}>
       <div className="flex items-center justify-between">
-        <label className={isNested ? 'text-xs font-medium text-gray-600 uppercase' : 'text-sm font-medium text-gray-700'}>
+        <label className={isNested ? 'text-xs font-medium text-gray-600 dark:text-gray-400 uppercase' : 'text-sm font-medium text-gray-700 dark:text-gray-300'}>
           {field.label}
         </label>
         <button
@@ -92,7 +92,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0, res
       </div>
 
       {items.length === 0 ? (
-        <p className={`${isNested ? 'text-xs' : 'text-sm'} text-gray-500 italic`}>
+        <p className={`${isNested ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-gray-400 italic`}>
           No {field.label.toLowerCase()} added yet.
         </p>
       ) : isSimple ? (
@@ -112,7 +112,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0, res
               <button
                 type="button"
                 onClick={() => removeItem(index)}
-                className="p-2 text-red-500 hover:bg-red-50 rounded flex-shrink-0"
+                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded flex-shrink-0"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -134,13 +134,13 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0, res
             return (
               <div
                 key={index}
-                className={`relative border border-gray-200 rounded-lg ${isNested ? 'p-3' : 'p-4'} bg-gray-50`}
+                className={`relative border border-gray-200 dark:border-gray-700 rounded-lg ${isNested ? 'p-3' : 'p-4'} bg-gray-50 dark:bg-gray-800/50`}
               >
                 {/* Delete button — top right */}
                 <button
                   type="button"
                   onClick={() => removeItem(index)}
-                  className={`absolute ${isNested ? 'top-2 right-2 p-1' : 'top-3 right-3 p-2'} text-red-500 hover:bg-red-50 rounded`}
+                  className={`absolute ${isNested ? 'top-2 right-2 p-1' : 'top-3 right-3 p-2'} text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded`}
                 >
                   <Trash2 className={isNested ? 'w-3 h-3' : 'w-4 h-4'} />
                 </button>
@@ -148,7 +148,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0, res
                 {/* Header field inline, if any */}
                 {headerField && (
                   <div className="mb-3 pr-10">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                       {headerField.label}
                     </label>
                     <FieldRenderer
@@ -237,7 +237,7 @@ function SubFieldWrapper({
   return (
     <div className={cn(subFieldWidthClasses[width] ?? 'w-full')}>
       {showLabel && (
-        <label className="block text-xs font-medium text-gray-600 mb-1">
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
           {subField.label}
         </label>
       )}
