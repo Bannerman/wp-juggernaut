@@ -1,0 +1,34 @@
+{
+  "id": "example",
+  "name": "Example Plugin",
+  "version": "1.0.0",
+  "description": "A minimal example plugin showing how to extend Juggernaut. Copy this directory as a starting point for your own plugin.",
+  "author": {
+    "name": "Your Name",
+    "url": "https://github.com/your-org"
+  },
+  "license": "MIT",
+  "requires_core": ">=1.0.0",
+  "tier": "bundled",
+  "wordpress_plugin": {
+    "name": "Your WP Plugin",
+    "slug": "your-wp-plugin",
+    "url": "https://wordpress.org/plugins/your-wp-plugin/",
+    "detection": {
+      "rest_endpoint": "/wp-json/your-plugin/v1/"
+    }
+  },
+  "provides": {
+    "tabs": ["example"],
+    "field_types": ["rating"],
+    "api_extensions": []
+  },
+  "settings_schema": {
+    "auto_sync": {
+      "type": "boolean",
+      "label": "Auto-sync on resource load",
+      "description": "Automatically fetch plugin data when opening a resource",
+      "default": true
+    }
+  }
+}
