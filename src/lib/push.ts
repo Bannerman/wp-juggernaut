@@ -183,16 +183,88 @@ export async function checkForConflicts(resourceIds: number[]): Promise<Conflict
   return conflicts;
 }
 
-function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
+/**
+ * Resolves a media URL to its WordPress attachment ID by extracting the
+ * filename and searching the media library.
+ */
+async function resolveMediaIdFromUrl(url: string): Promise<number> {
+  try {
+    const baseUrl = getWpBaseUrl();
+    const creds = getWpCredentials();
+    const auth = 'Basic ' + Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
+
+    // Extract filename without extension for search
+    // Also strip WordPress size suffixes like -1024x778, -300x200, etc.
+    const urlPath = new URL(url).pathname;
+    const filenameWithExt = urlPath.split('/').pop() || '';
+    const filename = filenameWithExt
+      .replace(/\.[^.]+$/, '')        // remove extension
+      .replace(/-\d+x\d+$/, '');      // remove WP size suffix
+    if (!filename) return 0;
+
+    console.log(`[push] Resolving media URL: ${url} (search: "${filename}")`);
+
+    const response = await fetch(
+      `${baseUrl}/wp-json/wp/v2/media?search=${encodeURIComponent(filename)}&per_page=10`,
+      { headers: { Authorization: auth } }
+    );
+    if (!response.ok) return 0;
+
+    const media = await response.json() as Array<{ id: number; source_url?: string; guid?: { rendered?: string } }>;
+
+    // Try exact URL match first
+    const exactMatch = media.find(m =>
+      m.source_url === url || m.guid?.rendered === url
+    );
+    if (exactMatch) {
+      console.log(`[push] Resolved media URL to attachment ID ${exactMatch.id} (exact match)`);
+      return exactMatch.id;
+    }
+
+    // Try matching by base filename (handles resized URLs like image-1024x778.png → image.png)
+    const baseUrl_ = url.replace(/-\d+x\d+(\.[^.]+)$/, '$1');
+    const baseMatch = media.find(m =>
+      m.source_url === baseUrl_ || m.guid?.rendered === baseUrl_
+    );
+    if (baseMatch) {
+      console.log(`[push] Resolved media URL to attachment ID ${baseMatch.id} (base URL match)`);
+      return baseMatch.id;
+    }
+
+    // If only one result from search, use it
+    if (media.length === 1) {
+      console.log(`[push] Resolved media URL to attachment ID ${media[0].id} (single search result)`);
+      return media[0].id;
+    }
+
+    console.warn(`[push] Could not resolve media URL: ${url} (${media.length} search results, no match)`);
+    return 0;
+  } catch (error) {
+    console.warn(`[push] Failed to resolve media URL: ${error}`);
+    return 0;
+  }
+}
+
+async function buildUpdatePayload(resourceId: number): Promise<UpdateResourcePayload> {
   const resource = getResourceById(resourceId);
   if (!resource) throw new Error(`Resource ${resourceId} not found`);
 
-  // Get featured_media from meta_box if available, otherwise fall back to the column
+  // Resolve featured_media: if we have a URL, always resolve it to an attachment ID
+  // (handles the case where user pasted a new URL but featured_media_id still points to the old image)
   const metaMediaId = resource.meta_box?.featured_media_id;
-  const featuredMediaId = (typeof metaMediaId === 'number' ? metaMediaId : 0) || resource.featured_media || 0;
+  const storedMediaId = (typeof metaMediaId === 'number' ? metaMediaId : 0) || resource.featured_media || 0;
+  const imageUrl = resource.meta_box?.featured_image_url as string | undefined;
+
+  let featuredMediaId = storedMediaId;
+  if (imageUrl) {
+    const resolvedId = await resolveMediaIdFromUrl(imageUrl);
+    if (resolvedId) {
+      featuredMediaId = resolvedId;
+    }
+  }
 
   console.log(`[push] Resource ${resourceId} featured_media: meta_box.featured_media_id=${metaMediaId}, resource.featured_media=${resource.featured_media}, using=${featuredMediaId}`);
-  console.log(`[push] Resource ${resourceId} featured_image_url: ${resource.meta_box?.featured_image_url}`);
+  console.log(`[push] Resource ${resourceId} featured_image_url: ${imageUrl}`);
 
   const payload: UpdateResourcePayload = {
     title: resource.title,
@@ -281,7 +353,7 @@ export async function pushResource(
       }
     }
 
-    const payload = buildUpdatePayload(resourceId);
+    const payload = await buildUpdatePayload(resourceId);
     const updated = await updateResource(resourceId, payload);
 
     // Push SEO data (non-blocking - log errors but don't fail the push)
@@ -380,14 +452,12 @@ async function pushBatch(
   }
 
   try {
-    const requests: BatchRequest[] = safeIds.map((id) => {
-      const payload = buildUpdatePayload(id);
-      return {
-        method: 'POST' as const,
-        path: `/wp/v2/resource/${id}`,
-        body: payload as unknown as Record<string, unknown>,
-      };
-    });
+    const payloads = await Promise.all(safeIds.map((id) => buildUpdatePayload(id)));
+    const requests: BatchRequest[] = safeIds.map((id, i) => ({
+      method: 'POST' as const,
+      path: `/wp/v2/resource/${id}`,
+      body: payloads[i] as unknown as Record<string, unknown>,
+    }));
 
     const batchResponse = await batchUpdate(requests);
     const db = getDb();
