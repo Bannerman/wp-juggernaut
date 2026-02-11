@@ -1018,10 +1018,10 @@ Current data:
 
     return (
       <div key={taxonomy}>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           {displayLabel} {required && <span className="text-red-500">*</span>}
         </label>
-        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
+        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
           {taxonomyTerms.map((term) => {
             const isSelected = selectedIds.includes(term.id);
             return (
@@ -1033,7 +1033,7 @@ Current data:
                   'px-3 py-1 rounded-full text-sm border transition-colors',
                   isSelected
                     ? 'bg-brand-100 border-brand-300 text-brand-700'
-                    : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
+                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-brand-300'
                 )}
               >
                 {term.name}
@@ -1091,10 +1091,10 @@ Current data:
 
     return (
       <div key={taxSlug}>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
-        <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
+        <div className="flex flex-wrap gap-2 p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
           {topLevel.map((term) => {
             const isSelected = selectedIds.includes(term.id);
             const hasChildren = childrenByParent.has(term.id);
@@ -1110,7 +1110,7 @@ Current data:
                     ? 'bg-brand-600 border-brand-600 text-white font-medium'
                     : childSelected
                       ? 'bg-brand-50 border-brand-300 text-brand-700'
-                      : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
+                      : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-brand-300'
                 )}
               >
                 {term.name}
@@ -1142,17 +1142,17 @@ Current data:
 
     return (
       <div key={`${taxSlug}-subtopics`}>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           {taxLabel} Subtopics
         </label>
-        <div className="space-y-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+        <div className="space-y-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
           {expandedParents.map((parent) => {
             const children = childrenByParent.get(parent.id) || [];
             if (children.length === 0) return null;
 
             return (
               <div key={`children-${parent.id}`}>
-                <p className="text-xs text-gray-600 mb-2 font-medium uppercase tracking-wide">{parent.name}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 font-medium uppercase tracking-wide">{parent.name}</p>
                 <div className="flex flex-wrap gap-2">
                   {children.map((term) => {
                     const isSelected = selectedIds.includes(term.id);
@@ -1165,7 +1165,7 @@ Current data:
                           'px-3 py-1 rounded-full text-sm border transition-colors',
                           isSelected
                             ? 'bg-brand-100 border-brand-300 text-brand-700'
-                            : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
+                            : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-brand-300'
                         )}
                       >
                         {term.name}
@@ -1186,18 +1186,18 @@ Current data:
       <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onClose} />
 
       <div className="relative min-h-full flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl w-[900px] h-[85vh] flex flex-col overflow-hidden">
+        <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-[900px] h-[85vh] flex flex-col overflow-hidden">
           {/* Header */}
           <div className={cn(
-            "flex items-center justify-between px-6 py-4 border-b border-gray-200",
-            isCreateMode && "bg-green-50"
+            "flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700",
+            isCreateMode && "bg-green-50 dark:bg-green-900/20"
           )}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 line-clamp-1">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-1">
                 {isCreateMode ? (title || `New ${postTypeLabel}`) : title}
               </h2>
               {!isCreateMode && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   ID: {effectiveResource.id}
                   {slug && siteUrl && (
                     <>
@@ -1216,13 +1216,13 @@ Current data:
               )}
               {isCreateMode && <p className="text-sm text-green-600">Creating new {postTypeLabel.toLowerCase()}</p>}
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Tabs */}
-          <div className="border-b border-gray-200 px-6">
+          <div className="border-b border-gray-200 dark:border-gray-700 px-6">
             <nav className="flex gap-4 -mb-px overflow-x-auto">
               {TABS.map((tab) => (
                 <button
@@ -1231,8 +1231,8 @@ Current data:
                   className={cn(
                     'py-3 px-1 text-sm font-medium border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5',
                     activeTab === tab.id
-                      ? tab.id === 'ai' ? 'border-purple-500 text-purple-600' : 'border-brand-500 text-brand-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      ? tab.id === 'ai' ? 'border-purple-500 text-purple-600 dark:text-purple-400' : 'border-brand-500 text-brand-600 dark:text-brand-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   )}
                 >
                   {tab.id === 'ai' && <Sparkles className="w-4 h-4" />}
@@ -1248,16 +1248,16 @@ Current data:
             {activeTab === 'basic' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => handleTitleChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     URL Slug
                     {isCreateMode && !slugManuallyEdited && <span className="text-green-600 font-normal ml-1">(auto-synced from title)</span>}
                     {isCreateMode && slugManuallyEdited && <span className="text-gray-400 font-normal ml-1">(manually edited)</span>}
@@ -1267,13 +1267,13 @@ Current data:
                     value={slug}
                     onChange={(e) => handleSlugChange(e.target.value)}
                     placeholder={isCreateMode ? 'auto-generated' : ''}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
                   />
                 </div>
 
                 {/* Featured Image */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Featured Image</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Featured Image</label>
                   
                   {/* URL Input */}
                   <input
@@ -1281,7 +1281,7 @@ Current data:
                     value={rewriteMediaUrl(metaBox.featured_image_url)}
                     onChange={(e) => updateMetaField('featured_image_url', e.target.value)}
                     placeholder={`${siteUrl || 'https://example.com'}/wp-content/uploads/...`}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 mb-2"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 mb-2"
                   />
                   
                   {/* Upload Button */}
@@ -1299,7 +1299,7 @@ Current data:
                       className={cn(
                         'flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',
                         isUploading
-                          ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                          ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                           : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                       )}
                     >
@@ -1315,7 +1315,7 @@ Current data:
                         </>
                       )}
                     </button>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
                       Max 10MB. JPG, PNG, WebP, GIF
                     </span>
                   </div>
@@ -1328,11 +1328,11 @@ Current data:
                   {/* Image Preview */}
                   {(metaBox.featured_image_url as string) && (
                     <div className="mt-3">
-                      <p className="text-xs text-gray-500 mb-1">Preview:</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Preview:</p>
                       <img
                         src={rewriteMediaUrl(metaBox.featured_image_url)}
                         alt="Featured image preview"
-                        className="max-w-xs max-h-48 rounded-lg border border-gray-200 object-cover"
+                        className="max-w-xs max-h-48 rounded-lg border border-gray-200 dark:border-gray-700 object-cover"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                         }}
@@ -1344,15 +1344,15 @@ Current data:
                 {/* Title Prompt Modal */}
                 {showTitlePrompt && (
                   <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Post Title Required</h3>
-                      <p className="text-sm text-gray-600 mb-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Post Title Required</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                         Please enter a post title to name the image file. This will also be used as the page title.
                       </p>
                       <input
                         type="text"
                         placeholder="Enter post title..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 mb-4"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 mb-4"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             handleTitlePromptSubmit((e.target as HTMLInputElement).value);
@@ -1366,7 +1366,7 @@ Current data:
                             setShowTitlePrompt(false);
                             setPendingFile(null);
                           }}
-                          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                          className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
                         >
                           Cancel
                         </button>
@@ -1390,8 +1390,8 @@ Current data:
             {activeTab === 'seo' && (
               <div className="space-y-6">
                 {isCreateMode && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-sm text-blue-700">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
                       SEO settings will be saved automatically after the resource is created.
                     </p>
                   </div>
@@ -1399,23 +1399,23 @@ Current data:
                 {!isCreateMode && seoLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                    <span className="ml-2 text-gray-500">Loading SEO data...</span>
+                    <span className="ml-2 text-gray-500 dark:text-gray-400">Loading SEO data...</span>
                   </div>
                 ) : !isCreateMode && seoError ? (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-sm text-red-700">{seoError}</p>
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <p className="text-sm text-red-700 dark:text-red-300">{seoError}</p>
                   </div>
                 ) : (
                   <>
                     {/* Basic SEO */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                    <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         <Search className="w-4 h-4" />
                         Search Engine Optimization
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           SEO Title
                           <span className="text-gray-400 font-normal ml-2">
                             {seoData.title.length}/60
@@ -1428,12 +1428,12 @@ Current data:
                           value={seoData.title}
                           onChange={(e) => handleSeoTitleChange(e.target.value)}
                           placeholder="Custom title for search engines..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Meta Description
                           <span className="text-gray-400 font-normal ml-2">
                             {seoData.description.length}/160
@@ -1444,12 +1444,12 @@ Current data:
                           onChange={(e) => updateSeoField('description', e.target.value)}
                           placeholder="Brief description for search results..."
                           rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Target Keywords
                         </label>
                         <input
@@ -1457,13 +1457,13 @@ Current data:
                           value={seoData.targetKeywords}
                           onChange={(e) => updateSeoField('targetKeywords', e.target.value)}
                           placeholder="keyword1, keyword2, keyword3..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                         />
-                        <p className="text-xs text-gray-500 mt-1">Comma-separated list of target keywords</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Comma-separated list of target keywords</p>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Canonical URL
                         </label>
                         <input
@@ -1471,15 +1471,15 @@ Current data:
                           value={seoData.canonical}
                           onChange={(e) => updateSeoField('canonical', e.target.value)}
                           placeholder="https://..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
                         />
-                        <p className="text-xs text-gray-500 mt-1">Leave empty to use default URL</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Leave empty to use default URL</p>
                       </div>
                     </div>
 
                     {/* Social Media */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                    <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         <Share2 className="w-4 h-4" />
                         Social Media
                       </div>
@@ -1488,33 +1488,33 @@ Current data:
                       <div className="border-l-4 border-blue-500 pl-4 space-y-3">
                         <h4 className="text-sm font-medium text-blue-700">Facebook / Open Graph</h4>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Title</label>
                           <input
                             type="text"
                             value={seoData.og.title}
                             onChange={(e) => updateSeoNestedField('og', 'title', e.target.value)}
                             placeholder="Facebook share title..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Description</label>
                           <textarea
                             value={seoData.og.description}
                             onChange={(e) => updateSeoNestedField('og', 'description', e.target.value)}
                             placeholder="Facebook share description..."
                             rows={2}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Image URL</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Image URL</label>
                           <input
                             type="url"
                             value={seoData.og.image}
                             onChange={(e) => updateSeoNestedField('og', 'image', e.target.value)}
                             placeholder="https://..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm font-mono"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm font-mono"
                           />
                         </div>
                       </div>
@@ -1523,41 +1523,41 @@ Current data:
                       <div className="border-l-4 border-sky-500 pl-4 space-y-3">
                         <h4 className="text-sm font-medium text-sky-700">Twitter / X</h4>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Title</label>
                           <input
                             type="text"
                             value={seoData.twitter.title}
                             onChange={(e) => updateSeoNestedField('twitter', 'title', e.target.value)}
                             placeholder="Twitter share title..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Description</label>
                           <textarea
                             value={seoData.twitter.description}
                             onChange={(e) => updateSeoNestedField('twitter', 'description', e.target.value)}
                             placeholder="Twitter share description..."
                             rows={2}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Image URL</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Image URL</label>
                           <input
                             type="url"
                             value={seoData.twitter.image}
                             onChange={(e) => updateSeoNestedField('twitter', 'image', e.target.value)}
                             placeholder="https://..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm font-mono"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm font-mono"
                           />
                         </div>
                       </div>
                     </div>
 
                     {/* Robots / Indexing */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                    <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         <Globe className="w-4 h-4" />
                         Indexing & Robots
                       </div>
@@ -1570,7 +1570,7 @@ Current data:
                             onChange={(e) => updateSeoNestedField('robots', 'noindex', e.target.checked)}
                             className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                           />
-                          <span className="text-sm text-gray-700">No Index</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">No Index</span>
                         </label>
 
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -1580,7 +1580,7 @@ Current data:
                             onChange={(e) => updateSeoNestedField('robots', 'nofollow', e.target.checked)}
                             className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                           />
-                          <span className="text-sm text-gray-700">No Follow</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">No Follow</span>
                         </label>
 
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -1590,7 +1590,7 @@ Current data:
                             onChange={(e) => updateSeoNestedField('robots', 'nosnippet', e.target.checked)}
                             className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                           />
-                          <span className="text-sm text-gray-700">No Snippet</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">No Snippet</span>
                         </label>
 
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -1600,18 +1600,18 @@ Current data:
                             onChange={(e) => updateSeoNestedField('robots', 'noimageindex', e.target.checked)}
                             className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                           />
-                          <span className="text-sm text-gray-700">No Image Index</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">No Image Index</span>
                         </label>
                       </div>
 
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
                         Check these options to prevent search engines from indexing or following links on this page.
                       </p>
                     </div>
 
                     {seoHasChanges && !isCreateMode && (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                        <p className="text-sm text-yellow-700 flex items-center gap-2">
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                        <p className="text-sm text-yellow-700 dark:text-yellow-300 flex items-center gap-2">
                           <AlertTriangle className="w-4 h-4" />
                           SEO changes will be saved when you click Save Changes
                         </p>
@@ -1672,10 +1672,10 @@ Current data:
                       <Sparkles className="w-8 h-8 text-purple-600" />
                     )}
                     <div className="text-center">
-                      <span className="block font-semibold text-gray-900">
+                      <span className="block font-semibold text-gray-900 dark:text-white">
                         {copiedPrompt === 'ai-fill' ? 'Copied!' : 'Copy AI Fill Prompt'}
                       </span>
-                      <span className="text-xs text-gray-500 mt-1">Generate all content fields</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">Generate all content fields</span>
                     </div>
                   </button>
 
@@ -1694,24 +1694,24 @@ Current data:
                       <ImageIcon className="w-8 h-8 text-amber-600" />
                     )}
                     <div className="text-center">
-                      <span className="block font-semibold text-gray-900">
+                      <span className="block font-semibold text-gray-900 dark:text-white">
                         {copiedPrompt === 'featured-image' ? 'Copied!' : 'Copy Image Prompt'}
                       </span>
-                      <span className="text-xs text-gray-500 mt-1">Generate featured image ideas</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">Generate featured image ideas</span>
                     </div>
                   </button>
                 </div>
 
                 {/* Instructions */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                  <p className="text-sm text-gray-600 text-center">
+                <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
                     Copy a prompt above → Paste into ChatGPT/Claude → Paste the response below → Click Apply
                   </p>
                 </div>
 
                 {/* Paste Response */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Paste AI Response
                   </label>
                   <textarea
@@ -1722,7 +1722,7 @@ Current data:
                     }}
                     placeholder="Paste the AI-generated response here..."
                     rows={12}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm"
                   />
                 </div>
 
@@ -1746,7 +1746,7 @@ Current data:
                     'w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-colors',
                     aiPasteContent.trim()
                       ? 'bg-purple-600 text-white hover:bg-purple-700'
-                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                   )}
                 >
                   <Wand2 className="w-4 h-4" />
@@ -1758,16 +1758,16 @@ Current data:
 
           {/* Footer */}
           <div className={cn(
-            "flex items-center justify-between px-6 py-4 border-t border-gray-200",
-            isCreateMode ? "bg-green-50" : "bg-gray-50"
+            "flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700",
+            isCreateMode ? "bg-green-50 dark:bg-green-900/20" : "bg-gray-50 dark:bg-gray-800/80"
           )}>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700">Status:</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white"
+                  className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white dark:bg-gray-700 dark:text-gray-100"
                 >
                   {STATUS_OPTIONS.map((opt) => (
                     <option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>
@@ -1775,8 +1775,8 @@ Current data:
                 </select>
               </div>
               {hasChanges && !isCreateMode && (
-                <div className="flex items-center gap-1.5 text-yellow-700">
-                  <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                <div className="flex items-center gap-1.5 text-yellow-700 dark:text-yellow-400">
+                  <AlertTriangle className="w-4 h-4 text-yellow-500 dark:text-yellow-400" />
                   <span className="text-sm">Unsaved changes</span>
                 </div>
               )}
@@ -1785,7 +1785,7 @@ Current data:
               {!isCreateMode && onConvertPostType && (
                 <button
                   onClick={onConvertPostType}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
                 >
                   <Repeat className="w-3.5 h-3.5" />
                   Convert Type
@@ -1793,7 +1793,7 @@ Current data:
               )}
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
               >
                 Cancel
               </button>

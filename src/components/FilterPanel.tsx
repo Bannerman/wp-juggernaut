@@ -75,13 +75,13 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-gray-700">Filter by Taxonomy</h3>
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Taxonomy</h3>
         {hasActiveFilters && (
           <button
             onClick={clearAllFilters}
-            className="text-xs text-gray-500 hover:text-gray-700"
+            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
           >
             Clear all
           </button>
@@ -99,13 +99,13 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
           if (taxonomyTerms.length === 0) return null;
 
           return (
-            <div key={taxonomy} className="border border-gray-200 rounded-lg">
+            <div key={taxonomy} className="border border-gray-200 dark:border-gray-700 rounded-lg">
               <button
                 onClick={() => toggleTaxonomy(taxonomy)}
-                className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50"
+                className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-700">
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
                     {taxonomyLabels[taxonomy] || taxConfig?.name || taxonomy}
                   </span>
                   {selectedCount > 0 && (
@@ -123,10 +123,10 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
               </button>
 
               {isExpanded && (
-                <div className="px-3 py-2 border-t border-gray-200 bg-gray-50">
+                <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                   {/* Selected terms */}
                   {selectedCount > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-2 pb-2 border-b border-gray-200">
+                    <div className="flex flex-wrap gap-1 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
                       {getSelectedTermNames(taxonomy).map((name) => (
                         <span
                           key={name}
@@ -146,7 +146,7 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
                       ))}
                       <button
                         onClick={() => clearTaxonomyFilter(taxonomy)}
-                        className="text-xs text-gray-500 hover:text-gray-700 ml-1"
+                        className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 ml-1"
                       >
                         Clear
                       </button>
@@ -167,8 +167,8 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
                           <div key={term.id}>
                             <label
                               className={cn(
-                                'flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-gray-100',
-                                isSelected && 'bg-brand-50'
+                                'flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700',
+                                isSelected && 'bg-brand-50 dark:bg-brand-900/30'
                               )}
                             >
                               <input
@@ -177,7 +177,7 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
                                 onChange={() => toggleTerm(taxonomy, term.id)}
                                 className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                               />
-                              <span className="text-sm text-gray-700">{term.name}</span>
+                              <span className="text-sm text-gray-700 dark:text-gray-300">{term.name}</span>
                             </label>
 
                             {/* Child terms for hierarchical taxonomies */}
@@ -189,8 +189,8 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
                                     <label
                                       key={child.id}
                                       className={cn(
-                                        'flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-gray-100',
-                                        isChildSelected && 'bg-brand-50'
+                                        'flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700',
+                                        isChildSelected && 'bg-brand-50 dark:bg-brand-900/30'
                                       )}
                                     >
                                       <input
@@ -199,7 +199,7 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
                                         onChange={() => toggleTerm(taxonomy, child.id)}
                                         className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                                       />
-                                      <span className="text-sm text-gray-600">{child.name}</span>
+                                      <span className="text-sm text-gray-600 dark:text-gray-400">{child.name}</span>
                                     </label>
                                   );
                                 })}

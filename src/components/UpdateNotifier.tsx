@@ -94,13 +94,13 @@ export function UpdateNotifier() {
   return (
     <div className="flex items-center gap-3 text-sm">
       {/* Version badge */}
-      <span className="text-gray-500">v{appVersion}</span>
+      <span className="text-gray-500 dark:text-gray-400">v{appVersion}</span>
 
       {/* Status indicator */}
       {updateStatus && (
         <div className="flex items-center gap-2">
           {getStatusIcon()}
-          <span className="text-gray-600">{getStatusText()}</span>
+          <span className="text-gray-600 dark:text-gray-400">{getStatusText()}</span>
         </div>
       )}
 
@@ -108,7 +108,7 @@ export function UpdateNotifier() {
       {!updateStatus && !isChecking && (
         <button
           onClick={checkForUpdates}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
+          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
           title="Check for updates"
         >
           <RefreshCw className="w-3 h-3" />

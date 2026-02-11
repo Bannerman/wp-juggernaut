@@ -17,6 +17,7 @@ import {
   Settings
 } from 'lucide-react';
 import { ResourceTable } from '@/components/ResourceTable';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { FilterPanel } from '@/components/FilterPanel';
 import { EditModal } from '@/components/EditModal';
 import { UpdateNotifier } from '@/components/UpdateNotifier';
@@ -470,10 +471,10 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       {/* Header - electron-drag allows window to be moved by dragging header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 electron-drag relative">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 electron-drag relative">
         {/* Sync progress bar — overlays the bottom border */}
         {isSyncing && (
-          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gray-200 z-10">
+          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gray-200 dark:bg-gray-700 z-10">
             <div
               className="h-full bg-brand-500 transition-all duration-300 ease-out"
               style={{ width: `${Math.max(syncProgress * 100, 1)}%` }}
@@ -484,10 +485,10 @@ export default function Home() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <img src="/icon.png" alt="Juggernaut" className="w-8 h-8" />
-              <h1 className="text-xl font-bold text-gray-900">Juggernaut</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Juggernaut</h1>
               <Link
                 href="/settings"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors electron-no-drag"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors electron-no-drag"
               >
                 <Settings className="w-4 h-4" />
                 Settings
@@ -495,9 +496,10 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-4 electron-no-drag">
+              <ThemeToggle />
               <UpdateNotifier />
               {stats?.lastSync && (
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                   <Clock className="w-4 h-4" />
                   <span>Last sync: {formatRelativeTime(stats.lastSync)}</span>
                 </div>
@@ -517,7 +519,7 @@ export default function Home() {
                   disabled={isSyncing}
                   className={cn(
                     'flex items-center justify-center gap-2 px-4 py-2 rounded-l-lg text-sm font-medium transition-colors min-w-[100px]',
-                    'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                    'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600',
                     'disabled:opacity-50 disabled:cursor-not-allowed'
                   )}
                 >
@@ -528,22 +530,22 @@ export default function Home() {
                   onClick={() => setShowSyncDropdown(!showSyncDropdown)}
                   disabled={isSyncing}
                   className={cn(
-                    'flex items-center px-2 py-2 rounded-r-lg text-sm font-medium transition-colors border-l border-gray-300',
-                    'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                    'flex items-center px-2 py-2 rounded-r-lg text-sm font-medium transition-colors border-l border-gray-300 dark:border-gray-600',
+                    'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600',
                     'disabled:opacity-50 disabled:cursor-not-allowed'
                   )}
                 >
                   <ChevronDown className="w-4 h-4" />
                 </button>
                 {showSyncDropdown && (
-                  <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                     <button
                       onClick={() => {
                         setShowSyncDropdown(false);
                         handleSync(false);
                       }}
                       disabled={isSyncing}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
                     >
                       <Download className="w-4 h-4" />
                       Force Full Sync
@@ -573,19 +575,19 @@ export default function Home() {
       {(error || success) && (
         <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
           {error && (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 text-red-700 shadow-lg border border-red-200 animate-in slide-in-from-right fade-in">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 shadow-lg border border-red-200 dark:border-red-800 animate-in slide-in-from-right fade-in">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
-              <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">
+              <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200">
                 ×
               </button>
             </div>
           )}
           {success && (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 text-green-700 shadow-lg border border-green-200 animate-in slide-in-from-right fade-in">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 shadow-lg border border-green-200 dark:border-green-800 animate-in slide-in-from-right fade-in">
               <CheckCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{success}</span>
-              <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700">
+              <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-200">
                 ×
               </button>
             </div>
@@ -595,7 +597,7 @@ export default function Home() {
 
       {/* Stats Bar */}
       {stats && (
-        <div className="bg-white border-b border-gray-200">
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-6">
@@ -607,29 +609,29 @@ export default function Home() {
                   />
                 )}
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500">Total:</span>
-                  <span className="font-medium text-gray-900">{stats.totalResources} {postTypeLabel.toLowerCase()}s</span>
+                  <span className="text-gray-500 dark:text-gray-400">Total:</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{stats.totalResources} {postTypeLabel.toLowerCase()}s</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500">Terms:</span>
-                  <span className="font-medium text-gray-900">{stats.totalTerms}</span>
+                  <span className="text-gray-500 dark:text-gray-400">Terms:</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{stats.totalTerms}</span>
                 </div>
                 {stats.dirtyResources > 0 && (
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
-                    <span className="font-medium text-yellow-700">{stats.dirtyResources} unsaved changes</span>
+                    <span className="font-medium text-yellow-700 dark:text-yellow-400">{stats.dirtyResources} unsaved changes</span>
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+              <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
                 <button
                   onClick={() => setViewMode('general')}
                   className={cn(
                     'px-3 py-1 rounded-md text-xs font-medium transition-colors',
                     viewMode === 'general'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   )}
                 >
                   General
@@ -639,8 +641,8 @@ export default function Home() {
                   className={cn(
                     'px-3 py-1 rounded-md text-xs font-medium transition-colors',
                     viewMode === 'power'
-                      ? 'bg-white text-brand-700 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-400 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   )}
                 >
                   Power
@@ -663,14 +665,14 @@ export default function Home() {
                 placeholder={`Search ${postTypeLabel.toLowerCase()}s...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             >
               <option value="">All Statuses</option>
               <option value="publish">Published</option>
@@ -686,7 +688,7 @@ export default function Home() {
                 onChange={(e) => setShowDirtyOnly(e.target.checked)}
                 className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
               />
-              <span className="text-sm text-gray-700">Unsaved only</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Unsaved only</span>
             </label>
 
             <button
@@ -694,8 +696,8 @@ export default function Home() {
               className={cn(
                 'flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors',
                 showFilters
-                  ? 'bg-brand-50 border-brand-300 text-brand-700'
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  ? 'bg-brand-50 dark:bg-brand-900/30 border-brand-300 dark:border-brand-700 text-brand-700 dark:text-brand-400'
+                  : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
               )}
             >
               <Filter className="w-4 h-4" />
@@ -723,8 +725,8 @@ export default function Home() {
         ) : filteredResources.length === 0 ? (
           <div className="text-center py-12">
             <Database className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No resources found</h3>
-            <p className="text-gray-500 mb-4">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No resources found</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
               {resources.length === 0
                 ? 'Sync with WordPress to load resources.'
                 : 'Try adjusting your filters.'}
