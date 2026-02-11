@@ -124,12 +124,74 @@ export function getResources(filters: ResourceFilters = {}, postType?: string): 
     is_dirty: number;
   }>;
 
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const postIds = rows.map((r) => r.id);
+  const placeholders = postIds.map(() => '?').join(',');
+
+  // Fetch all meta
+  const metaRows = db
+    .prepare(`SELECT post_id, field_id, value FROM post_meta WHERE post_id IN (${placeholders})`)
+    .all(...postIds) as Array<{ post_id: number; field_id: string; value: string }>;
+
+  const metaByPost: Record<number, Record<string, unknown>> = {};
+  for (const row of metaRows) {
+    if (!metaByPost[row.post_id]) {
+      metaByPost[row.post_id] = {};
+    }
+    try {
+      metaByPost[row.post_id][row.field_id] = JSON.parse(row.value);
+    } catch {
+      metaByPost[row.post_id][row.field_id] = row.value;
+    }
+  }
+
+  // Fetch all taxonomies
+  const termRows = db
+    .prepare(`SELECT post_id, term_id, taxonomy FROM post_terms WHERE post_id IN (${placeholders})`)
+    .all(...postIds) as Array<{ post_id: number; term_id: number; taxonomy: string }>;
+
+  const termsByPost: Record<number, Record<string, number[]>> = {};
+  const profileTaxonomies = getTaxonomies();
+
+  for (const row of termRows) {
+    if (!termsByPost[row.post_id]) {
+      termsByPost[row.post_id] = {};
+      // Initialize with empty arrays for all profile taxonomies
+      for (const tax of profileTaxonomies) {
+        termsByPost[row.post_id][tax] = [];
+      }
+    }
+
+    // Ensure this specific taxonomy array exists (in case it wasn't in profile)
+    if (!termsByPost[row.post_id][row.taxonomy]) {
+      termsByPost[row.post_id][row.taxonomy] = [];
+    }
+
+    termsByPost[row.post_id][row.taxonomy].push(row.term_id);
+  }
+
   return rows.map((row) => {
+    // Ensure we have empty objects if no meta/terms found for this post
+    const meta = metaByPost[row.id] || {};
+
+    // For taxonomies, we need to make sure we return the structure with all profile taxonomies
+    // even if no terms were found
+    let taxonomies = termsByPost[row.id];
+    if (!taxonomies) {
+      taxonomies = {};
+      for (const tax of profileTaxonomies) {
+        taxonomies[tax] = [];
+      }
+    }
+
     const resource: LocalResource = {
       ...row,
       is_dirty: row.is_dirty === 1,
-      meta_box: getPostMeta(row.id),
-      taxonomies: getPostTaxonomies(row.id),
+      meta_box: meta,
+      taxonomies: taxonomies,
     };
 
     // Apply taxonomy filters
@@ -333,7 +395,7 @@ export function updateLocalResource(
     // Persist dirty taxonomy set
     db.prepare(
       "INSERT OR REPLACE INTO post_meta (post_id, field_id, value) VALUES (?, '_dirty_taxonomies', ?)"
-    ).run(id, JSON.stringify([...dirtyTaxonomies]));
+    ).run(id, JSON.stringify(Array.from(dirtyTaxonomies)));
 
     db.prepare('UPDATE posts SET is_dirty = 1 WHERE id = ?').run(id);
   }
