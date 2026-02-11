@@ -390,7 +390,7 @@ export default function FieldMappingsPage(): React.ReactElement {
                     className={cn(
                       'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors',
                       previewEnabled
-                        ? 'bg-brand-50 border-brand-200 text-brand-600'
+                        ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-200 dark:border-brand-700 text-brand-600 dark:text-brand-400'
                         : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200'
                     )}
                   >
@@ -402,7 +402,7 @@ export default function FieldMappingsPage(): React.ReactElement {
                     className={cn(
                       'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors',
                       showFieldKeys
-                        ? 'bg-brand-50 border-brand-200 text-brand-600'
+                        ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-200 dark:border-brand-700 text-brand-600 dark:text-brand-400'
                         : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200'
                     )}
                   >
