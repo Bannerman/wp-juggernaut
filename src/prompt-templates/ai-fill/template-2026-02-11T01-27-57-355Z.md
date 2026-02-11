@@ -1,0 +1,32 @@
+Please provide content for a resource titled "{{title}}" with the following fields. Use the EXACT format below with the field markers. 
+
+---TITLE---
+{{title}}
+
+---INTRO_TEXT---
+{{intro_text}}
+
+---TEXT_CONTENT---
+{{text_content}}
+
+---FEATURES---
+{{features}}
+
+---TAXONOMIES---
+IMPORTANT: Do NOT repeat the options below. Only output the "Your selections" section with your chosen values.
+
+Available options for reference:
+{{available_taxonomies}}
+
+Your selections (comma-separated, ONLY include the field name and your selections):
+{{taxonomy_selections}}
+
+---TIMER---
+timer_enabled: {{timer_enabled}}
+timer_title: {{timer_title}}
+timer_datetime: {{timer_datetime}}
+
+---CHANGELOG---
+{{changelog}}
+
+---END---
