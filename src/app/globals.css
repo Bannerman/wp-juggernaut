@@ -21,6 +21,25 @@ body {
   color: rgb(var(--foreground-rgb));
 }
 
+/* Indeterminate sync progress bar */
+@keyframes sync-bar {
+  0% {
+    transform: translateX(-100%);
+    width: 40%;
+  }
+  50% {
+    width: 60%;
+  }
+  100% {
+    transform: translateX(250%);
+    width: 40%;
+  }
+}
+
+.animate-sync-bar {
+  animation: sync-bar 1.5s ease-in-out infinite;
+}
+
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
