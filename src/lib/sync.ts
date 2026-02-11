@@ -166,109 +166,113 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
   const content = resource.content?.rendered || '';
   const excerpt = resource.excerpt?.rendered || '';
 
-  db.prepare(`
-    INSERT OR REPLACE INTO posts (id, post_type, title, slug, status, content, excerpt, featured_media, date_gmt, modified_gmt, synced_at, is_dirty)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT is_dirty FROM posts WHERE id = ?), 0))
-  `).run(
-    resource.id,
-    type,
-    title,
-    resource.slug,
-    resource.status,
-    content,
-    excerpt,
-    resource.featured_media || 0,
-    resource.date_gmt,
-    resource.modified_gmt,
-    now,
-    resource.id
-  );
+  const insertTransaction = db.transaction(() => {
+    db.prepare(`
+      INSERT OR REPLACE INTO posts (id, post_type, title, slug, status, content, excerpt, featured_media, date_gmt, modified_gmt, synced_at, is_dirty)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT is_dirty FROM posts WHERE id = ?), 0))
+    `).run(
+      resource.id,
+      type,
+      title,
+      resource.slug,
+      resource.status,
+      content,
+      excerpt,
+      resource.featured_media || 0,
+      resource.date_gmt,
+      resource.modified_gmt,
+      now,
+      resource.id
+    );
 
-  // Save meta_box fields
-  const metaStmt = db.prepare(`
-    INSERT OR REPLACE INTO post_meta (post_id, field_id, value)
-    VALUES (?, ?, ?)
-  `);
+    // Save meta_box fields
+    const metaStmt = db.prepare(`
+      INSERT OR REPLACE INTO post_meta (post_id, field_id, value)
+      VALUES (?, ?, ?)
+    `);
 
-  // First, clear existing meta_box to handle removed fields
-  db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(resource.id);
-  
-  // Save the featured_image_url and featured_media_id if we have them
-  if (featuredImageUrl) {
-    metaStmt.run(resource.id, 'featured_image_url', JSON.stringify(featuredImageUrl));
-  }
-  if (resource.featured_media && resource.featured_media > 0) {
-    metaStmt.run(resource.id, 'featured_media_id', JSON.stringify(resource.featured_media));
-  }
-  
-  // Save other meta_box fields from WordPress
-  if (resource.meta_box) {
-    for (const [fieldId, value] of Object.entries(resource.meta_box)) {
-      // Skip featured_image_url if we already set it from media
-      if (fieldId === 'featured_image_url' && featuredImageUrl) continue;
-      metaStmt.run(resource.id, fieldId, JSON.stringify(value));
+    // First, clear existing meta_box to handle removed fields
+    db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(resource.id);
+
+    // Save the featured_image_url and featured_media_id if we have them
+    if (featuredImageUrl) {
+      metaStmt.run(resource.id, 'featured_image_url', JSON.stringify(featuredImageUrl));
     }
-  }
+    if (resource.featured_media && resource.featured_media > 0) {
+      metaStmt.run(resource.id, 'featured_media_id', JSON.stringify(resource.featured_media));
+    }
 
-  // Save taxonomy terms — prefer Meta Box fields (tax_*) which contain reliable
-  // term objects, over top-level REST fields which can include stale term_taxonomy_ids.
-  db.prepare('DELETE FROM post_terms WHERE post_id = ?').run(resource.id);
-
-  const termStmt = db.prepare(`
-    INSERT OR REPLACE INTO post_terms (post_id, term_id, taxonomy)
-    VALUES (?, ?, ?)
-  `);
-
-  const taxonomies = getTaxonomies();
-  for (const taxonomy of taxonomies) {
-    const metaField = TAXONOMY_META_FIELD[taxonomy];
-    let termIds: number[] = [];
-
-    // Try Meta Box field first (more reliable for this CPT)
-    const metaValue = metaField && resource.meta_box ? resource.meta_box[metaField] : undefined;
-    if (metaValue !== undefined) {
-      if (Array.isArray(metaValue)) {
-        // Could be: array of term objects [{term_id, name, ...}, ...] OR plain number array [N, M]
-        termIds = metaValue
-          .map((t: unknown) => {
-            if (typeof t === 'number') return t;
-            if (typeof t === 'string' && /^\d+$/.test(t)) return parseInt(t, 10);
-            if (typeof t === 'object' && t !== null) {
-              const obj = t as Record<string, unknown>;
-              const id = obj.term_id ?? obj.id;
-              if (typeof id === 'number') return id;
-              if (typeof id === 'string' && /^\d+$/.test(id)) return parseInt(id, 10);
-            }
-            return null;
-          })
-          .filter((id): id is number => typeof id === 'number');
-      } else if (typeof metaValue === 'number') {
-        // Single number value
-        termIds = [metaValue];
-      } else if (typeof metaValue === 'string' && /^\d+$/.test(metaValue)) {
-        // Single string number
-        termIds = [parseInt(metaValue, 10)];
-      } else if (typeof metaValue === 'object' && metaValue !== null) {
-        // taxonomy (single-select): single term object {term_id, name, ...}
-        const obj = metaValue as Record<string, unknown>;
-        const termId = obj.term_id ?? obj.id;
-        if (typeof termId === 'number') termIds = [termId];
-        else if (typeof termId === 'string' && /^\d+$/.test(termId)) termIds = [parseInt(termId, 10)];
+    // Save other meta_box fields from WordPress
+    if (resource.meta_box) {
+      for (const [fieldId, value] of Object.entries(resource.meta_box)) {
+        // Skip featured_image_url if we already set it from media
+        if (fieldId === 'featured_image_url' && featuredImageUrl) continue;
+        metaStmt.run(resource.id, fieldId, JSON.stringify(value));
       }
     }
 
-    // Fall back to top-level REST field only if Meta Box field wasn't present at all
-    if (metaValue === undefined) {
-      const topLevel = resource[taxonomy as keyof WPResource] as number[] | undefined;
-      if (Array.isArray(topLevel)) {
-        termIds = topLevel;
+    // Save taxonomy terms — prefer Meta Box fields (tax_*) which contain reliable
+    // term objects, over top-level REST fields which can include stale term_taxonomy_ids.
+    db.prepare('DELETE FROM post_terms WHERE post_id = ?').run(resource.id);
+
+    const termStmt = db.prepare(`
+      INSERT OR REPLACE INTO post_terms (post_id, term_id, taxonomy)
+      VALUES (?, ?, ?)
+    `);
+
+    const taxonomies = getTaxonomies();
+    for (const taxonomy of taxonomies) {
+      const metaField = TAXONOMY_META_FIELD[taxonomy];
+      let termIds: number[] = [];
+
+      // Try Meta Box field first (more reliable for this CPT)
+      const metaValue = metaField && resource.meta_box ? resource.meta_box[metaField] : undefined;
+      if (metaValue !== undefined) {
+        if (Array.isArray(metaValue)) {
+          // Could be: array of term objects [{term_id, name, ...}, ...] OR plain number array [N, M]
+          termIds = metaValue
+            .map((t: unknown) => {
+              if (typeof t === 'number') return t;
+              if (typeof t === 'string' && /^\d+$/.test(t)) return parseInt(t, 10);
+              if (typeof t === 'object' && t !== null) {
+                const obj = t as Record<string, unknown>;
+                const id = obj.term_id ?? obj.id;
+                if (typeof id === 'number') return id;
+                if (typeof id === 'string' && /^\d+$/.test(id)) return parseInt(id, 10);
+              }
+              return null;
+            })
+            .filter((id): id is number => typeof id === 'number');
+        } else if (typeof metaValue === 'number') {
+          // Single number value
+          termIds = [metaValue];
+        } else if (typeof metaValue === 'string' && /^\d+$/.test(metaValue)) {
+          // Single string number
+          termIds = [parseInt(metaValue, 10)];
+        } else if (typeof metaValue === 'object' && metaValue !== null) {
+          // taxonomy (single-select): single term object {term_id, name, ...}
+          const obj = metaValue as Record<string, unknown>;
+          const termId = obj.term_id ?? obj.id;
+          if (typeof termId === 'number') termIds = [termId];
+          else if (typeof termId === 'string' && /^\d+$/.test(termId)) termIds = [parseInt(termId, 10)];
+        }
+      }
+
+      // Fall back to top-level REST field only if Meta Box field wasn't present at all
+      if (metaValue === undefined) {
+        const topLevel = resource[taxonomy as keyof WPResource] as number[] | undefined;
+        if (Array.isArray(topLevel)) {
+          termIds = topLevel;
+        }
+      }
+
+      for (const termId of termIds) {
+        termStmt.run(resource.id, termId, taxonomy);
       }
     }
+  });
 
-    for (const termId of termIds) {
-      termStmt.run(resource.id, termId, taxonomy);
-    }
-  }
+  insertTransaction();
 }
 
 /**
