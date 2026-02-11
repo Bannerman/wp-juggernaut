@@ -333,7 +333,13 @@ function resolvePostTypeSlug(restBase: string): string {
  * @param postType - Optional post type REST base override
  * @returns Object with `updated` count, `deleted` count, and `rawResources` array
  */
-export async function syncResources(incremental: boolean = false, postType?: string): Promise<{
+export type SyncProgressCallback = (phase: string, progress: number, detail?: string) => void;
+
+export async function syncResources(
+  incremental: boolean = false,
+  postType?: string,
+  onProgress?: SyncProgressCallback
+): Promise<{
   updated: number;
   deleted: number;
   rawResources: WPResource[];
@@ -344,7 +350,11 @@ export async function syncResources(incremental: boolean = false, postType?: str
   const typeSlug = postType ? resolvePostTypeSlug(postType) : getPrimaryPostTypeSlug();
 
   console.log(`Fetching ${typeSlug} (incremental: ${incremental}, lastSync: ${lastSync})`);
-  const resources = await fetchAllResources(lastSync || undefined, restBase);
+  onProgress?.('fetching', 0, `Counting ${typeSlug}...`);
+  const resources = await fetchAllResources(lastSync || undefined, restBase, (fetched, total) => {
+    const pct = total > 0 ? fetched / total : 0;
+    onProgress?.('fetching', pct, `Fetched ${fetched} of ${total} ${typeSlug}`);
+  });
   console.log(`Fetched ${resources.length} ${typeSlug} from WordPress`);
 
   // Clear media cache at start of sync
@@ -360,8 +370,13 @@ export async function syncResources(incremental: boolean = false, postType?: str
 
   // Fetch all media URLs in parallel with concurrency limit
   console.log(`Fetching ${mediaIdsToFetch.size} media URLs...`);
+  onProgress?.('media', 0, `Fetching ${mediaIdsToFetch.size} media URLs...`);
+  let mediaFetched = 0;
+  const mediaTotal = mediaIdsToFetch.size;
   await pMap(Array.from(mediaIdsToFetch), async (mediaId) => {
     await fetchMediaUrl(mediaId);
+    mediaFetched++;
+    onProgress?.('media', mediaTotal > 0 ? mediaFetched / mediaTotal : 1);
   }, 5);
 
   // Save resources with their featured image URLs
@@ -375,8 +390,13 @@ export async function syncResources(incremental: boolean = false, postType?: str
 
   // Fetch and save SEO data for all resources in parallel with concurrency limit
   console.log(`Fetching SEO data for ${resources.length} ${typeSlug}...`);
+  onProgress?.('seo', 0, `Fetching SEO data for ${resources.length} ${typeSlug}...`);
+  let seoFetched = 0;
+  const seoTotal = resources.length;
   const seoResults = await pMap(resources, async (resource) => {
     const seo = await fetchSeoData(resource.id);
+    seoFetched++;
+    onProgress?.('seo', seoTotal > 0 ? seoFetched / seoTotal : 1);
     return { id: resource.id, seo };
   }, 5);
 
@@ -425,24 +445,41 @@ function getConfiguredPostTypes(): Array<{ slug: string; rest_base: string }> {
  * Updates `last_sync_time` only if no errors occurred.
  * @returns SyncResult with counts and any errors
  */
-export async function fullSync(): Promise<SyncResult> {
+export async function fullSync(onProgress?: SyncProgressCallback): Promise<SyncResult> {
   const errors: string[] = [];
   let taxonomiesUpdated = 0;
   let resourcesUpdated = 0;
   let resourcesDeleted = 0;
 
+  // Phase weights: taxonomies 5%, resources across all post types 95%
+  // Within each post type: fetching 50%, media 25%, seo 25%
+  onProgress?.('taxonomies', 0, 'Syncing taxonomies...');
   try {
     taxonomiesUpdated = await syncTaxonomies();
   } catch (error) {
     errors.push(`Taxonomy sync error: ${error}`);
   }
+  onProgress?.('taxonomies', 1, `Synced ${taxonomiesUpdated} terms`);
 
   // Sync all configured post types
   let rawResources: WPResource[] = [];
   const postTypes = getConfiguredPostTypes();
-  for (const pt of postTypes) {
+  const ptCount = postTypes.length;
+  for (let i = 0; i < ptCount; i++) {
+    const pt = postTypes[i];
+    const ptBase = i / ptCount;       // base progress for this post type
+    const ptSlice = 1 / ptCount;      // fraction of total for this post type
     try {
-      const result = await syncResources(false, pt.rest_base);
+      const result = await syncResources(false, pt.rest_base, (phase, phasePct, detail) => {
+        // Map sub-phases to overall progress within this post type's slice
+        let subOffset = 0;
+        let subWeight = 0.5;
+        if (phase === 'fetching') { subOffset = 0; subWeight = 0.5; }
+        else if (phase === 'media') { subOffset = 0.5; subWeight = 0.25; }
+        else if (phase === 'seo') { subOffset = 0.75; subWeight = 0.25; }
+        const overall = ptBase + ptSlice * (subOffset + subWeight * phasePct);
+        onProgress?.(phase, overall, detail);
+      });
       resourcesUpdated += result.updated;
       resourcesDeleted += result.deleted;
       rawResources = rawResources.concat(result.rawResources);

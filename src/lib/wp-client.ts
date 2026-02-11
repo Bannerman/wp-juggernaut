@@ -301,16 +301,20 @@ export async function fetchResources(
  */
 export async function fetchAllResources(
   modifiedAfter?: string,
-  postType?: string
+  postType?: string,
+  onProgress?: (fetched: number, total: number) => void
 ): Promise<WPResource[]> {
   const allResources: WPResource[] = [];
   let page = 1;
   let totalPages = 1;
+  let total = 0;
 
   while (page <= totalPages) {
     const result = await fetchResources({ page, modifiedAfter, postType });
     allResources.push(...result.resources);
     totalPages = result.totalPages;
+    total = result.total;
+    if (onProgress) onProgress(allResources.length, total);
     page++;
   }
 
