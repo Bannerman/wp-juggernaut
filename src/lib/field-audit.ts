@@ -1,6 +1,6 @@
 import { getDb } from './db';
 import type { WPResource } from './wp-client';
-import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
+import { getProfileTaxonomyMetaFieldMapping, getProfileManager, ensureProfileLoaded } from './profiles';
 
 export interface AuditEntry {
   field_name: string;
@@ -22,20 +22,26 @@ export interface AuditResult {
   };
 }
 
-/** Known content meta fields that we actively use/reference */
-const KNOWN_CONTENT_FIELDS: string[] = [
-  'intro_text',
-  'text_content',
-  'text_',
-  'group_features',
-  'group_changelog',
-  'download_sections',
-  'timer_enable',
-  'timer_title',
-  'timer_single_datetime',
-];
-
-const KNOWN_CONTENT_FIELDS_SET = new Set(KNOWN_CONTENT_FIELDS);
+/**
+ * Derive known content meta fields from the active profile's field_layout.
+ * This replaces the former hardcoded KNOWN_CONTENT_FIELDS array.
+ */
+function getKnownContentFields(): string[] {
+  try {
+    ensureProfileLoaded();
+    const ui = getProfileManager().getUIConfig();
+    if (ui?.field_layout) {
+      const keys = new Set<string>();
+      for (const fields of Object.values(ui.field_layout)) {
+        for (const field of fields) {
+          keys.add(field.key);
+        }
+      }
+      return Array.from(keys);
+    }
+  } catch { /* profile not loaded, return empty */ }
+  return [];
+}
 
 /** Collect every unique meta_box key across all resources, with resource IDs */
 export function collectMetaBoxKeys(
@@ -63,11 +69,13 @@ export function runFieldAudit(
   const entries: AuditEntry[] = [];
   const processedFields = new Set<string>();
 
+  const taxonomyMetaFieldMapping = getProfileTaxonomyMetaFieldMapping();
+
   // Build reverse lookup: meta field value -> taxonomy slug
-  const taxonomyMetaValues = new Set(Object.values(TAXONOMY_META_FIELD));
+  const taxonomyMetaValues = new Set(Object.values(taxonomyMetaFieldMapping));
 
   // Check each taxonomy meta field mapping
-  for (const [taxonomy, metaField] of Object.entries(TAXONOMY_META_FIELD)) {
+  for (const [taxonomy, metaField] of Object.entries(taxonomyMetaFieldMapping)) {
     processedFields.add(metaField);
     const wpResources = wpFieldMap.get(metaField);
 
@@ -92,8 +100,10 @@ export function runFieldAudit(
     }
   }
 
-  // Check known content fields
-  for (const field of KNOWN_CONTENT_FIELDS) {
+  // Check known content fields (derived from profile field_layout)
+  const knownContentFields = getKnownContentFields();
+  const knownContentFieldsSet = new Set(knownContentFields);
+  for (const field of knownContentFields) {
     processedFields.add(field);
     const wpResources = wpFieldMap.get(field);
 
@@ -123,7 +133,7 @@ export function runFieldAudit(
     if (processedFields.has(field)) return;
 
     const isTaxField = taxonomyMetaValues.has(field);
-    const isContentField = KNOWN_CONTENT_FIELDS_SET.has(field);
+    const isContentField = knownContentFieldsSet.has(field);
 
     entries.push({
       field_name: field,

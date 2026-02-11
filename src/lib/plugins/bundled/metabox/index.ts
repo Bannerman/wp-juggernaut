@@ -20,24 +20,8 @@ import { HOOKS } from '../../hooks';
 import { getProfileManager } from '../../../profiles';
 
 /**
- * DEPRECATED: Use getTaxonomyMetaFieldMappingFromProfile() instead.
- * This constant is kept for backward compatibility but will be removed.
- * The mapping now comes from the profile's taxonomy configurations.
- */
-export const TAXONOMY_META_FIELD: Record<string, string> = {
-  'resource-type': 'tax_resource_type',
-  'topic': 'tax_topic',
-  'intent': 'tax_intent',
-  'audience': 'tax_audience',
-  'leagues': 'tax_league',
-  'bracket-size': 'tax_bracket_size',
-  'competition_format': 'tax_competition_format',
-  // file_format has no Meta Box field - only works via top-level REST field
-};
-
-/**
  * Get taxonomy to Meta Box field mapping from the current profile.
- * Falls back to hardcoded TAXONOMY_META_FIELD if profile doesn't have mappings.
+ * Reads taxonomy.meta_field entries from the active profile's taxonomy config.
  */
 export function getTaxonomyMetaFieldMappingFromProfile(): Record<string, string> {
   const manager = getProfileManager();
@@ -49,25 +33,10 @@ export function getTaxonomyMetaFieldMappingFromProfile(): Record<string, string>
         mapping[tax.slug] = tax.meta_field;
       }
     }
-    if (Object.keys(mapping).length > 0) {
-      return mapping;
-    }
+    return mapping;
   }
-  // Fallback to hardcoded mapping for backward compatibility
-  return TAXONOMY_META_FIELD;
+  return {};
 }
-
-/**
- * Known Meta Box field groups
- */
-export const META_BOX_FIELD_GROUPS = {
-  content: ['intro_text', 'text_content', 'text_'],
-  features: ['group_features'],
-  downloads: ['download_sections'],
-  changelog: ['group_changelog'],
-  timer: ['timer_enable', 'timer_title', 'timer_single_datetime'],
-  media: ['featured_image_url', 'featured_media_id'],
-} as const;
 
 /**
  * Feature item structure from Meta Box
@@ -255,8 +224,9 @@ class MetaBoxPlugin implements JuggernautPlugin {
 
     // Add taxonomy Meta Box fields
     if (resource.taxonomies) {
+      const taxonomyMetaMapping = getTaxonomyMetaFieldMappingFromProfile();
       for (const [taxonomy, termIds] of Object.entries(resource.taxonomies)) {
-        const metaField = TAXONOMY_META_FIELD[taxonomy];
+        const metaField = taxonomyMetaMapping[taxonomy];
         if (metaField && termIds && termIds.length > 0) {
           transformedPayload.meta_box[metaField] = termIds;
         }
@@ -289,31 +259,18 @@ class MetaBoxPlugin implements JuggernautPlugin {
   }
 
   /**
-   * Get known Meta Box fields for a category
-   */
-  getFieldsForCategory(category: keyof typeof META_BOX_FIELD_GROUPS): string[] {
-    return [...META_BOX_FIELD_GROUPS[category]];
-  }
-
-  /**
-   * Get taxonomy to Meta Box field mapping
+   * Get taxonomy to Meta Box field mapping (reads from active profile)
    */
   getTaxonomyMetaFieldMapping(): Record<string, string> {
-    return { ...TAXONOMY_META_FIELD };
+    return getTaxonomyMetaFieldMappingFromProfile();
   }
 
   /**
-   * Check if a field is a known Meta Box field
+   * Check if a field is a known Meta Box taxonomy meta field
    */
   isKnownField(fieldName: string): boolean {
-    // Check if it's in any field group
-    for (const fields of Object.values(META_BOX_FIELD_GROUPS)) {
-      if ((fields as readonly string[]).includes(fieldName)) {
-        return true;
-      }
-    }
-    // Check if it's a taxonomy meta field
-    return Object.values(TAXONOMY_META_FIELD).includes(fieldName);
+    const mapping = getTaxonomyMetaFieldMappingFromProfile();
+    return Object.values(mapping).includes(fieldName);
   }
 }
 
