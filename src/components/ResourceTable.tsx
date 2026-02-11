@@ -38,7 +38,7 @@ interface ResourceTableProps {
   onSelect: (ids: number[]) => void;
   onEdit: (resource: Resource) => void;
   onUpdate: (id: number, updates: Partial<Resource>) => void;
-  /** Site URL from profile (e.g., "https://plexkits.com") */
+  /** Site URL from profile (e.g., "https://example.com") */
   siteUrl?: string;
   /** Post type slug for URL building (e.g., "resource") */
   postTypeSlug?: string;

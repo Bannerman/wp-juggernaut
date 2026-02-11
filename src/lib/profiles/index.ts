@@ -7,6 +7,8 @@
  */
 
 import type { SiteProfile, SiteConfig, FieldMappingEntry, TabConfig, FieldDefinition } from '../plugins/types';
+import path from 'path';
+import fs from 'fs';
 
 // Import bundled profiles
 import plexkitsProfile from './plexkits.json';
@@ -438,6 +440,23 @@ export function getProfileSites(): SiteConfig[] {
   ensureProfileLoaded();
   const profile = getProfileManager().getCurrentProfile();
   return profile?.sites ?? [];
+}
+
+/**
+ * Resolve the file path for the active profile's JSON file on disk.
+ * Used by API routes that need to read/write the profile JSON directly.
+ */
+export function getActiveProfileFilePath(): string {
+  ensureProfileLoaded();
+  const profile = getProfileManager().getCurrentProfile();
+  const profileId = profile?.profile_id ?? 'plexkits';
+  // Bundled profiles live alongside this module
+  const profilePath = path.join(__dirname, `${profileId}.json`);
+  // Fallback: if __dirname doesn't resolve (e.g., Next.js bundling), use cwd
+  if (!fs.existsSync(profilePath)) {
+    return path.join(process.cwd(), 'lib', 'profiles', `${profileId}.json`);
+  }
+  return profilePath;
 }
 
 // Export the ProfileManager class for testing

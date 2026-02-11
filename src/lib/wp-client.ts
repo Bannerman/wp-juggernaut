@@ -53,7 +53,7 @@ export function getWpCredentials(): { username: string; appPassword: string } {
 }
 
 // Legacy exports for backwards compatibility (now read dynamically)
-export const WP_BASE_URL = process.env.WP_BASE_URL || 'https://plexkits.com';
+export const WP_BASE_URL = process.env.WP_BASE_URL || '';
 export const WP_USERNAME = process.env.WP_USERNAME || '';
 export const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
 

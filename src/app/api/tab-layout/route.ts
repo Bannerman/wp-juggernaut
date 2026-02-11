@@ -9,8 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { ensureProfileLoaded, getProfileManager } from '@/lib/profiles';
+import { ensureProfileLoaded, getProfileManager, getActiveProfileFilePath } from '@/lib/profiles';
 import { getWpBaseUrl, getWpCredentials } from '@/lib/wp-client';
 import { discoverFieldsForPostType } from '@/lib/discovery';
 import type { TabConfig, FieldDefinition, MappableField } from '@/lib/plugins/types';
@@ -20,10 +19,6 @@ import type { TabConfig, FieldDefinition, MappableField } from '@/lib/plugins/ty
 // non-editable here. It can be enabled/disabled via the plugin system.
 const CORE_TAB_IDS = new Set(['basic', 'classification', 'ai']);
 const HARDCODED_TAB_IDS = new Set(['basic', 'seo', 'classification', 'ai']);
-
-function getProfileFilePath(): string {
-  return join(process.cwd(), 'lib', 'profiles', 'plexkits.json');
-}
 
 function humanizeKey(key: string): string {
   return key
@@ -142,7 +137,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
 
     // Read current profile JSON
-    const filePath = getProfileFilePath();
+    const filePath = getActiveProfileFilePath();
     const fileContent = JSON.parse(readFileSync(filePath, 'utf-8'));
     if (!fileContent.ui) fileContent.ui = {};
     if (!fileContent.ui.tabs) fileContent.ui.tabs = [];

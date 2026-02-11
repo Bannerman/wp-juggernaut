@@ -47,7 +47,7 @@ interface EditModalProps {
   enabledTabs?: string[];
   taxonomyConfig?: TaxonomyConfig[];
   taxonomyLabels?: Record<string, string>;
-  /** Site URL from profile (e.g., "https://plexkits.com") */
+  /** Site URL from profile (e.g., "https://example.com") */
   siteUrl?: string;
   /** Post type slug for URL building (e.g., "resource") */
   postTypeSlug?: string;

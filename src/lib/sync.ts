@@ -10,8 +10,7 @@ import {
   type WPResource,
   type WPTerm,
 } from './wp-client';
-import { getProfileManager, ensureProfileLoaded } from './profiles';
-import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
+import { getProfileManager, ensureProfileLoaded, getProfileTaxonomyMetaFieldMapping } from './profiles';
 import { collectMetaBoxKeys, runFieldAudit, saveAuditResults } from './field-audit';
 import { decodeHtmlEntities, pMap } from './utils';
 import { saveResourceSeo, type LocalSeoData } from './queries';
@@ -220,8 +219,9 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
   `);
 
   const taxonomies = getTaxonomies();
+  const taxonomyMetaMapping = getProfileTaxonomyMetaFieldMapping();
   for (const taxonomy of taxonomies) {
-    const metaField = TAXONOMY_META_FIELD[taxonomy];
+    const metaField = taxonomyMetaMapping[taxonomy];
     let termIds: number[] = [];
 
     // Try Meta Box field first (more reliable for this CPT)

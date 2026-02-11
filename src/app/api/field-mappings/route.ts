@@ -8,16 +8,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { ensureProfileLoaded, getProfileManager } from '@/lib/profiles';
+import { ensureProfileLoaded, getProfileManager, getActiveProfileFilePath } from '@/lib/profiles';
 import { getWpBaseUrl, getWpCredentials } from '@/lib/wp-client';
 import { discoverFieldsForPostType } from '@/lib/discovery';
 import type { FieldMappingEntry, MappableField } from '@/lib/plugins/types';
-
-/** Resolve path to the profile JSON file */
-function getProfileFilePath(): string {
-  return join(process.cwd(), 'lib', 'profiles', 'plexkits.json');
-}
 
 /**
  * All possible core WP fields. Filtered per post type using the REST schema
@@ -283,7 +277,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     manager.setFieldMappings(source, target, mappings);
 
     // Persist to profile JSON file
-    const filePath = getProfileFilePath();
+    const filePath = getActiveProfileFilePath();
     const fileContent = JSON.parse(readFileSync(filePath, 'utf-8'));
     if (!fileContent.field_mappings) {
       fileContent.field_mappings = {};
