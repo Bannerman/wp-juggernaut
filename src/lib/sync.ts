@@ -380,13 +380,18 @@ export async function syncResources(
   }, 5);
 
   // Save resources with their featured image URLs
-  for (const resource of resources) {
-    let featuredImageUrl: string | undefined;
-    if (resource.featured_media && resource.featured_media > 0) {
-      featuredImageUrl = mediaUrlCache.get(resource.featured_media) || undefined;
+  // Wrap in a transaction for performance (SQLite is much faster with bulk inserts)
+  const saveTransaction = getDb().transaction((resourcesToSave: WPResource[]) => {
+    for (const resource of resourcesToSave) {
+      let featuredImageUrl: string | undefined;
+      if (resource.featured_media && resource.featured_media > 0) {
+        featuredImageUrl = mediaUrlCache.get(resource.featured_media) || undefined;
+      }
+      saveResource(resource, featuredImageUrl, typeSlug);
     }
-    saveResource(resource, featuredImageUrl, typeSlug);
-  }
+  });
+
+  saveTransaction(resources);
 
   // Fetch and save SEO data for all resources in parallel with concurrency limit
   console.log(`Fetching SEO data for ${resources.length} ${typeSlug}...`);
