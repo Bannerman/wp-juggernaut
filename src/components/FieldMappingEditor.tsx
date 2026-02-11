@@ -106,14 +106,14 @@ function categoryBadgeColor(category: string): string {
 // ─── Mapping color generator ─────────────────────────────────────────────
 
 const MAPPING_COLORS = [
-  'border-indigo-400 bg-indigo-50',
-  'border-emerald-400 bg-emerald-50',
-  'border-amber-400 bg-amber-50',
-  'border-rose-400 bg-rose-50',
-  'border-cyan-400 bg-cyan-50',
-  'border-violet-400 bg-violet-50',
-  'border-orange-400 bg-orange-50',
-  'border-teal-400 bg-teal-50',
+  'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-500',
+  'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 dark:border-emerald-500',
+  'border-amber-400 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-500',
+  'border-rose-400 bg-rose-50 dark:bg-rose-900/30 dark:border-rose-500',
+  'border-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 dark:border-cyan-500',
+  'border-violet-400 bg-violet-50 dark:bg-violet-900/30 dark:border-violet-500',
+  'border-orange-400 bg-orange-50 dark:bg-orange-900/30 dark:border-orange-500',
+  'border-teal-400 bg-teal-50 dark:bg-teal-900/30 dark:border-teal-500',
 ];
 
 const MAPPING_LINE_COLORS = [
@@ -241,8 +241,8 @@ function DroppableField({
       }}
       className={cn(
         'flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all',
-        isOver && !isMapped && 'border-brand-400 bg-brand-50 shadow-md scale-[1.02]',
-        isOver && isMapped && 'border-red-300 bg-red-50',
+        isOver && !isMapped && 'border-brand-400 bg-brand-50 dark:bg-brand-900/30 shadow-md scale-[1.02]',
+        isOver && isMapped && 'border-red-300 dark:border-red-500 bg-red-50 dark:bg-red-900/30',
         !isOver && isMapped && getMappingColor(mappingIndex),
         !isOver && !isMapped && 'border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30'
       )}
@@ -519,15 +519,15 @@ export function FieldMappingEditor({
       {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-200" />
+          <div className="w-3 h-3 rounded-sm bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700" />
           Core fields
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-sm bg-purple-100 border border-purple-200" />
+          <div className="w-3 h-3 rounded-sm bg-purple-100 dark:bg-purple-900/40 border border-purple-200 dark:border-purple-700" />
           Meta Box fields
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-sm bg-green-100 border border-green-200" />
+          <div className="w-3 h-3 rounded-sm bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-700" />
           Taxonomies
         </div>
         <div className="ml-auto text-gray-400 dark:text-gray-500">
