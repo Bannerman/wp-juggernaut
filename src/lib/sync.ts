@@ -149,18 +149,49 @@ export function saveTerm(term: WPTerm): void {
 }
 
 /**
- * Saves a WordPress resource to the local database, including its meta fields
- * and taxonomy term assignments. Preserves the `is_dirty` flag if the resource
- * already exists with local edits. Also fetches and stores SEO data if available.
- * @param resource - The WordPress resource object from the REST API
- * @param featuredImageUrl - Optional pre-resolved featured image URL
- * @param postType - Optional post type slug override (defaults to 'resource')
+ * Resolves various term ID formats into an array of numbers.
+ * @param metaValue - The raw value from the meta field (number, string, object, array, etc.)
+ * @returns Array of resolved term IDs
  */
-export function saveResource(resource: WPResource, featuredImageUrl?: string, postType?: string): void {
-  const db = getDb();
-  const now = new Date().toISOString();
-  const type = postType || 'resource';
+function resolveTermIds(metaValue: unknown): number[] {
+  if (metaValue === undefined) return [];
 
+  if (Array.isArray(metaValue)) {
+    // Could be: array of term objects [{term_id, name, ...}, ...] OR plain number array [N, M]
+    return metaValue
+      .map((t: unknown) => {
+        if (typeof t === 'number') return t;
+        if (typeof t === 'string' && /^\d+$/.test(t)) return parseInt(t, 10);
+        if (typeof t === 'object' && t !== null) {
+          const obj = t as Record<string, unknown>;
+          const id = obj.term_id ?? obj.id;
+          if (typeof id === 'number') return id;
+          if (typeof id === 'string' && /^\d+$/.test(id)) return parseInt(id, 10);
+        }
+        return null;
+      })
+      .filter((id): id is number => typeof id === 'number');
+  } else if (typeof metaValue === 'number') {
+    // Single number value
+    return [metaValue];
+  } else if (typeof metaValue === 'string' && /^\d+$/.test(metaValue)) {
+    // Single string number
+    return [parseInt(metaValue, 10)];
+  } else if (typeof metaValue === 'object' && metaValue !== null) {
+    // taxonomy (single-select): single term object {term_id, name, ...}
+    const obj = metaValue as Record<string, unknown>;
+    const termId = obj.term_id ?? obj.id;
+    if (typeof termId === 'number') return [termId];
+    else if (typeof termId === 'string' && /^\d+$/.test(termId)) return [parseInt(termId, 10)];
+  }
+
+  return [];
+}
+
+/**
+ * Saves the main post record to the local database.
+ */
+function savePostRecord(db: ReturnType<typeof getDb>, resource: WPResource, type: string, now: string): void {
   // Handle potentially missing rendered fields and decode HTML entities
   const title = decodeHtmlEntities(resource.title?.rendered || '');
   const content = resource.content?.rendered || '';
@@ -183,8 +214,12 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
     now,
     resource.id
   );
+}
 
-  // Save meta_box fields
+/**
+ * Saves post meta fields to the local database.
+ */
+function savePostMeta(db: ReturnType<typeof getDb>, resource: WPResource, featuredImageUrl?: string): void {
   const metaStmt = db.prepare(`
     INSERT OR REPLACE INTO post_meta (post_id, field_id, value)
     VALUES (?, ?, ?)
@@ -192,7 +227,7 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
 
   // First, clear existing meta_box to handle removed fields
   db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(resource.id);
-  
+
   // Save the featured_image_url and featured_media_id if we have them
   if (featuredImageUrl) {
     metaStmt.run(resource.id, 'featured_image_url', JSON.stringify(featuredImageUrl));
@@ -200,7 +235,7 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
   if (resource.featured_media && resource.featured_media > 0) {
     metaStmt.run(resource.id, 'featured_media_id', JSON.stringify(resource.featured_media));
   }
-  
+
   // Save other meta_box fields from WordPress
   if (resource.meta_box) {
     for (const [fieldId, value] of Object.entries(resource.meta_box)) {
@@ -209,7 +244,12 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
       metaStmt.run(resource.id, fieldId, JSON.stringify(value));
     }
   }
+}
 
+/**
+ * Saves post taxonomy term assignments to the local database.
+ */
+function savePostTerms(db: ReturnType<typeof getDb>, resource: WPResource): void {
   // Save taxonomy terms — prefer Meta Box fields (tax_*) which contain reliable
   // term objects, over top-level REST fields which can include stale term_taxonomy_ids.
   db.prepare('DELETE FROM post_terms WHERE post_id = ?').run(resource.id);
@@ -226,39 +266,11 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
 
     // Try Meta Box field first (more reliable for this CPT)
     const metaValue = metaField && resource.meta_box ? resource.meta_box[metaField] : undefined;
-    if (metaValue !== undefined) {
-      if (Array.isArray(metaValue)) {
-        // Could be: array of term objects [{term_id, name, ...}, ...] OR plain number array [N, M]
-        termIds = metaValue
-          .map((t: unknown) => {
-            if (typeof t === 'number') return t;
-            if (typeof t === 'string' && /^\d+$/.test(t)) return parseInt(t, 10);
-            if (typeof t === 'object' && t !== null) {
-              const obj = t as Record<string, unknown>;
-              const id = obj.term_id ?? obj.id;
-              if (typeof id === 'number') return id;
-              if (typeof id === 'string' && /^\d+$/.test(id)) return parseInt(id, 10);
-            }
-            return null;
-          })
-          .filter((id): id is number => typeof id === 'number');
-      } else if (typeof metaValue === 'number') {
-        // Single number value
-        termIds = [metaValue];
-      } else if (typeof metaValue === 'string' && /^\d+$/.test(metaValue)) {
-        // Single string number
-        termIds = [parseInt(metaValue, 10)];
-      } else if (typeof metaValue === 'object' && metaValue !== null) {
-        // taxonomy (single-select): single term object {term_id, name, ...}
-        const obj = metaValue as Record<string, unknown>;
-        const termId = obj.term_id ?? obj.id;
-        if (typeof termId === 'number') termIds = [termId];
-        else if (typeof termId === 'string' && /^\d+$/.test(termId)) termIds = [parseInt(termId, 10)];
-      }
-    }
 
-    // Fall back to top-level REST field only if Meta Box field wasn't present at all
-    if (metaValue === undefined) {
+    if (metaValue !== undefined) {
+      termIds = resolveTermIds(metaValue);
+    } else {
+      // Fall back to top-level REST field only if Meta Box field wasn't present at all
       const topLevel = resource[taxonomy as keyof WPResource] as number[] | undefined;
       if (Array.isArray(topLevel)) {
         termIds = topLevel;
@@ -269,6 +281,29 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
       termStmt.run(resource.id, termId, taxonomy);
     }
   }
+}
+
+/**
+ * Saves a WordPress resource to the local database, including its meta fields
+ * and taxonomy term assignments. Preserves the `is_dirty` flag if the resource
+ * already exists with local edits. Also fetches and stores SEO data if available.
+ * @param resource - The WordPress resource object from the REST API
+ * @param featuredImageUrl - Optional pre-resolved featured image URL
+ * @param postType - Optional post type slug override (defaults to 'resource')
+ */
+export function saveResource(resource: WPResource, featuredImageUrl?: string, postType?: string): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const type = postType || 'resource';
+
+  // Use a transaction to ensure atomicity
+  const transaction = db.transaction(() => {
+    savePostRecord(db, resource, type, now);
+    savePostMeta(db, resource, featuredImageUrl);
+    savePostTerms(db, resource);
+  });
+
+  transaction();
 }
 
 /**

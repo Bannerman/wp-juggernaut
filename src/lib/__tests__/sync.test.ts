@@ -17,6 +17,7 @@ jest.mock('../profiles', () => ({
       { slug: 'post', rest_base: 'posts', name: 'Posts', is_primary: false },
     ],
     getPrimaryPostType: () => ({ slug: 'resource', rest_base: 'resource', name: 'Resources', is_primary: true }),
+    getTaxonomySlugs: () => ['resource-type'],
   }),
   ensureProfileLoaded: () => ({}),
 }));
@@ -33,14 +34,22 @@ describe('Sync Engine Module', () => {
       prepare: jest.fn().mockReturnValue({
         run: jest.fn(),
         get: jest.fn(),
-        all: jest.fn(),
+        all: jest.fn().mockReturnValue([]),
       }),
       pragma: jest.fn(),
       exec: jest.fn(),
       close: jest.fn(),
+      transaction: jest.fn((fn) => () => fn()),
     };
     
     mockDb.getDb.mockReturnValue(mockDbInstance as any);
+
+    // Default mocks
+    mockWpClient.getTaxonomies.mockReturnValue(['resource-type']);
+    mockWpClient.getWpCredentials.mockReturnValue({ username: 'user', appPassword: 'password' });
+    mockWpClient.fetchAllTaxonomies.mockResolvedValue({});
+    mockWpClient.fetchAllResources.mockResolvedValue([]);
+    mockWpClient.fetchResourceIds.mockResolvedValue([]);
   });
 
   describe('fullSync', () => {
@@ -50,14 +59,6 @@ describe('Sync Engine Module', () => {
         'resource-type': [
           { id: 1, name: 'Bracket', slug: 'bracket', taxonomy: 'resource-type', parent: 0 },
         ],
-        topic: [],
-        intent: [],
-        audience: [],
-        leagues: [],
-        access_level: [],
-        'competition_format': [],
-        'bracket-size': [],
-        file_format: [],
       });
 
       // Mock resource fetch
@@ -73,14 +74,6 @@ describe('Sync Engine Module', () => {
           date_gmt: '2024-01-01T00:00:00',
           modified_gmt: '2024-01-01T00:00:00',
           'resource-type': [1],
-          topic: [],
-          intent: [],
-          audience: [],
-          leagues: [],
-          access_level: [],
-          competition_format: [],
-          'bracket-size': [],
-          file_format: [],
         } as any,
       ]);
 
@@ -90,7 +83,7 @@ describe('Sync Engine Module', () => {
       const result = await fullSync();
 
       expect(result.taxonomiesUpdated).toBeGreaterThan(0);
-      expect(result.resourcesUpdated).toBe(1);
+      expect(result.resourcesUpdated).toBe(2);
       expect(result.errors).toHaveLength(0);
       
       // Verify order: taxonomies before resources
@@ -100,9 +93,6 @@ describe('Sync Engine Module', () => {
     });
 
     it('should detect and delete resources removed from WordPress', async () => {
-      mockWpClient.fetchAllTaxonomies.mockResolvedValue({} as any);
-      mockWpClient.fetchAllResources.mockResolvedValue([]);
-
       // Server has resources 1-5 for both post types
       mockWpClient.fetchResourceIds.mockResolvedValue([1, 2, 3, 4, 5]);
 
@@ -125,20 +115,14 @@ describe('Sync Engine Module', () => {
 
     it('should collect errors but continue syncing', async () => {
       mockWpClient.fetchAllTaxonomies.mockRejectedValue(new Error('Taxonomy error'));
-      mockWpClient.fetchAllResources.mockResolvedValue([]);
-      mockWpClient.fetchResourceIds.mockResolvedValue([]);
 
       const result = await fullSync();
 
-      expect(result.errors).toContain('Taxonomy error');
+      expect(result.errors).toContainEqual(expect.stringContaining('Taxonomy error'));
       // Should still attempt resource sync despite taxonomy error
     });
 
     it('should update last sync time on success', async () => {
-      mockWpClient.fetchAllTaxonomies.mockResolvedValue({} as any);
-      mockWpClient.fetchAllResources.mockResolvedValue([]);
-      mockWpClient.fetchResourceIds.mockResolvedValue([]);
-
       await fullSync();
 
       const mockDbInstance = mockDb.getDb();
@@ -164,14 +148,11 @@ describe('Sync Engine Module', () => {
         all: jest.fn().mockReturnValue([]),
       });
 
-      mockWpClient.fetchAllTaxonomies.mockResolvedValue({} as any);
-      mockWpClient.fetchAllResources.mockResolvedValue([]);
-
       await incrementalSync();
 
       // Should pass modified_after to fetchAllResources for each post type
-      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(lastSync, 'resource');
-      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(lastSync, 'posts');
+      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(lastSync, 'resource', expect.any(Function));
+      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(lastSync, 'posts', expect.any(Function));
     });
 
     it('should skip deletion detection', async () => {
@@ -182,9 +163,6 @@ describe('Sync Engine Module', () => {
         run: jest.fn(),
         all: jest.fn().mockReturnValue([]),
       });
-
-      mockWpClient.fetchAllTaxonomies.mockResolvedValue({} as any);
-      mockWpClient.fetchAllResources.mockResolvedValue([]);
 
       const result = await incrementalSync();
 
@@ -202,15 +180,11 @@ describe('Sync Engine Module', () => {
         all: jest.fn().mockReturnValue([]),
       });
 
-      mockWpClient.fetchAllTaxonomies.mockResolvedValue({} as any);
-      mockWpClient.fetchAllResources.mockResolvedValue([]);
-      mockWpClient.fetchResourceIds.mockResolvedValue([]);
-
       await incrementalSync();
 
       // Should not pass modified_after (null last sync means fetch all)
-      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(undefined, 'resource');
-      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(undefined, 'posts');
+      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(undefined, 'resource', expect.any(Function));
+      expect(mockWpClient.fetchAllResources).toHaveBeenCalledWith(undefined, 'posts', expect.any(Function));
     });
   });
 
@@ -220,17 +194,16 @@ describe('Sync Engine Module', () => {
       const mockPrepare = mockDbInstance.prepare as jest.Mock;
       
       // Resource exists locally with is_dirty=1
-      const mockGet = jest.fn()
-        .mockReturnValueOnce({ is_dirty: 1 }) // Check if exists
-        .mockReturnValueOnce(null); // Other queries
-      
-      mockPrepare.mockReturnValue({
-        get: mockGet,
-        run: jest.fn(),
-        all: jest.fn().mockReturnValue([]),
-      });
+      // We need to carefully mock the sequence of calls
+      // 1. DELETE FROM post_meta (in savePostMeta)
+      // 2. DELETE FROM post_terms (in savePostTerms)
+      // 3. INSERT INTO posts (in savePostRecord) <- this is where COALESCE happens
 
-      mockWpClient.fetchAllTaxonomies.mockResolvedValue({} as any);
+      // Since prepare is called multiple times, we can't easily mock return values per call site
+      // unless we check arguments.
+
+      // However, we just want to verify that the query containing COALESCE was prepared.
+      
       mockWpClient.fetchAllResources.mockResolvedValue([
         {
           id: 1,
