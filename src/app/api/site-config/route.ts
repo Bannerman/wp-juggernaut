@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getConfig, setActiveTarget, getActiveTarget, getSiteTargets, getCredentials, setCredentials } from '@/lib/site-config';
+import { getProfileManager, ensureProfileLoaded } from '@/lib/profiles';
 
 // GET /api/site-config - Get current config and available targets
 export async function GET() {
@@ -21,9 +22,14 @@ export async function GET() {
       };
     }
 
+    ensureProfileLoaded();
+    const profile = getProfileManager().getCurrentProfile();
+    const profileName = profile?.profile_name || '';
+
     return NextResponse.json({
       activeTarget,
       targets,
+      profileName,
       config: { activeTarget: config.activeTarget },
       hasCredentials: Boolean(credentials),
       username: credentials?.username || '',

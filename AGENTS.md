@@ -111,6 +111,7 @@ DATABASE_PATH=./data/juggernaut.db
 - **Profile system**: JSON configurations per WordPress site
 - **Tab system**: `CORE_TAB_IDS` (basic, classification, ai) always show regardless of plugins; `HARDCODED_TAB_IDS` (+ seo) have custom JSX rendering and can't be edited in Tab Layout; all other tabs are dynamic and rendered via `DynamicTab` + `FieldRenderer`
 - **Taxonomy dual push**: Taxonomy data is sent both as top-level REST fields AND as `meta_box.tax_xyz` fields; `tax_xyz` meta keys are filtered from Tab Layout and Field Mapping available fields to avoid double-editing
+- **Environment indicator**: Header shows workspace name (from `profile_name`) + colored environment badge (red=production, yellow=staging, green=development). Environment is set via explicit `environment` field in profile `sites[]`, with auto-derivation from site `id` as fallback
 
 ## **4. Module Registry & Mapping**
 
@@ -139,7 +140,8 @@ These were added during Phase 2 and do not have corresponding `modules/*/spec.ya
 | **field-audit** | `src/lib/field-audit.ts` | Field integrity auditing between local DB and WordPress |
 | **image-processing** | `src/lib/imageProcessing.ts` | Modular image processing pipeline for uploads |
 | **prompt-templates** | `src/lib/prompt-templates.ts` | AI prompt template management for content generation |
-| **site-config** | `src/lib/site-config.ts` | Multi-site target switching (local/staging/production) |
+| **site-config** | `src/lib/site-config.ts` | Multi-site target switching with environment type derivation |
+| **environment-indicator** | `src/components/EnvironmentIndicator.tsx` | Workspace name + colored environment badge for header |
 | **utils** | `src/lib/utils.ts` | Shared utilities (cn, HTML decode, date formatting) |
 
 ### **API Routes** (`src/app/api/`)

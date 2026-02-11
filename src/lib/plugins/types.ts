@@ -592,6 +592,8 @@ export interface SiteConfig {
   url: string;
   description?: string;
   is_default?: boolean;
+  /** Explicit environment type. If omitted, auto-derived from site id. */
+  environment?: 'production' | 'staging' | 'development';
 }
 
 /**
