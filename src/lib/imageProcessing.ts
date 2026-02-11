@@ -139,19 +139,51 @@ export function createFilenameProcessor(
 }
 
 /**
- * Placeholder processor for SEO data extraction/enrichment
- * TODO: Implement actual SEO data handling
+ * Processor for SEO data extraction and enrichment.
+ * Populates missing SEO metadata (title, description, keywords) based on existing data or filename.
  */
 export const seoDataProcessor: ImageProcessor = async (context) => {
-  // Placeholder: In the future, this will extract or enhance SEO data
-  // For now, just pass through with any existing SEO data
+  // Determine base title to use for generation
+  let baseTitle = context.title;
+  if (!baseTitle) {
+    // Fallback to filename without extension
+    const lastDotIndex = context.filename.lastIndexOf('.');
+    baseTitle = lastDotIndex > 0 ? context.filename.slice(0, lastDotIndex) : context.filename;
+
+    // Normalize filename: replace hyphens/underscores with spaces
+    baseTitle = baseTitle.replace(/[-_]/g, ' ');
+  }
+
+  // Generate keywords from title
+  // Filter out common stop words and short words
+  const STOP_WORDS = new Set([
+    'a', 'an', 'the', 'and', 'or', 'but', 'is', 'are', 'was', 'were',
+    'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from',
+    'my', 'your', 'our', 'their', 'his', 'her', 'its', 'this', 'that', 'these', 'those'
+  ]);
+
+  const generatedKeywords = baseTitle
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, '') // Remove special chars (unicode aware)
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOP_WORDS.has(w));
+
+  const uniqueKeywords = [...new Set(generatedKeywords)];
+
+  // Prepare new SEO data
+  const existingSeo = context.seoData || {};
+
+  const newSeoData = {
+    title: existingSeo.title || baseTitle,
+    description: existingSeo.description || baseTitle, // Default description to title
+    keywords: (existingSeo.keywords && existingSeo.keywords.length > 0)
+      ? existingSeo.keywords
+      : uniqueKeywords,
+  };
+
   return {
     ...context,
-    seoData: context.seoData || {
-      title: context.title,
-      description: '',
-      keywords: [],
-    },
+    seoData: newSeoData,
   };
 };
 
