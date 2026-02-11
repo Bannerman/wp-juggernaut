@@ -398,7 +398,7 @@ export async function syncResources(
     seoFetched++;
     onProgress?.('seo', seoTotal > 0 ? seoFetched / seoTotal : 1);
     return { id: resource.id, seo };
-  }, 5);
+  }, 3);
 
   let seoSaved = 0;
   for (const { id, seo } of seoResults) {
