@@ -386,7 +386,8 @@
               "key": "download_section_heading",
               "type": "text",
               "label": "Section Heading",
-              "placeholder": "Section heading..."
+              "placeholder": "Section heading...",
+              "default_value": "Download the {{title}}"
             },
             "download_section_color": {
               "key": "download_section_color",

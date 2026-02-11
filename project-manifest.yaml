@@ -4,7 +4,7 @@
 
 # --- Section 1: Core Project Definition ---
 projectName: "Juggernaut"
-projectVersion: 0.9.6
+projectVersion: 0.9.8
 overallGoal: >-
   A local-first desktop application (Electron + Next.js) for syncing, bulk editing,
   and pushing WordPress posts with profile-driven architecture and plugin support.
