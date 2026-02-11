@@ -25,8 +25,12 @@ Tracked tasks, features, and improvements for Juggernaut.
 | [WI-008](WI-008-spec-prompt-templates-module.md) | Spec: Prompt Templates Module | To Do | Low |
 | [WI-009](WI-009-spec-site-config-module.md) | Spec: Site Config Module | To Do | Low |
 | [WI-010](WI-010-expand-module-test-coverage.md) | Expand Module Test Coverage | To Do | Medium |
-| [WI-011](WI-011-create-non-functional-requirements-doc.md) | Create Non-Functional Requirements Doc | To Do | Low |
+| [WI-011](WI-011-create-non-functional-requirements-doc.md) | Create Non-Functional Requirements Doc | Done | Low |
 | [WI-012](WI-012-repeater-field-mapping-and-editing.md) | Repeater-Aware Field Mapping & Editing | Backlog | Medium |
+| [WI-013](WI-013-fix-sync-media-auth-credentials.md) | Fix Sync Media Auth Credentials | To Do | High |
+| [WI-014](WI-014-reconcile-jest-config-and-test-drift.md) | Reconcile Jest Config and Test Drift | To Do | High |
+| [WI-015](WI-015-align-manifest-completion-metrics-with-reality.md) | Align Manifest Completion Metrics with Reality | To Do | Medium |
+| [WI-016](WI-016-prune-v1-spec-completed-items.md) | Prune v1.0 Spec Completed Items | To Do | Medium |
 
 ## Adding a Work Item
 
