@@ -82,7 +82,6 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
           <button
             onClick={clearAllFilters}
             className="text-xs text-gray-500 hover:text-gray-700"
-            aria-label="Clear all active filters"
           >
             Clear all
           </button>
@@ -104,9 +103,6 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
               <button
                 onClick={() => toggleTaxonomy(taxonomy)}
                 className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50"
-                aria-expanded={isExpanded}
-                aria-controls={`filter-section-${taxonomy}`}
-                id={`filter-trigger-${taxonomy}`}
               >
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-gray-700">
@@ -127,12 +123,7 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
               </button>
 
               {isExpanded && (
-                <div
-                  className="px-3 py-2 border-t border-gray-200 bg-gray-50"
-                  id={`filter-section-${taxonomy}`}
-                  aria-labelledby={`filter-trigger-${taxonomy}`}
-                  role="region"
-                >
+                <div className="px-3 py-2 border-t border-gray-200 bg-gray-50">
                   {/* Selected terms */}
                   {selectedCount > 0 && (
                     <div className="flex flex-wrap gap-1 mb-2 pb-2 border-b border-gray-200">
@@ -148,8 +139,6 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
                               if (term) toggleTerm(taxonomy, term.id);
                             }}
                             className="hover:text-brand-900"
-                            aria-label={`Remove filter: ${name}`}
-                            title={`Remove filter: ${name}`}
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -158,7 +147,6 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
                       <button
                         onClick={() => clearTaxonomyFilter(taxonomy)}
                         className="text-xs text-gray-500 hover:text-gray-700 ml-1"
-                        aria-label={`Clear all ${taxonomyLabels[taxonomy] || taxonomy} filters`}
                       >
                         Clear
                       </button>
