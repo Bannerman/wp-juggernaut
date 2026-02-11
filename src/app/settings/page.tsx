@@ -25,11 +25,14 @@ interface Placeholder {
   description: string;
 }
 
+type EnvironmentType = 'production' | 'staging' | 'development';
+
 interface SiteTarget {
   id: string;
   name: string;
   url: string;
   description: string;
+  environment: EnvironmentType;
 }
 
 interface DiagnosticResult {
@@ -522,7 +525,27 @@ export default function SettingsPage() {
                         activeTarget?.id === target.id ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-600'
                       )} />
                       <div>
-                        <h3 className="font-medium text-gray-900 dark:text-white">{target.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium text-gray-900 dark:text-white">{target.name}</h3>
+                          <span className={cn(
+                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                            target.environment === 'production'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                              : target.environment === 'staging'
+                                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
+                                : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                          )}>
+                            <span className={cn(
+                              'w-1.5 h-1.5 rounded-full',
+                              target.environment === 'production' ? 'bg-red-500'
+                                : target.environment === 'staging' ? 'bg-yellow-500'
+                                : 'bg-green-500'
+                            )} />
+                            {target.environment === 'production' ? 'Production'
+                              : target.environment === 'staging' ? 'Staging'
+                              : 'Development'}
+                          </span>
+                        </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">{target.url}</p>
                       </div>
                     </div>

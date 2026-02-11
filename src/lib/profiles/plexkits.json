@@ -8,20 +8,23 @@
       "id": "local",
       "name": "Local Development",
       "url": "http://plexkits-v4.local",
-      "description": "Local WordPress development environment"
+      "description": "Local WordPress development environment",
+      "environment": "development"
     },
     {
       "id": "staging",
       "name": "PLEXKITS Staging",
       "url": "https://staging.plexkits.com",
-      "description": "Staging environment for testing"
+      "description": "Staging environment for testing",
+      "environment": "staging"
     },
     {
       "id": "production",
       "name": "PLEXKITS Production",
       "url": "https://plexkits.com",
       "description": "Live production site",
-      "is_default": true
+      "is_default": true,
+      "environment": "production"
     }
   ],
   "required_plugins": [
@@ -687,6 +690,16 @@
         },
         "target": {
           "key": "timer_enable",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "text_additional",
+          "category": "meta"
+        },
+        "target": {
+          "key": "text_additional",
           "category": "meta"
         }
       }

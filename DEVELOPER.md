@@ -119,8 +119,8 @@ A profile is a JSON file that configures everything about a WordPress site. See 
   "profile_id": "my-site",
   "profile_name": "My WordPress Site",
   "sites": [
-    { "id": "local", "name": "Local Dev", "url": "http://my-site.local" },
-    { "id": "production", "name": "Production", "url": "https://my-site.com", "is_default": true }
+    { "id": "local", "name": "Local Dev", "url": "http://my-site.local", "environment": "development" },
+    { "id": "production", "name": "Production", "url": "https://my-site.com", "is_default": true, "environment": "production" }
   ],
   "post_types": [
     { "slug": "post", "name": "Post", "rest_base": "posts", "is_primary": true }
@@ -139,7 +139,7 @@ A profile is a JSON file that configures everything about a WordPress site. See 
 }
 ```
 
-- **`sites`**: Multiple targets (local/staging/production) for the same WordPress setup
+- **`sites`**: Multiple targets (local/staging/production) for the same WordPress setup. Each site can have an optional `environment` field (`"production"`, `"staging"`, or `"development"`) — if omitted, the environment is auto-derived from the site `id` (contains `prod` → production, `stag` → staging, otherwise → development). The environment controls the colored badge shown in the header and Settings.
 - **`post_types`**: What content types to sync. The `is_primary` one is used by default.
 - **`taxonomies`**: Which taxonomies to sync, show in filters, and allow editing
 - **`required_plugins`**: Which Juggernaut plugins to auto-enable for this profile
@@ -365,7 +365,8 @@ Some files still contain references to "PLEXKITS" (the original WordPress site t
 | `src/lib/sync.ts` | Sync engine (full + incremental) |
 | `src/lib/push.ts` | Push engine (batch + conflict detection) |
 | `src/lib/queries.ts` | SQLite query abstractions (CRUD for resources, terms, meta) |
-| `src/lib/site-config.ts` | Multi-site target switching |
+| `src/lib/site-config.ts` | Multi-site target switching, environment type derivation |
+| `src/components/EnvironmentIndicator.tsx` | Workspace name + colored environment badge (header) |
 | `src/lib/plugins/types.ts` | All plugin/profile TypeScript interfaces (~700 lines) |
 | `src/lib/plugins/hooks.ts` | Hook system (subscribe/trigger with priorities) |
 | `src/lib/plugins/registry.ts` | Plugin enable/disable, state persistence |

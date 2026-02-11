@@ -23,8 +23,10 @@ import { EditModal } from '@/components/EditModal';
 import { UpdateNotifier } from '@/components/UpdateNotifier';
 import { PostTypeSwitcher } from '@/components/PostTypeSwitcher';
 import { ConvertPostTypeModal } from '@/components/ConvertPostTypeModal';
+import { EnvironmentIndicator } from '@/components/EnvironmentIndicator';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import type { FieldDefinition } from '@/lib/plugins/types';
+import type { EnvironmentType } from '@/lib/site-config';
 
 interface SyncStats {
   totalResources: number;
@@ -105,6 +107,8 @@ export default function Home() {
   const [postTypes, setPostTypes] = useState<Array<{ slug: string; name: string; rest_base: string; icon?: string; is_primary?: boolean }>>([]);
   const [allTaxonomyConfig, setAllTaxonomyConfig] = useState<typeof taxonomyConfig>([]);
   const [editableTaxonomies, setEditableTaxonomies] = useState<string[]>([]);
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [activeEnvironment, setActiveEnvironment] = useState<EnvironmentType>('development');
 
   // Fetch profile config (includes enabled plugins and taxonomy config)
   useEffect(() => {
@@ -153,6 +157,17 @@ export default function Home() {
         }
       })
       .catch(err => console.error('Failed to fetch profile:', err));
+  }, []);
+
+  // Fetch workspace name and environment from site config
+  useEffect(() => {
+    fetch('/api/site-config')
+      .then(res => res.json())
+      .then(data => {
+        if (data.profileName) setWorkspaceName(data.profileName);
+        if (data.activeTarget?.environment) setActiveEnvironment(data.activeTarget.environment);
+      })
+      .catch(err => console.error('Failed to fetch site config:', err));
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -493,6 +508,7 @@ export default function Home() {
                 <Settings className="w-4 h-4" />
                 Settings
               </Link>
+              <EnvironmentIndicator workspaceName={workspaceName} environment={activeEnvironment} />
             </div>
 
             <div className="flex items-center gap-4 electron-no-drag">
