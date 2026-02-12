@@ -13,6 +13,8 @@ import {
   getTermsByTaxonomy,
   getAllTermsGrouped,
   getSyncStats,
+  saveResourceSeo,
+  LocalSeoData,
 } from '../queries';
 import * as db from '../db';
 
@@ -63,7 +65,7 @@ describe('Queries Module', () => {
       const results = getResources({ status: 'publish' });
 
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining("WHERE status = ?")
+        expect.stringContaining("status = ?")
       );
     });
 
@@ -198,8 +200,27 @@ describe('Queries Module', () => {
 
   describe('updateLocalResource', () => {
     it('should update resource and mark as dirty', () => {
+      const mockResource = {
+        id: 123,
+        title: 'Old Title',
+        status: 'draft',
+        taxonomies: {},
+        meta_box: {},
+      };
+
+      const mockGet = jest.fn().mockReturnValue(mockResource);
+      const mockAll = jest.fn().mockReturnValue([]);
       const mockRun = jest.fn();
-      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+
+      mockDbInstance.prepare
+        // getResourceById call
+        .mockReturnValueOnce({ get: mockGet })
+        // getPostMeta call
+        .mockReturnValueOnce({ all: mockAll })
+        // getPostTaxonomies call
+        .mockReturnValueOnce({ all: mockAll })
+        // update post query
+        .mockReturnValue({ run: mockRun });
 
       updateLocalResource(123, {
         title: 'New Title',
@@ -207,16 +228,38 @@ describe('Queries Module', () => {
       });
 
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE resources')
+        expect.stringContaining('UPDATE posts')
       );
-      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('is_dirty = 1')
-      );
+      expect(mockRun).toHaveBeenCalledWith('New Title', 'publish', 123);
     });
 
     it('should update taxonomy assignments', () => {
+      const mockResource = {
+        id: 123,
+        title: 'Test',
+        status: 'publish',
+        taxonomies: {},
+        meta_box: {},
+      };
+
+      const mockGet = jest.fn().mockReturnValue(mockResource);
+      const mockAll = jest.fn().mockReturnValue([]);
       const mockRun = jest.fn();
-      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+
+      // Mock dirty taxonomies fetch
+      const mockGetDirty = jest.fn().mockReturnValue({ value: '[]' });
+
+      mockDbInstance.prepare
+        // getResourceById call
+        .mockReturnValueOnce({ get: mockGet })
+        // getPostMeta call
+        .mockReturnValueOnce({ all: mockAll })
+        // getPostTaxonomies call
+        .mockReturnValueOnce({ all: mockAll })
+        // get existing dirty taxonomies
+        .mockReturnValueOnce({ get: mockGetDirty })
+        // subsequent delete/insert/update calls
+        .mockReturnValue({ run: mockRun });
 
       updateLocalResource(123, {
         taxonomies: {
@@ -227,21 +270,38 @@ describe('Queries Module', () => {
 
       // Should delete old assignments
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM resource_terms')
+        expect.stringContaining('DELETE FROM post_terms')
       );
       
       // Should insert new assignments
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO resource_terms')
+        expect.stringContaining('INSERT INTO post_terms')
       );
     });
 
     it('should log changes to change_log', () => {
+      const mockResource = {
+        id: 123,
+        title: 'Old Title',
+        status: 'publish',
+        taxonomies: {},
+        meta_box: {},
+      };
+
+      const mockGet = jest.fn().mockReturnValue(mockResource);
+      const mockAll = jest.fn().mockReturnValue([]);
       const mockRun = jest.fn();
-      const mockGet = jest.fn().mockReturnValue({ title: 'Old Title' });
-      
+
       mockDbInstance.prepare
+        // getResourceById call
         .mockReturnValueOnce({ get: mockGet })
+        // getPostMeta call
+        .mockReturnValueOnce({ all: mockAll })
+        // getPostTaxonomies call
+        .mockReturnValueOnce({ all: mockAll })
+        // update post query
+        .mockReturnValueOnce({ run: mockRun })
+        // insert change log query
         .mockReturnValue({ run: mockRun });
 
       updateLocalResource(123, { title: 'New Title' });
@@ -361,6 +421,51 @@ describe('Queries Module', () => {
       const stats = getSyncStats();
 
       expect(stats.lastSync).toBeNull();
+    });
+  });
+
+  describe('saveResourceSeo', () => {
+    const mockSeo: LocalSeoData = {
+      title: 'Test Title',
+      description: 'Test Description',
+      canonical: 'https://example.com',
+      targetKeywords: 'test',
+      og: { title: 'OG Title', description: 'OG Description', image: 'og.jpg' },
+      twitter: { title: 'Twitter Title', description: 'Twitter Description', image: 'twitter.jpg' },
+      robots: { noindex: false, nofollow: false, nosnippet: false, noimageindex: false },
+    };
+
+    it('should save SEO data and mark resource as dirty by default', () => {
+      const mockRun = jest.fn();
+      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+
+      saveResourceSeo(123, mockSeo);
+
+      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT OR REPLACE INTO plugin_data')
+      );
+      expect(mockRun).toHaveBeenCalledWith(123, JSON.stringify(mockSeo));
+
+      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE posts SET is_dirty = 1')
+      );
+      expect(mockRun).toHaveBeenCalledWith(123);
+    });
+
+    it('should save SEO data but not mark as dirty when markDirty is false', () => {
+      const mockRun = jest.fn();
+      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+
+      saveResourceSeo(123, mockSeo, false);
+
+      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT OR REPLACE INTO plugin_data')
+      );
+      expect(mockRun).toHaveBeenCalledWith(123, JSON.stringify(mockSeo));
+
+      expect(mockDbInstance.prepare).not.toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE posts SET is_dirty = 1')
+      );
     });
   });
 });
