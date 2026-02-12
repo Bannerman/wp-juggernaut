@@ -45,7 +45,8 @@ describe('seoDataProcessor', () => {
     expect(result.seoData?.description).toBe('My Awesome Image');
 
     expect(result.seoData?.keywords).toEqual(expect.arrayContaining(['awesome', 'image']));
-    expect(result.seoData?.keywords).not.toContain('my'); // 'my' should be filtered out if I add it to STOP_WORDS, but I didn't add 'my' yet.
+    // 'my' should be filtered out by STOP_WORDS
+    expect(result.seoData?.keywords).not.toContain('my');
   });
 
   it('should cleanup filename when used as title', async () => {
