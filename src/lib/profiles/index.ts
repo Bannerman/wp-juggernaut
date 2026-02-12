@@ -11,7 +11,7 @@ import path from 'path';
 import fs from 'fs';
 
 // Import bundled profiles
-import exampleProfile from './example.json';
+import exampleProfile from './example-resources.json';
 
 /**
  * Profile state
