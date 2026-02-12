@@ -45,6 +45,11 @@ export interface PluginTabProps {
   isCreateMode: boolean;
   /** Site URL from profile */
   siteUrl?: string;
+  /**
+   * Plugin-specific context data passed by EditModal.
+   * Plugins cast this to their expected shape (e.g., SEO state).
+   */
+  context?: Record<string, unknown>;
 }
 
 /**

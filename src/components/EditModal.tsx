@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Save, AlertTriangle, Sparkles, Check, Wand2, Upload, Image as ImageIcon, Loader2, Search, Globe, Share2, Repeat } from 'lucide-react';
+import { X, Save, AlertTriangle, Sparkles, Check, Wand2, Upload, Image as ImageIcon, Loader2, Repeat } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { imagePipeline, createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
 import { DynamicTab, getPluginTab } from '@/components/fields';
-import type { PluginTabProps } from '@/components/fields';
+// Side-effect import: registers the SEOPress SEO tab via registerPluginTab('seo', ...)
+import '@/lib/plugins/bundled/seopress/SEOTab';
 import type { FieldDefinition } from '@/lib/plugins/types';
 
 interface Term {
@@ -106,8 +107,9 @@ const FALLBACK_TABS = [
 // Note: 'seo' is NOT core — it's provided by the seopress plugin via enabledTabs
 const CORE_TAB_IDS = new Set(['basic', 'classification', 'ai']);
 
-// Tabs with hardcoded rendering (core + plugin tabs that have custom JSX)
-const HARDCODED_TAB_IDS = new Set(['basic', 'seo', 'classification', 'ai']);
+// Tabs with hardcoded rendering in this file (core tabs only).
+// Plugin tabs like 'seo' are rendered via registerPluginTab + getPluginTab.
+const HARDCODED_TAB_IDS = new Set(['basic', 'classification', 'ai']);
 
 const STATUS_OPTIONS = ['publish', 'draft'];
 
@@ -1387,241 +1389,7 @@ Current data:
               </div>
             )}
 
-            {/* SEO Tab */}
-            {activeTab === 'seo' && (
-              <div className="space-y-6">
-                {isCreateMode && (
-                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                      SEO settings will be saved automatically after the resource is created.
-                    </p>
-                  </div>
-                )}
-                {!isCreateMode && seoLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                    <span className="ml-2 text-gray-500 dark:text-gray-400">Loading SEO data...</span>
-                  </div>
-                ) : !isCreateMode && seoError ? (
-                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                    <p className="text-sm text-red-700 dark:text-red-300">{seoError}</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Basic SEO */}
-                    <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        <Search className="w-4 h-4" />
-                        Search Engine Optimization
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          SEO Title
-                          <span className="text-gray-400 font-normal ml-2">
-                            {seoData.title.length}/60
-                          </span>
-                          {isCreateMode && !seoTitleManuallyEdited && <span className="text-green-600 font-normal ml-2">(auto-synced from title)</span>}
-                          {isCreateMode && seoTitleManuallyEdited && <span className="text-gray-400 font-normal ml-2">(manually edited)</span>}
-                        </label>
-                        <input
-                          type="text"
-                          value={seoData.title}
-                          onChange={(e) => handleSeoTitleChange(e.target.value)}
-                          placeholder="Custom title for search engines..."
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Meta Description
-                          <span className="text-gray-400 font-normal ml-2">
-                            {seoData.description.length}/160
-                          </span>
-                        </label>
-                        <textarea
-                          value={seoData.description}
-                          onChange={(e) => updateSeoField('description', e.target.value)}
-                          placeholder="Brief description for search results..."
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Target Keywords
-                        </label>
-                        <input
-                          type="text"
-                          value={seoData.targetKeywords}
-                          onChange={(e) => updateSeoField('targetKeywords', e.target.value)}
-                          placeholder="keyword1, keyword2, keyword3..."
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                        />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Comma-separated list of target keywords</p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Canonical URL
-                        </label>
-                        <input
-                          type="url"
-                          value={seoData.canonical}
-                          onChange={(e) => updateSeoField('canonical', e.target.value)}
-                          placeholder="https://..."
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
-                        />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Leave empty to use default URL</p>
-                      </div>
-                    </div>
-
-                    {/* Social Media */}
-                    <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        <Share2 className="w-4 h-4" />
-                        Social Media
-                      </div>
-
-                      {/* Facebook/OG */}
-                      <div className="border-l-4 border-blue-500 pl-4 space-y-3">
-                        <h4 className="text-sm font-medium text-blue-700">Facebook / Open Graph</h4>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Title</label>
-                          <input
-                            type="text"
-                            value={seoData.og.title}
-                            onChange={(e) => updateSeoNestedField('og', 'title', e.target.value)}
-                            placeholder="Facebook share title..."
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Description</label>
-                          <textarea
-                            value={seoData.og.description}
-                            onChange={(e) => updateSeoNestedField('og', 'description', e.target.value)}
-                            placeholder="Facebook share description..."
-                            rows={2}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Image URL</label>
-                          <input
-                            type="url"
-                            value={seoData.og.image}
-                            onChange={(e) => updateSeoNestedField('og', 'image', e.target.value)}
-                            placeholder="https://..."
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm font-mono"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Twitter */}
-                      <div className="border-l-4 border-sky-500 pl-4 space-y-3">
-                        <h4 className="text-sm font-medium text-sky-700">Twitter / X</h4>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Title</label>
-                          <input
-                            type="text"
-                            value={seoData.twitter.title}
-                            onChange={(e) => updateSeoNestedField('twitter', 'title', e.target.value)}
-                            placeholder="Twitter share title..."
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Description</label>
-                          <textarea
-                            value={seoData.twitter.description}
-                            onChange={(e) => updateSeoNestedField('twitter', 'description', e.target.value)}
-                            placeholder="Twitter share description..."
-                            rows={2}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Image URL</label>
-                          <input
-                            type="url"
-                            value={seoData.twitter.image}
-                            onChange={(e) => updateSeoNestedField('twitter', 'image', e.target.value)}
-                            placeholder="https://..."
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm font-mono"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Robots / Indexing */}
-                    <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        <Globe className="w-4 h-4" />
-                        Indexing & Robots
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={seoData.robots.noindex}
-                            onChange={(e) => updateSeoNestedField('robots', 'noindex', e.target.checked)}
-                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">No Index</span>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={seoData.robots.nofollow}
-                            onChange={(e) => updateSeoNestedField('robots', 'nofollow', e.target.checked)}
-                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">No Follow</span>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={seoData.robots.nosnippet}
-                            onChange={(e) => updateSeoNestedField('robots', 'nosnippet', e.target.checked)}
-                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">No Snippet</span>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={seoData.robots.noimageindex}
-                            onChange={(e) => updateSeoNestedField('robots', 'noimageindex', e.target.checked)}
-                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">No Image Index</span>
-                        </label>
-                      </div>
-
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Check these options to prevent search engines from indexing or following links on this page.
-                      </p>
-                    </div>
-
-                    {seoHasChanges && !isCreateMode && (
-                      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-                        <p className="text-sm text-yellow-700 dark:text-yellow-300 flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4" />
-                          SEO changes will be saved when you click Save Changes
-                        </p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
+            {/* SEO Tab — rendered by seopress plugin via registerPluginTab('seo', SEOTab) */}
 
             {/* Classification Tab */}
             {activeTab === 'classification' && (
@@ -1657,6 +1425,22 @@ Current data:
             {!HARDCODED_TAB_IDS.has(activeTab) && !(fieldLayout && fieldLayout[activeTab]) && (() => {
               const PluginTab = getPluginTab(activeTab);
               if (!PluginTab) return null;
+
+              // Build plugin-specific context
+              const pluginContext: Record<string, unknown> = {};
+              if (activeTab === 'seo') {
+                Object.assign(pluginContext, {
+                  seoData,
+                  seoLoading,
+                  seoError,
+                  seoHasChanges,
+                  seoTitleManuallyEdited,
+                  handleSeoTitleChange,
+                  updateSeoField,
+                  updateSeoNestedField,
+                });
+              }
+
               return (
                 <PluginTab
                   key={activeTab}
@@ -1665,6 +1449,7 @@ Current data:
                   updateMetaField={updateMetaField}
                   isCreateMode={isCreateMode}
                   siteUrl={siteUrl}
+                  context={pluginContext}
                 />
               );
             })()}
