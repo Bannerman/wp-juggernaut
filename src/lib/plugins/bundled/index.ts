@@ -10,6 +10,8 @@ import type { JuggernautPlugin } from '../types';
 // Import bundled plugins
 import metaBoxPlugin from './metabox';
 import seopressPlugin from './seopress';
+import aiFillPlugin from './ai-fill';
+import convertPostTypePlugin from './convert-post-type';
 // Future bundled plugins:
 // import woocommercePlugin from './woocommerce';
 // import acfPlugin from './acf';
@@ -20,6 +22,8 @@ import seopressPlugin from './seopress';
 export const bundledPlugins: JuggernautPlugin[] = [
   metaBoxPlugin,
   seopressPlugin,
+  aiFillPlugin,
+  convertPostTypePlugin,
   // woocommercePlugin,
   // acfPlugin,
 ];
@@ -41,5 +45,7 @@ export function getBundledPluginIds(): string[] {
 // Re-export individual plugins for direct imports
 export { metaBoxPlugin };
 export { seopressPlugin };
+export { aiFillPlugin };
+export { convertPostTypePlugin };
 // export { woocommercePlugin };
 // export { acfPlugin };

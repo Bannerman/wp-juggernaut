@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync, writeFileSync } from 'fs';
+import { getPluginRegistry } from '@/lib/plugins/registry';
 import { ensureProfileLoaded, getProfileManager, getActiveProfileFilePath } from '@/lib/profiles';
 import { getWpBaseUrl, getWpCredentials } from '@/lib/wp-client';
 import { discoverFieldsForPostType } from '@/lib/discovery';
@@ -186,6 +187,13 @@ async function discoverFields(postTypeSlug: string): Promise<{
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  if (!getPluginRegistry().isPluginEnabled('convert-post-type')) {
+    return NextResponse.json(
+      { error: 'Convert Post Type plugin is not enabled' },
+      { status: 403 }
+    );
+  }
+
   try {
     ensureProfileLoaded();
     const manager = getProfileManager();
@@ -255,6 +263,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function PUT(request: NextRequest): Promise<NextResponse> {
+  if (!getPluginRegistry().isPluginEnabled('convert-post-type')) {
+    return NextResponse.json(
+      { error: 'Convert Post Type plugin is not enabled' },
+      { status: 403 }
+    );
+  }
+
   try {
     ensureProfileLoaded();
     const manager = getProfileManager();

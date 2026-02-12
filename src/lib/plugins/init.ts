@@ -8,6 +8,7 @@
 import { getPluginRegistry } from './registry';
 import { getPluginLoader, createCoreAPI } from './loader';
 import { getHookSystem } from './hooks';
+import { ensureProfileLoaded } from '../profiles';
 
 // Track initialization state
 let initialized = false;
@@ -61,6 +62,27 @@ async function doInitialize(): Promise<void> {
           console.error(`[PluginInit] Failed to activate plugin ${pluginId}:`, err);
         }
       }
+    }
+
+    // Auto-enable plugins from profile's required_plugins (handles fresh installs
+    // where plugin-registry.json doesn't yet have any plugins enabled)
+    try {
+      const profile = ensureProfileLoaded();
+      const requiredPlugins = profile.required_plugins ?? [];
+      const autoEnableIds = requiredPlugins
+        .filter(rp => rp.auto_enable && !registry.isPluginEnabled(rp.id))
+        .map(rp => rp.id);
+
+      if (autoEnableIds.length > 0) {
+        console.log(`[PluginInit] Auto-enabling ${autoEnableIds.length} plugins from profile...`);
+        const result = await loader.activateProfilePlugins(profile);
+        if (result.failed.length > 0) {
+          console.warn(`[PluginInit] Failed to auto-enable: ${result.failed.join(', ')}`);
+        }
+      }
+    } catch (err) {
+      // Profile may not be loaded yet (e.g., first run before any profile exists)
+      console.debug('[PluginInit] Could not auto-enable from profile:', err);
     }
 
     initialized = true;

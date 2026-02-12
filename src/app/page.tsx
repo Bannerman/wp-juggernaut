@@ -82,7 +82,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'general' | 'power'>('general');
 
   // Plugin-enabled features and profile config
-  const [enabledTabs, setEnabledTabs] = useState<string[]>(['basic', 'classification', 'ai']);
+  const [enabledTabs, setEnabledTabs] = useState<string[]>(['basic', 'classification']);
   const [fieldLayout, setFieldLayout] = useState<Record<string, FieldDefinition[]> | undefined>(undefined);
   const [tabConfig, setTabConfig] = useState<Array<{ id: string; label: string; source: string; icon?: string; position?: number; dynamic?: boolean }>>([]);
   const [taxonomyConfig, setTaxonomyConfig] = useState<Array<{
@@ -107,8 +107,10 @@ export default function Home() {
   const [postTypes, setPostTypes] = useState<Array<{ slug: string; name: string; rest_base: string; icon?: string; is_primary?: boolean }>>([]);
   const [allTaxonomyConfig, setAllTaxonomyConfig] = useState<typeof taxonomyConfig>([]);
   const [editableTaxonomies, setEditableTaxonomies] = useState<string[]>([]);
+  const [powerColumns, setPowerColumns] = useState<Array<{ key: string; label: string; type: 'download_stats' | 'count' | 'text' }>>([]);
   const [workspaceName, setWorkspaceName] = useState('');
   const [activeEnvironment, setActiveEnvironment] = useState<EnvironmentType>('development');
+  const [enabledPlugins, setEnabledPlugins] = useState<string[]>([]);
 
   // Fetch profile config (includes enabled plugins and taxonomy config)
   useEffect(() => {
@@ -154,6 +156,12 @@ export default function Home() {
           setPostTypeSlug(data.postType.slug || 'resource');
           setPostTypeLabel(data.postType.name || 'Resource');
           setPostTypeRestBase(data.postType.rest_base || 'resource');
+        }
+        if (data.enabledPlugins) {
+          setEnabledPlugins(data.enabledPlugins);
+        }
+        if (data.ui?.power_columns) {
+          setPowerColumns(data.ui.power_columns);
         }
       })
       .catch(err => console.error('Failed to fetch profile:', err));
@@ -739,25 +747,77 @@ export default function Home() {
             <RefreshCw className="w-8 h-8 text-brand-600 animate-spin" />
           </div>
         ) : filteredResources.length === 0 ? (
-          <div className="text-center py-12">
-            <Database className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No resources found</h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              {resources.length === 0
-                ? 'Sync with WordPress to load resources.'
-                : 'Try adjusting your filters.'}
-            </p>
-            {resources.length === 0 && (
-              <button
-                onClick={() => handleSync(false)}
-                disabled={isSyncing}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700"
-              >
-                <Download className="w-4 h-4" />
-                Full Sync
-              </button>
-            )}
-          </div>
+          resources.length === 0 && !stats?.lastSync ? (
+            /* First-launch welcome screen */
+            <div className="text-center py-16 max-w-lg mx-auto">
+              <Database className="w-16 h-16 text-brand-400 mx-auto mb-6" />
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Welcome to Juggernaut</h2>
+              <p className="text-gray-500 dark:text-gray-400 mb-8">
+                Get started by connecting to your WordPress site, then sync your content.
+              </p>
+              <div className="space-y-4 text-left bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-start gap-3">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-sm font-bold shrink-0">1</span>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">Configure your WordPress credentials</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Set your site URL, username, and application password.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm font-bold shrink-0">2</span>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">Run your first sync</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Pull posts, taxonomies, and media from WordPress.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm font-bold shrink-0">3</span>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">Edit and push changes</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Bulk edit content locally, then push back to WordPress.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-center gap-3 mt-8">
+                <Link
+                  href="/settings"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 font-medium transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  Open Settings
+                </Link>
+                <button
+                  onClick={() => handleSync(false)}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  {isSyncing ? 'Syncing...' : 'Sync Now'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Normal empty state (filters active or synced but empty) */
+            <div className="text-center py-12">
+              <Database className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No resources found</h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                {resources.length === 0
+                  ? 'Sync with WordPress to load resources.'
+                  : 'Try adjusting your filters.'}
+              </p>
+              {resources.length === 0 && (
+                <button
+                  onClick={() => handleSync(false)}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700"
+                >
+                  <Download className="w-4 h-4" />
+                  Full Sync
+                </button>
+              )}
+            </div>
+          )
         ) : (
           <ResourceTable
             resources={filteredResources}
@@ -776,6 +836,7 @@ export default function Home() {
                 .map((t) => ({ slug: t.slug, label: t.name, maxDisplay: t.table_max_display }))
             }
             postTypeLabelPlural={`${postTypeLabel.toLowerCase()}s`}
+            powerColumns={powerColumns}
           />
         )}
       </main>
@@ -795,7 +856,7 @@ export default function Home() {
           postTypeLabel={postTypeLabel}
           fieldLayout={fieldLayout}
           tabConfig={tabConfig}
-          onConvertPostType={postTypes.length > 1 ? () => {
+          onConvertPostType={postTypes.length > 1 && enabledPlugins.includes('convert-post-type') ? () => {
             setConvertingResource(editingResource);
             setEditingResource(null);
           } : undefined}

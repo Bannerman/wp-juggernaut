@@ -32,7 +32,7 @@ export async function GET() {
 
     // Determine which plugin features are enabled
     const enabledPluginIds = registry.getEnabledPluginIds();
-    const enabledTabs: string[] = ['basic', 'classification', 'ai']; // Core tabs
+    const enabledTabs: string[] = ['basic', 'classification']; // Core tabs (plugin tabs added below)
 
     for (const plugin of bundledPlugins) {
       if (enabledPluginIds.includes(plugin.id)) {

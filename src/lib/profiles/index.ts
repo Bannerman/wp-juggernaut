@@ -74,10 +74,57 @@ class ProfileManager {
   /**
    * Load a profile from a JSON file path
    */
-  async loadProfileFromFile(filePath: string): Promise<SiteProfile> {
-    // In a browser/Electron context, this would use file APIs
-    // For now, throw an error indicating this isn't implemented yet
-    throw new Error('loadProfileFromFile not yet implemented - use registerProfile instead');
+  loadProfileFromFile(filePath: string): SiteProfile {
+    const resolvedPath = path.resolve(filePath);
+
+    if (!fs.existsSync(resolvedPath)) {
+      throw new Error(`Profile file not found: ${resolvedPath}`);
+    }
+
+    const content = fs.readFileSync(resolvedPath, 'utf-8');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      throw new Error(`Invalid JSON in profile file: ${resolvedPath}`);
+    }
+
+    // Validate required fields
+    const profile = parsed as Record<string, unknown>;
+    if (!profile.profile_id || typeof profile.profile_id !== 'string') {
+      throw new Error('Profile must have a string "profile_id" field');
+    }
+    if (!profile.profile_name || typeof profile.profile_name !== 'string') {
+      throw new Error('Profile must have a string "profile_name" field');
+    }
+    if (!Array.isArray(profile.sites) || profile.sites.length === 0) {
+      throw new Error('Profile must have at least one entry in "sites" array');
+    }
+
+    const siteProfile = parsed as SiteProfile;
+    this.registerProfile(siteProfile);
+    console.log(`[ProfileManager] Loaded profile from file: ${resolvedPath}`);
+    return siteProfile;
+  }
+
+  /**
+   * Export a profile to a JSON file
+   */
+  exportProfileToFile(profileId: string, filePath: string): void {
+    const profile = this.state.availableProfiles.get(profileId);
+    if (!profile) {
+      throw new Error(`Profile not found: ${profileId}`);
+    }
+
+    const resolvedPath = path.resolve(filePath);
+    const dir = path.dirname(resolvedPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    const content = JSON.stringify(profile, null, 2);
+    fs.writeFileSync(resolvedPath, content, 'utf-8');
+    console.log(`[ProfileManager] Exported profile "${profileId}" to: ${resolvedPath}`);
   }
 
   /**

@@ -8,12 +8,14 @@ interface ThemeContextValue {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
+  mounted: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: 'light',
   setTheme: () => {},
   toggleTheme: () => {},
+  mounted: false,
 });
 
 export const useTheme = (): ThemeContextValue => useContext(ThemeContext);
@@ -27,6 +29,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): Reac
     if (typeof window === 'undefined') return 'light';
     return localStorage.getItem('juggernaut-theme') === 'dark' ? 'dark' : 'light';
   });
+
+  const [mounted, setMounted] = useState(false);
+
+  // Mark as mounted after first client render (hydration-safe)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Apply on mount and whenever theme changes
   useEffect(() => {
@@ -49,7 +58,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): Reac
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, mounted }}>
       {children}
     </ThemeContext.Provider>
   );
