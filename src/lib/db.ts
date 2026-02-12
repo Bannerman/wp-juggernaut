@@ -1,6 +1,9 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { createLogger } from './logger';
+
+const logger = createLogger('db');
 
 // Default to juggernaut.db, but support legacy plexkits.db for backward compatibility
 const DB_PATH = process.env.DATABASE_PATH || './data/juggernaut.db';
@@ -26,7 +29,7 @@ export function getDb(): Database.Database {
 
     // Check for legacy database and migrate if needed
     if (!fs.existsSync(dbPath) && fs.existsSync(legacyDbPath)) {
-      console.log('[db] Found legacy plexkits.db, copying to juggernaut.db...');
+      logger.info('Found legacy plexkits.db, copying to juggernaut.db...');
       fs.copyFileSync(legacyDbPath, dbPath);
     }
 
@@ -44,7 +47,7 @@ export function getDb(): Database.Database {
 
     // Fix any incomplete migrations (change_log might still have resource_id)
     if (tableExists(db, 'change_log') && columnExists(db, 'change_log', 'resource_id')) {
-      console.log('[db] Fixing incomplete migration: change_log table...');
+      logger.info('Fixing incomplete migration: change_log table...');
       db.exec(`
         CREATE TABLE change_log_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +64,7 @@ export function getDb(): Database.Database {
         DROP TABLE change_log;
         ALTER TABLE change_log_new RENAME TO change_log;
       `);
-      console.log('[db] change_log table fixed');
+      logger.info('change_log table fixed');
     }
   }
   return db;
@@ -117,7 +120,7 @@ function columnExists(database: Database.Database, tableName: string, columnName
  * Migrate schema from one version to another
  */
 function migrateSchema(database: Database.Database, fromVersion: number, toVersion: number): void {
-  console.log(`[db] Migrating schema from v${fromVersion} to v${toVersion}...`);
+  logger.info(`Migrating schema from v${fromVersion} to v${toVersion}...`);
 
   // Version 1 -> 2: Add post_type column, create plugin_data table, rename tables
   if (fromVersion < 2) {
@@ -125,7 +128,7 @@ function migrateSchema(database: Database.Database, fromVersion: number, toVersi
   }
 
   setSchemaVersion(database, toVersion);
-  console.log(`[db] Migration complete. Schema is now at v${toVersion}`);
+  logger.info(`Migration complete. Schema is now at v${toVersion}`);
 }
 
 /**
@@ -139,7 +142,7 @@ function migrateSchema(database: Database.Database, fromVersion: number, toVersi
  * - Update change_log to reference post_id
  */
 function migrateV1toV2(database: Database.Database): void {
-  console.log('[db] Running migration v1 -> v2...');
+  logger.info('Running migration v1 -> v2...');
 
   // Start transaction for safety
   database.exec('BEGIN TRANSACTION');
@@ -155,10 +158,10 @@ function migrateV1toV2(database: Database.Database): void {
 
     // Check if we're already on v2 schema (posts table exists)
     if (tableExists(database, 'posts')) {
-      console.log('[db] Already on v2 schema, skipping table renames');
+      logger.info('Already on v2 schema, skipping table renames');
     } else if (tableExists(database, 'resources')) {
       // Rename resources -> posts and add post_type column
-      console.log('[db] Renaming resources -> posts...');
+      logger.info('Renaming resources -> posts...');
 
       // SQLite doesn't support direct ALTER TABLE RENAME with new columns,
       // so we create new table, copy data, drop old, rename
@@ -195,7 +198,7 @@ function migrateV1toV2(database: Database.Database): void {
 
     // Rename resource_meta -> post_meta
     if (!tableExists(database, 'post_meta') && tableExists(database, 'resource_meta')) {
-      console.log('[db] Renaming resource_meta -> post_meta...');
+      logger.info('Renaming resource_meta -> post_meta...');
       database.exec(`
         CREATE TABLE post_meta (
           post_id INTEGER NOT NULL,
@@ -220,7 +223,7 @@ function migrateV1toV2(database: Database.Database): void {
 
     // Rename resource_terms -> post_terms
     if (!tableExists(database, 'post_terms') && tableExists(database, 'resource_terms')) {
-      console.log('[db] Renaming resource_terms -> post_terms...');
+      logger.info('Renaming resource_terms -> post_terms...');
       database.exec(`
         CREATE TABLE post_terms (
           post_id INTEGER NOT NULL,
@@ -245,7 +248,7 @@ function migrateV1toV2(database: Database.Database): void {
 
     // Create plugin_data table for generic plugin storage
     if (!tableExists(database, 'plugin_data')) {
-      console.log('[db] Creating plugin_data table...');
+      logger.info('Creating plugin_data table...');
       database.exec(`
         CREATE TABLE plugin_data (
           post_id INTEGER NOT NULL,
@@ -263,7 +266,7 @@ function migrateV1toV2(database: Database.Database): void {
 
     // Migrate resource_seo -> plugin_data (seopress plugin)
     if (tableExists(database, 'resource_seo')) {
-      console.log('[db] Migrating resource_seo -> plugin_data...');
+      logger.info('Migrating resource_seo -> plugin_data...');
 
       const seoRows = database.prepare('SELECT * FROM resource_seo').all() as Array<{
         resource_id: number;
@@ -316,12 +319,12 @@ function migrateV1toV2(database: Database.Database): void {
 
       // Keep resource_seo table for backward compatibility but mark it as deprecated
       // Will be removed in a future version
-      console.log('[db] SEO data migrated to plugin_data. resource_seo table kept for compatibility.');
+      logger.info('SEO data migrated to plugin_data. resource_seo table kept for compatibility.');
     }
 
     // Migrate change_log table: resource_id -> post_id
     if (tableExists(database, 'change_log') && columnExists(database, 'change_log', 'resource_id')) {
-      console.log('[db] Migrating change_log table...');
+      logger.info('Migrating change_log table...');
       database.exec(`
         CREATE TABLE change_log_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -351,10 +354,10 @@ function migrateV1toV2(database: Database.Database): void {
     `);
 
     database.exec('COMMIT');
-    console.log('[db] Migration v1 -> v2 complete');
+    logger.info('Migration v1 -> v2 complete');
   } catch (error) {
     database.exec('ROLLBACK');
-    console.error('[db] Migration failed, rolled back:', error);
+    logger.error('Migration failed, rolled back:', error);
     throw error;
   }
 }
