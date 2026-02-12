@@ -42,24 +42,8 @@ function getSecureCredentials(): StoredCredentialsMap {
     const parsed = JSON.parse(decrypted);
 
     // Migration: if it's the legacy format (has username/appPassword at root), wrap it
-    // We don't know the target ID for legacy credentials, but we can assume 'local' or verify against config
-    // For now, if we encounter legacy format, we'll return it as 'default' or migrate it properly via migrateCredentials
     if (parsed.username && parsed.appPassword && !parsed.siteCredentials) {
-        // It's legacy. We can't map it to a target ID easily here without reading config.
-        // But since we are migrating in app.whenReady, we might just return it as a map with a placeholder?
-        // Actually, migrateCredentials handles file-based config.
-        // If secure storage has legacy format, we should probably support it or migrate it.
-        // Let's assume for now that migrateCredentials will fix everything.
-        // But here we need to return a map.
-        // If it looks like legacy, wrap it in a map?
-        // But wait, the previous implementation stored just the object.
-        // If I change the storage format, I break existing users unless I handle migration of the *secure file* too.
-        // Let's check if it's a map.
         if (typeof parsed.username === 'string') {
-           // It's legacy single credential.
-           // We'll treat it as 'local' or just return empty if we can't be sure?
-           // Better to return it as a special key or just upgrade it on next write.
-           // Let's map it to 'local' for now, or read site-config active target? Too complex here.
            return { 'local': { username: parsed.username, appPassword: parsed.appPassword } };
         }
     }
@@ -102,14 +86,22 @@ function deleteSecureCredentials(targetId: string): boolean {
   }
 }
 
-// Migration: Move credentials from site-config.json to secure storage
-function migrateCredentials() {
+// Helper to get config path (shared logic)
+function getConfigPath(): string | null {
   try {
     const DEFAULT_CONFIG_DIR = path.join(os.homedir(), '.juggernaut');
     const CONFIG_DIR = process.env.JUGGERNAUT_CONFIG_DIR || DEFAULT_CONFIG_DIR;
-    const CONFIG_PATH = path.join(CONFIG_DIR, 'site-config.json');
+    return path.join(CONFIG_DIR, 'site-config.json');
+  } catch (error) {
+    return null;
+  }
+}
 
-    if (!fs.existsSync(CONFIG_PATH)) return;
+// Migration: Move credentials from site-config.json to secure storage
+function migrateCredentials() {
+  try {
+    const CONFIG_PATH = getConfigPath();
+    if (!CONFIG_PATH || !fs.existsSync(CONFIG_PATH)) return;
 
     const content = fs.readFileSync(CONFIG_PATH, 'utf-8');
     const config = JSON.parse(content);
@@ -144,7 +136,6 @@ function migrateCredentials() {
         }
       }
       delete config.siteCredentials;
-      // We removed the whole map, so all credentials are gone from file
     }
 
     if (changed) {
@@ -405,10 +396,6 @@ ipcMain.handle('get-app-version', () => {
 // Secure credential handlers
 ipcMain.handle('get-credentials', (_event, targetId?: string) => {
   const credsMap = getSecureCredentials();
-  // If targetId is provided, return specific credentials
-  // If not, we might be in a legacy call, but we can't guess.
-  // We'll return empty if no targetId, OR we could assume 'local' if it exists?
-  // But preload/client should always pass targetId now.
 
   if (targetId && credsMap[targetId]) {
     return { hasCredentials: true, username: credsMap[targetId].username };
@@ -426,7 +413,7 @@ ipcMain.handle('set-credentials', async (_event, { targetId, username, appPasswo
   const success = setSecureCredentials(credsMap);
 
   if (success && !isDev) {
-    // Restart the Next.js server so it picks up new credentials env var
+    // Production: Restart server to update env vars
     console.log('Credentials updated - restarting Next.js server...');
     try {
       stopNextServer();
@@ -436,7 +423,6 @@ ipcMain.handle('set-credentials', async (_event, { targetId, username, appPasswo
       const serverReady = await waitForServer(`http://localhost:${PORT}`);
       if (serverReady) {
         console.log('Server restarted with new credentials');
-        // Reload the window to reflect new state
         mainWindow?.webContents.reload();
       } else {
         console.error('Server restart failed - server not ready');
@@ -446,7 +432,29 @@ ipcMain.handle('set-credentials', async (_event, { targetId, username, appPasswo
       console.error('Error restarting server:', error);
       dialog.showErrorBox('Restart Required', 'Credentials saved. Please restart the app for changes to take effect.');
     }
+  } else if (success && isDev) {
+    // Development: Write to site-config.json because we can't inject env vars into external Next.js server
+    console.log('Dev mode: Updating site-config.json for external Next.js server');
+    try {
+      const CONFIG_PATH = getConfigPath();
+      if (CONFIG_PATH && fs.existsSync(CONFIG_PATH)) {
+        const content = fs.readFileSync(CONFIG_PATH, 'utf-8');
+        const config = JSON.parse(content);
+
+        if (!config.siteCredentials) {
+          config.siteCredentials = {};
+        }
+        config.siteCredentials[targetId] = { username, appPassword };
+
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+        console.log('Dev mode: site-config.json updated with credentials');
+        mainWindow?.webContents.reload();
+      }
+    } catch (error) {
+      console.error('Dev mode: Failed to update site-config.json', error);
+    }
   }
+
   return { success };
 });
 
