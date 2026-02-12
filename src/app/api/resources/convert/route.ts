@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getPluginRegistry } from '@/lib/plugins/registry';
 import { getDb } from '@/lib/db';
 import { getResourceById } from '@/lib/queries';
 import { savePluginData } from '@/lib/queries';
@@ -43,6 +44,13 @@ interface ConvertRequest {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (!getPluginRegistry().isPluginEnabled('convert-post-type')) {
+    return NextResponse.json(
+      { error: 'Convert Post Type plugin is not enabled' },
+      { status: 403 }
+    );
+  }
+
   try {
     const body = await request.json() as ConvertRequest;
     const {

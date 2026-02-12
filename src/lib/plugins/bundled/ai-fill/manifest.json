@@ -1,0 +1,26 @@
+{
+  "id": "ai-fill",
+  "name": "AI Fill",
+  "version": "1.0.0",
+  "description": "AI-powered content generation. Copy prompts to ChatGPT/Claude, paste responses back to auto-fill fields.",
+  "author": {
+    "name": "Juggernaut",
+    "url": "https://github.com/Bannerman/wp-juggernaut"
+  },
+  "license": "MIT",
+  "requires_core": ">=1.0.0",
+  "tier": "bundled",
+  "provides": {
+    "tabs": ["ai"],
+    "field_types": [],
+    "api_extensions": []
+  },
+  "settings_schema": {
+    "prompt_templates": {
+      "type": "boolean",
+      "label": "Enable prompt templates",
+      "description": "Load prompt templates from the prompt-templates directory",
+      "default": true
+    }
+  }
+}

@@ -448,6 +448,7 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <SettingsNav
         activeTab={activeTab}
+        enabledPlugins={plugins.filter(p => p.enabled).map(p => p.id)}
         onTabClick={(tabId) => {
           if (tabId === 'prompts') { setActiveTab('prompts'); setPromptsView('edit'); }
           else setActiveTab(tabId);

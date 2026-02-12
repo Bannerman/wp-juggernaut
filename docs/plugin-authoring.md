@@ -308,6 +308,8 @@ The `DynamicTab` component renders fields using `FieldRenderer`, which checks pl
 
 For tabs that need more than a list of fields (e.g., the SEO tab with its multi-section layout), register a full React component.
 
+> **Real-world example:** See `src/lib/plugins/bundled/seopress/SEOTab.tsx` — the SEOPress plugin registers a full SEO editing interface (title, description, social media, robots) as a plugin tab. It receives SEO state from EditModal through the `context` prop on `PluginTabProps`.
+
 **Create a tab component** (`MyTab.tsx`):
 
 ```tsx
@@ -315,8 +317,9 @@ For tabs that need more than a list of fields (e.g., the SEO tab with its multi-
 
 import type { PluginTabProps } from '@/components/fields';
 
-export function MyTab({ resource, terms, updateMetaField, isCreateMode, siteUrl }: PluginTabProps) {
+export function MyTab({ resource, terms, updateMetaField, isCreateMode, siteUrl, context }: PluginTabProps) {
   const myValue = resource.meta_box?.my_field as string || '';
+  // Use `context` for plugin-specific data passed by EditModal (see SEOTab.tsx for an example)
 
   return (
     <div className="space-y-4">
@@ -378,11 +381,13 @@ async deactivate(): Promise<void> {
 
 EditModal renders tabs in this order of precedence:
 
-1. **Hardcoded tabs** (`basic`, `seo`, `classification`, `ai`) — built-in JSX in EditModal
+1. **Hardcoded core tabs** (`basic`, `classification`, `ai`) — built-in JSX in EditModal
 2. **Dynamic tabs** — tabs with a matching `field_layout` entry, rendered via `DynamicTab` + `FieldRenderer`
-3. **Plugin-registered tabs** — custom React components registered via `registerPluginTab()`
+3. **Plugin-registered tabs** — custom React components registered via `registerPluginTab()` (e.g., `seo` tab from SEOPress)
 
 If a tab has both a `field_layout` entry AND a registered plugin component, the `field_layout` wins (dynamic tab rendering). Use one or the other, not both.
+
+> **`context` prop:** When rendering plugin tabs, EditModal passes a `context?: Record<string, unknown>` prop on `PluginTabProps`. Plugins that need state from EditModal (like SEO data, loading states, or update handlers) receive it through `context`. The plugin casts it to the expected shape. See `SEOTab.tsx` and its `SEOTabContext` interface for the pattern.
 
 ### Step 6: Register in the Bundled Index
 
@@ -542,7 +547,7 @@ Study the bundled plugins for production patterns:
 |---|---|---|---|
 | **_example** | `src/lib/plugins/bundled/_example/` | Minimal | All extension points (commented) |
 | **MetaBox** | `src/lib/plugins/bundled/metabox/` | Medium | Sync/push hooks, field normalization, taxonomy mapping |
-| **SEOPress** | `src/lib/plugins/bundled/seopress/` | High | REST API integration, local storage, multi-endpoint push |
+| **SEOPress** | `src/lib/plugins/bundled/seopress/` | High | REST API integration, local storage, multi-endpoint push, **plugin tab registration** (`SEOTab.tsx`) |
 
 ---
 

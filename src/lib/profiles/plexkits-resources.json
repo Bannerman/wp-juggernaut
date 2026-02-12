@@ -39,6 +39,18 @@
       "version": ">=1.0.0",
       "source": "bundled",
       "auto_enable": true
+    },
+    {
+      "id": "ai-fill",
+      "version": ">=1.0.0",
+      "source": "bundled",
+      "auto_enable": true
+    },
+    {
+      "id": "convert-post-type",
+      "version": ">=1.0.0",
+      "source": "bundled",
+      "auto_enable": true
     }
   ],
   "post_types": [
@@ -310,9 +322,16 @@
       {
         "id": "ai",
         "label": "AI Fill",
-        "source": "core",
+        "source": "ai-fill",
         "icon": "sparkles",
         "position": 9
+      }
+    ],
+    "power_columns": [
+      {
+        "key": "download_sections",
+        "label": "Downloads",
+        "type": "download_stats"
       }
     ],
     "field_layout": {

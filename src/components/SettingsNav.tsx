@@ -10,6 +10,8 @@ interface SettingsNavProps {
   actions?: React.ReactNode;
   /** When provided, in-page tabs (target, prompts, plugins, diagnostics) call this instead of navigating */
   onTabClick?: (tabId: string) => void;
+  /** List of enabled plugin IDs — nav items with a pluginId are hidden when that plugin is disabled */
+  enabledPlugins?: string[];
 }
 
 const NAV_ITEMS = [
@@ -17,11 +19,11 @@ const NAV_ITEMS = [
   { id: 'prompts', label: 'Prompts', icon: Sparkles, href: '/settings', inPage: true },
   { id: 'plugins', label: 'Plugins', icon: Puzzle, href: '/settings', inPage: true },
   { id: 'diagnostics', label: 'Diagnostics', icon: Activity, href: '/settings', inPage: true },
-  { id: 'field-mappings', label: 'Field Mapping', icon: Repeat, href: '/settings/field-mappings', inPage: false },
+  { id: 'field-mappings', label: 'Field Mapping', icon: Repeat, href: '/settings/field-mappings', inPage: false, pluginId: 'convert-post-type' },
   { id: 'tab-layout', label: 'Tab Layout', icon: LayoutGrid, href: '/settings/tab-layout', inPage: false },
 ];
 
-export function SettingsNav({ activeTab, actions, onTabClick }: SettingsNavProps): React.ReactElement {
+export function SettingsNav({ activeTab, actions, onTabClick, enabledPlugins }: SettingsNavProps): React.ReactElement {
   return (
     <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 electron-drag">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
@@ -40,7 +42,7 @@ export function SettingsNav({ activeTab, actions, onTabClick }: SettingsNavProps
         </div>
 
         <nav className="flex gap-6 -mb-px electron-no-drag">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter(item => !item.pluginId || enabledPlugins?.includes(item.pluginId)).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             const className = cn(

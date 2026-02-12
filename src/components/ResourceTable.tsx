@@ -30,6 +30,12 @@ interface TaxonomyColumn {
   maxDisplay?: number;
 }
 
+interface PowerColumn {
+  key: string;
+  label: string;
+  type: 'download_stats' | 'count' | 'text';
+}
+
 interface ResourceTableProps {
   resources: Resource[];
   terms: Record<string, Term[]>;
@@ -46,6 +52,8 @@ interface ResourceTableProps {
   taxonomyColumns?: TaxonomyColumn[];
   /** Post type label for display (e.g., "resources") */
   postTypeLabelPlural?: string;
+  /** Configurable columns for power view */
+  powerColumns?: PowerColumn[];
 }
 
 type SortField = 'title' | 'status' | 'modified_gmt' | 'date_gmt';
@@ -63,6 +71,7 @@ export function ResourceTable({
   postTypeSlug = 'resource',
   taxonomyColumns = [],
   postTypeLabelPlural = 'resources',
+  powerColumns = [],
 }: ResourceTableProps) {
   const [sortField, setSortField] = useState<SortField>('modified_gmt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -229,9 +238,11 @@ export function ResourceTable({
 
               {viewMode === 'power' && (
                 <>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Downloads
-                  </th>
+                  {powerColumns.map((col) => (
+                    <th key={col.key} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      {col.label}
+                    </th>
+                  ))}
                   <th
                     scope="col"
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
@@ -351,20 +362,35 @@ export function ResourceTable({
                     </>
                   )}
 
-                  {viewMode === 'power' && downloadStats && (
+                  {viewMode === 'power' && (
                     <>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col text-xs">
-                          <span className="text-gray-900 dark:text-gray-100 font-medium">
-                            {downloadStats.activeCount} Active
-                          </span>
-                          {downloadStats.archivedCount > 0 && (
-                            <span className="text-gray-500">
-                              {downloadStats.archivedCount} Archived
+                      {powerColumns.map((col) => (
+                        <td key={col.key} className="px-4 py-3">
+                          {col.type === 'download_stats' ? (() => {
+                            const ds = getDownloadStats(resource);
+                            return (
+                              <div className="flex flex-col text-xs">
+                                <span className="text-gray-900 dark:text-gray-100 font-medium">
+                                  {ds.activeCount} Active
+                                </span>
+                                {ds.archivedCount > 0 && (
+                                  <span className="text-gray-500">
+                                    {ds.archivedCount} Archived
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })() : col.type === 'count' ? (
+                            <span className="text-sm text-gray-900 dark:text-gray-100">
+                              {Array.isArray(resource.meta_box?.[col.key]) ? (resource.meta_box[col.key] as unknown[]).length : 0}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
+                              {String(resource.meta_box?.[col.key] ?? '')}
                             </span>
                           )}
-                        </div>
-                      </td>
+                        </td>
+                      ))}
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
                         {formatRelativeTime(resource.date_gmt)}
                       </td>

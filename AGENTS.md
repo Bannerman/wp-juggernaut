@@ -109,7 +109,7 @@ DATABASE_PATH=./data/juggernaut.db
 - **Batch push**: Groups of 25 via WP batch API
 - **Plugin system**: Hook-based extensibility with priority ordering
 - **Profile system**: JSON configurations per WordPress site
-- **Tab system**: `CORE_TAB_IDS` (basic, classification, ai) always show regardless of plugins; `HARDCODED_TAB_IDS` matches core tabs (custom JSX in EditModal). Plugin tabs like `seo` are registered via `registerPluginTab()` and rendered dynamically. All other tabs are profile-driven via `DynamicTab` + `FieldRenderer`
+- **Tab system**: `CORE_TAB_IDS` (basic, classification) always show regardless of plugins; `HARDCODED_TAB_IDS` matches core tabs (custom JSX in EditModal). Plugin tabs like `seo` and `ai` are registered via `registerPluginTab()` and rendered dynamically. All other tabs are profile-driven via `DynamicTab` + `FieldRenderer`
 - **Taxonomy dual push**: Taxonomy data is sent both as top-level REST fields AND as `meta_box.tax_xyz` fields; `tax_xyz` meta keys are filtered from Tab Layout and Field Mapping available fields to avoid double-editing
 - **Environment indicator**: Header shows workspace name (from `profile_name`) + colored environment badge (red=production, yellow=staging, green=development). Environment is set via explicit `environment` field in profile `sites[]`, with auto-derivation from site `id` as fallback
 
@@ -153,6 +153,7 @@ These were added during Phase 2 and do not have corresponding `modules/*/spec.ya
 | `/api/resources` | CRUD operations on resources |
 | `/api/terms` | Taxonomy term management |
 | `/api/profile` | Site profile configuration |
+| `/api/profile/import-export` | Profile import (POST) and export (GET) |
 | `/api/plugins` | Plugin management |
 | `/api/discover` | WordPress site discovery |
 | `/api/discover-fields` | Discover meta/taxonomy fields per post type from WP |
@@ -170,7 +171,7 @@ These were added during Phase 2 and do not have corresponding `modules/*/spec.ya
 
 Juggernaut uses a modular plugin architecture. See **[`docs/plugin-authoring.md`](docs/plugin-authoring.md)** for the full plugin creation guide with step-by-step instructions and a copy-pasteable skeleton (`src/lib/plugins/bundled/_example/`).
 
-- **Bundled Plugins** (`src/lib/plugins/bundled/`): MetaBox, SEOPress, _example (template)
+- **Bundled Plugins** (`src/lib/plugins/bundled/`): MetaBox, SEOPress, AI Fill, _example (template)
 - **Profile System** (`src/lib/profiles/`): Site-specific configurations (e.g., `plexkits-resources.json`)
 - **Hook System** (`src/lib/plugins/hooks.ts`): Event-driven extension points with priority ordering
 - **Plugin Registry** (`src/lib/plugins/registry.ts`): Plugin registration and lifecycle
@@ -188,7 +189,7 @@ Settings are accessible from the gear icon in the main UI:
 
 ### **Tab Layout Architecture**
 
-The EditModal has core tabs (Basic, Classification, AI Fill) that always show, plugin tabs (SEO via SEOPress), and dynamic tabs defined in `ui.tabs` + `ui.field_layout` in the profile JSON. The Tab Layout editor allows visual configuration of dynamic tabs:
+The EditModal has core tabs (Basic, Classification) that always show, plugin tabs (SEO via SEOPress, AI Fill via ai-fill plugin), and dynamic tabs defined in `ui.tabs` + `ui.field_layout` in the profile JSON. The Tab Layout editor allows visual configuration of dynamic tabs:
 
 - **Profile storage**: Profile JSON → `ui.tabs[]` (tab definitions) + `ui.field_layout{}` (fields per tab)
 - **Field discovery**: Available fields are discovered from WordPress via `discoverFieldsForPostType()`
