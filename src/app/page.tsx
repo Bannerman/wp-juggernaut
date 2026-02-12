@@ -679,6 +679,7 @@ export default function Home() {
               <input
                 type="text"
                 placeholder={`Search ${postTypeLabel.toLowerCase()}s...`}
+                aria-label={`Search ${postTypeLabel.toLowerCase()}s`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
@@ -709,6 +710,8 @@ export default function Home() {
 
             <button
               onClick={() => setShowFilters(!showFilters)}
+              aria-expanded={showFilters}
+              aria-controls="filter-panel"
               className={cn(
                 'flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors',
                 showFilters
@@ -723,13 +726,15 @@ export default function Home() {
           </div>
 
           {showFilters && (
-            <FilterPanel
-              terms={terms}
-              filters={taxonomyFilters}
-              onChange={setTaxonomyFilters}
-              taxonomyConfig={taxonomyConfig}
-              taxonomyLabels={taxonomyLabels}
-            />
+            <div id="filter-panel">
+              <FilterPanel
+                terms={terms}
+                filters={taxonomyFilters}
+                onChange={setTaxonomyFilters}
+                taxonomyConfig={taxonomyConfig}
+                taxonomyLabels={taxonomyLabels}
+              />
+            </div>
           )}
         </div>
 

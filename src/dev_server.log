@@ -1,0 +1,24 @@
+
+> juggernaut@0.9.8 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+ ✓ Ready in 1778ms
+ ○ Compiling / ...
+ ✓ Compiled / in 6.8s (660 modules)
+ ✓ Compiled in 895ms (337 modules)
+ GET / 200 in 7765ms
+ ○ Compiling /api/stats ...
+ ✓ Compiled /api/stats in 4s (372 modules)
+ ✓ Compiled (380 modules)
+[ProfileManager] Registered profile: plexkits-resources
+[ProfileManager] Activated profile: plexkits-resources, site: production
+[PluginInit] Starting plugin system initialization...
+[PluginLoader] Registered plugin: metabox
+[PluginLoader] Registered plugin: seopress
+[PluginLoader] Discovered 2 bundled plugins
+[PluginLoader] Initialized with 2 plugins
+[PluginInit] Plugin system initialized successfully

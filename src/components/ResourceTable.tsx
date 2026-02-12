@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Edit2, ExternalLink, ChevronUp, ChevronDown, Inbox } from 'lucide-react';
 import { cn, formatRelativeTime, STATUS_COLORS, truncate } from '@/lib/utils';
 
-interface Term {
+export interface Term {
   id: number;
   taxonomy: string;
   name: string;
@@ -12,7 +12,7 @@ interface Term {
   parent_id: number;
 }
 
-interface Resource {
+export interface Resource {
   id: number;
   title: string;
   slug: string;
@@ -178,6 +178,7 @@ export function ResourceTable({
                   }}
                   onChange={handleSelectAll}
                   className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  aria-label="Select all resources"
                 />
               </th>
               <th
@@ -295,6 +296,7 @@ export function ResourceTable({
                       checked={selectedIds.includes(resource.id)}
                       onChange={() => handleSelectOne(resource.id)}
                       className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                      aria-label={`Select ${resource.title}`}
                     />
                   </td>
                   <td className="px-4 py-3">
