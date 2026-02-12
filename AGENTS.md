@@ -280,6 +280,31 @@ Follow Conventional Commits: `type(scope): description`.
 - `feat(sync): Add progress tracking to sync engine`
 - `fix(db): Correct type mismatch in resource query`
 
+### **Pull Request Review Process**
+
+When reviewing PRs (including those from external agents like `agent-gorilla`), follow this complete process:
+
+1. **Read the diff** — Understand what the PR changes, check for merge conflicts with `main`
+2. **Inline comments** — Leave specific comments on lines with issues so the PR author can see exactly what to fix. Use `gh api` to post review comments on specific lines
+3. **Label the PR** — Apply appropriate labels to categorize each PR:
+   - `bug`, `enhancement`, `refactor`, `accessibility`, `performance`, `security`, `code-health`, `documentation`
+   - `stale` — Branch is significantly behind `main` and would require major rebase
+   - `blocked` — Cannot merge due to unresolved issues
+   - `ready-to-merge` — Approved and ready to go
+4. **Take action** based on assessment:
+   - **Approve & Merge** — If the PR is a clear improvement, passes review, and aligns with project architecture. Use `gh pr merge --squash`
+   - **Request Changes** — If there are fixable issues. Be specific about what needs to change
+   - **Close** — If the PR is stale (work already done on `main`), fundamentally misaligned with architecture, or abandoned. Leave a comment explaining why. Use `gh pr close`
+5. **Check for prior reviews** — If changes were previously requested, verify whether the feedback was actually addressed before approving
+6. **Verify against `main`** — Check if the branch is stale (behind `main` by many commits) and whether the changes conflict with or duplicate work already merged
+
+**Key review criteria:**
+- Follows coding standards (`docs/standards/coding_standards.md`)
+- Uses the plugin architecture for new features (not standalone routes/components)
+- No `any` types, no hardcoded secrets, proper error handling
+- Doesn't include unrelated files (lock files, logs, compiled artifacts)
+- Changes are focused — one concern per PR
+
 ### **Releasing**
 
 1. Update version in `src/package.json`
