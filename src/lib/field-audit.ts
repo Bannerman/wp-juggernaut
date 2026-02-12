@@ -1,6 +1,6 @@
 import { getDb } from './db';
 import type { WPResource } from './wp-client';
-import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
+import { getTaxonomyMetaFieldMappingFromProfile } from './plugins/bundled/metabox';
 
 export interface AuditEntry {
   field_name: string;
@@ -64,10 +64,11 @@ export function runFieldAudit(
   const processedFields = new Set<string>();
 
   // Build reverse lookup: meta field value -> taxonomy slug
-  const taxonomyMetaValues = new Set(Object.values(TAXONOMY_META_FIELD));
+  const taxonomyMetaFieldMapping = getTaxonomyMetaFieldMappingFromProfile();
+  const taxonomyMetaValues = new Set(Object.values(taxonomyMetaFieldMapping));
 
   // Check each taxonomy meta field mapping
-  for (const [taxonomy, metaField] of Object.entries(TAXONOMY_META_FIELD)) {
+  for (const [taxonomy, metaField] of Object.entries(taxonomyMetaFieldMapping)) {
     processedFields.add(metaField);
     const wpResources = wpFieldMap.get(metaField);
 

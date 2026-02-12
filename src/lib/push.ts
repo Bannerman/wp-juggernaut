@@ -9,7 +9,7 @@ import {
   type UpdateResourcePayload,
   type BatchRequest,
 } from './wp-client';
-import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
+import { getTaxonomyMetaFieldMappingFromProfile } from './plugins/bundled/metabox';
 import { getResourceById, markResourceClean, getDirtyResources, getResourceSeo, type LocalSeoData } from './queries';
 import { seopressPlugin } from './plugins/bundled/seopress';
 
@@ -272,6 +272,7 @@ async function buildUpdatePayload(resourceId: number): Promise<UpdateResourcePay
 
   const taxSummary: Record<string, number[]> = {};
   const taxonomies = getTaxonomies();
+  const taxonomyMetaFieldMapping = getTaxonomyMetaFieldMappingFromProfile();
   for (const taxonomy of taxonomies) {
     // Skip file_format - WP auto-syncs it from download_file_format in download links
     if (taxonomy === 'file_format') continue;
@@ -284,7 +285,7 @@ async function buildUpdatePayload(resourceId: number): Promise<UpdateResourcePay
     (payload as Record<string, unknown>)[taxonomy] = termIds;
 
     // Meta Box field (e.g., 'tax_topic', 'tax_resource_type')
-    const metaField = TAXONOMY_META_FIELD[taxonomy];
+    const metaField = taxonomyMetaFieldMapping[taxonomy];
     if (metaField) {
       metaBox[metaField] = termIds;
     }

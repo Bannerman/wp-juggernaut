@@ -24,7 +24,7 @@ import { getProfileManager } from '../../../profiles';
  * This constant is kept for backward compatibility but will be removed.
  * The mapping now comes from the profile's taxonomy configurations.
  */
-export const TAXONOMY_META_FIELD: Record<string, string> = {
+const TAXONOMY_META_FIELD: Record<string, string> = {
   'resource-type': 'tax_resource_type',
   'topic': 'tax_topic',
   'intent': 'tax_intent',
@@ -255,8 +255,9 @@ class MetaBoxPlugin implements JuggernautPlugin {
 
     // Add taxonomy Meta Box fields
     if (resource.taxonomies) {
+      const taxonomyMetaFieldMapping = getTaxonomyMetaFieldMappingFromProfile();
       for (const [taxonomy, termIds] of Object.entries(resource.taxonomies)) {
-        const metaField = TAXONOMY_META_FIELD[taxonomy];
+        const metaField = taxonomyMetaFieldMapping[taxonomy];
         if (metaField && termIds && termIds.length > 0) {
           transformedPayload.meta_box[metaField] = termIds;
         }
@@ -299,7 +300,7 @@ class MetaBoxPlugin implements JuggernautPlugin {
    * Get taxonomy to Meta Box field mapping
    */
   getTaxonomyMetaFieldMapping(): Record<string, string> {
-    return { ...TAXONOMY_META_FIELD };
+    return getTaxonomyMetaFieldMappingFromProfile();
   }
 
   /**
@@ -313,7 +314,7 @@ class MetaBoxPlugin implements JuggernautPlugin {
       }
     }
     // Check if it's a taxonomy meta field
-    return Object.values(TAXONOMY_META_FIELD).includes(fieldName);
+    return Object.values(getTaxonomyMetaFieldMappingFromProfile()).includes(fieldName);
   }
 }
 
