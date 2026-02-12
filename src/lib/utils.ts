@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import he from 'he';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -10,32 +11,7 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function decodeHtmlEntities(text: string): string {
   if (!text) return text;
-
-  // First handle numeric entities like &#038; &#123; etc.
-  let result = text.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
-
-  // Then handle named entities
-  const namedEntities: Record<string, string> = {
-    '&amp;': '&',
-    '&lt;': '<',
-    '&gt;': '>',
-    '&quot;': '"',
-    '&apos;': "'",
-    '&nbsp;': ' ',
-    '&ndash;': '\u2013',
-    '&mdash;': '\u2014',
-    '&lsquo;': '\u2018',
-    '&rsquo;': '\u2019',
-    '&ldquo;': '\u201C',
-    '&rdquo;': '\u201D',
-    '&hellip;': '\u2026',
-  };
-
-  for (const [entity, char] of Object.entries(namedEntities)) {
-    result = result.split(entity).join(char);
-  }
-
-  return result;
+  return he.decode(text);
 }
 
 export function formatDate(dateString: string): string {
