@@ -174,7 +174,7 @@ class SEOPressPlugin implements JuggernautPlugin {
   /**
    * Fetch SEO data for a resource
    */
-  async fetchSEOData(resourceId: number, baseUrl: string, authHeader: string): Promise<SEOData> {
+  async fetchSEOData(resourceId: number, baseUrl: string, authHeader: string): Promise<SEOData | null> {
     try {
       const response = await fetch(`${baseUrl}${SEOPRESS_ENDPOINTS.posts(resourceId)}`, {
         method: 'GET',
@@ -224,7 +224,7 @@ class SEOPressPlugin implements JuggernautPlugin {
       };
     } catch (error) {
       this.coreAPI?.log(`[SEOPress] Error fetching SEO data: ${error}`, 'error');
-      return { ...DEFAULT_SEO_DATA };
+      return null;
     }
   }
 
@@ -506,8 +506,9 @@ class SEOPressPlugin implements JuggernautPlugin {
     postId: number,
     baseUrl: string,
     authHeader: string
-  ): Promise<SEOData> {
+  ): Promise<SEOData | null> {
     const seoData = await this.fetchSEOData(postId, baseUrl, authHeader);
+    if (!seoData) return null;
     this.saveLocalSEOData(postId, seoData, false); // Don't mark dirty since we just synced
     return seoData;
   }

@@ -141,7 +141,7 @@ export interface UpdateResourcePayload {
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
-function getAuthHeader(): string {
+export function getAuthHeader(): string {
   const creds = getWpCredentials();
   const credentials = Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
   return `Basic ${credentials}`;
