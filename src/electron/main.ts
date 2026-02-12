@@ -204,12 +204,6 @@ function stopNextServer(): void {
   }
 }
 
-// Helper to get the app base path
-function getAppPath(): string {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'app.asar')
-    : path.join(__dirname, '..');
-}
 
 // Auto-updater events
 if (autoUpdater) {
