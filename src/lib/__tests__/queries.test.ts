@@ -13,6 +13,10 @@ import {
   getTermsByTaxonomy,
   getAllTermsGrouped,
   getSyncStats,
+  getPluginData,
+  savePluginData,
+  deletePluginData,
+  getAllPluginData,
 } from '../queries';
 import * as db from '../db';
 
@@ -62,8 +66,10 @@ describe('Queries Module', () => {
 
       const results = getResources({ status: 'publish' });
 
-      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining("WHERE status = ?")
+      // Check first call specifically
+      expect(mockDbInstance.prepare).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining("AND status = ?")
       );
     });
 
@@ -74,7 +80,8 @@ describe('Queries Module', () => {
 
       getResources({ search: 'bracket' });
 
-      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+      expect(mockDbInstance.prepare).toHaveBeenNthCalledWith(
+        1,
         expect.stringContaining("LIKE")
       );
     });
@@ -199,7 +206,16 @@ describe('Queries Module', () => {
   describe('updateLocalResource', () => {
     it('should update resource and mark as dirty', () => {
       const mockRun = jest.fn();
-      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+      const mockGet = jest.fn().mockReturnValue({ id: 123, title: 'Old Title', status: 'publish', is_dirty: 0 });
+      const mockAll = jest.fn().mockReturnValue([]);
+
+      // Mock getResourceById calls: SELECT -> get, META -> all, TAX -> all
+      mockDbInstance.prepare
+        .mockReturnValueOnce({ get: mockGet })
+        .mockReturnValueOnce({ all: mockAll })
+        .mockReturnValueOnce({ all: mockAll })
+        // Then subsequent update calls return { run: ... }
+        .mockReturnValue({ run: mockRun });
 
       updateLocalResource(123, {
         title: 'New Title',
@@ -207,7 +223,7 @@ describe('Queries Module', () => {
       });
 
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE resources')
+        expect.stringContaining('UPDATE posts')
       );
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
         expect.stringContaining('is_dirty = 1')
@@ -216,7 +232,18 @@ describe('Queries Module', () => {
 
     it('should update taxonomy assignments', () => {
       const mockRun = jest.fn();
-      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+      const mockGet = jest.fn().mockReturnValue({ id: 123, title: 'Old Title', status: 'publish', is_dirty: 0 });
+      const mockAll = jest.fn().mockReturnValue([]);
+
+      // Mock getResourceById calls
+      mockDbInstance.prepare
+        .mockReturnValueOnce({ get: mockGet })
+        .mockReturnValueOnce({ all: mockAll })
+        .mockReturnValueOnce({ all: mockAll })
+        // For existingDirtyMeta
+        .mockReturnValueOnce({ get: jest.fn().mockReturnValue({ value: '[]' }) })
+        // Subsequent calls
+        .mockReturnValue({ run: mockRun });
 
       updateLocalResource(123, {
         taxonomies: {
@@ -227,21 +254,26 @@ describe('Queries Module', () => {
 
       // Should delete old assignments
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM resource_terms')
+        expect.stringContaining('DELETE FROM post_terms')
       );
       
       // Should insert new assignments
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO resource_terms')
+        expect.stringContaining('INSERT INTO post_terms')
       );
     });
 
     it('should log changes to change_log', () => {
       const mockRun = jest.fn();
-      const mockGet = jest.fn().mockReturnValue({ title: 'Old Title' });
+      const mockGet = jest.fn().mockReturnValue({ id: 123, title: 'Old Title', status: 'publish', is_dirty: 0 });
+      const mockAll = jest.fn().mockReturnValue([]);
       
+      // Mock getResourceById calls
       mockDbInstance.prepare
         .mockReturnValueOnce({ get: mockGet })
+        .mockReturnValueOnce({ all: mockAll })
+        .mockReturnValueOnce({ all: mockAll })
+        // Subsequent calls
         .mockReturnValue({ run: mockRun });
 
       updateLocalResource(123, { title: 'New Title' });
@@ -361,6 +393,124 @@ describe('Queries Module', () => {
       const stats = getSyncStats();
 
       expect(stats.lastSync).toBeNull();
+    });
+  });
+
+  describe('getPluginData', () => {
+    it('should return parsed JSON data when available', () => {
+      const mockData = { key: 'value', number: 123 };
+      mockDbInstance.prepare.mockReturnValue({
+        get: jest.fn().mockReturnValue({ data_value: JSON.stringify(mockData) }),
+      });
+
+      const result = getPluginData(1, 'test-plugin', 'test-key');
+      expect(result).toEqual(mockData);
+      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT data_value FROM plugin_data')
+      );
+    });
+
+    it('should return raw string when data is not valid JSON', () => {
+      const mockData = 'simple-string';
+      mockDbInstance.prepare.mockReturnValue({
+        get: jest.fn().mockReturnValue({ data_value: mockData }),
+      });
+
+      const result = getPluginData(1, 'test-plugin', 'test-key');
+      expect(result).toBe(mockData);
+    });
+
+    it('should return null when no data found', () => {
+      mockDbInstance.prepare.mockReturnValue({
+        get: jest.fn().mockReturnValue(undefined),
+      });
+
+      const result = getPluginData(1, 'test-plugin', 'test-key');
+      expect(result).toBeNull();
+    });
+
+    it('should return null when data_value is empty', () => {
+      mockDbInstance.prepare.mockReturnValue({
+        get: jest.fn().mockReturnValue({ data_value: '' }),
+      });
+
+      const result = getPluginData(1, 'test-plugin', 'test-key');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('savePluginData', () => {
+    it('should save data and mark post as dirty', () => {
+      const mockRun = jest.fn();
+      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+
+      savePluginData(1, 'test-plugin', 'test-key', { foo: 'bar' });
+
+      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT OR REPLACE INTO plugin_data')
+      );
+      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE posts SET is_dirty = 1')
+      );
+      expect(mockRun).toHaveBeenCalledTimes(2);
+    });
+
+    it('should not mark dirty if markDirty is false', () => {
+      const mockRun = jest.fn();
+      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+
+      savePluginData(1, 'test-plugin', 'test-key', { foo: 'bar' }, false);
+
+      expect(mockDbInstance.prepare).not.toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE posts SET is_dirty = 1')
+      );
+    });
+  });
+
+  describe('deletePluginData', () => {
+    it('should delete specific data key', () => {
+      const mockRun = jest.fn();
+      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+
+      deletePluginData(1, 'test-plugin', 'test-key');
+
+      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('DELETE FROM plugin_data WHERE post_id = ? AND plugin_id = ? AND data_key = ?')
+      );
+      expect(mockRun).toHaveBeenCalledWith(1, 'test-plugin', 'test-key');
+    });
+
+    it('should delete all data for plugin', () => {
+      const mockRun = jest.fn();
+      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+
+      deletePluginData(1, 'test-plugin');
+
+      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('DELETE FROM plugin_data WHERE post_id = ? AND plugin_id = ?')
+      );
+      expect(mockRun).toHaveBeenCalledWith(1, 'test-plugin');
+    });
+  });
+
+  describe('getAllPluginData', () => {
+    it('should return all plugin data grouped by plugin', () => {
+      const mockRows = [
+        { plugin_id: 'plugin1', data_key: 'key1', data_value: JSON.stringify({ a: 1 }) },
+        { plugin_id: 'plugin1', data_key: 'key2', data_value: 'raw-string' },
+        { plugin_id: 'plugin2', data_key: 'key1', data_value: 'true' }, // JSON parseable as boolean
+      ];
+
+      mockDbInstance.prepare.mockReturnValue({
+        all: jest.fn().mockReturnValue(mockRows),
+      });
+
+      const result = getAllPluginData(1);
+
+      expect(result.plugin1.key1).toEqual({ a: 1 });
+      expect(result.plugin1.key2).toBe('raw-string');
+      // 'true' string is valid JSON for boolean true
+      expect(result.plugin2.key1).toBe(true);
     });
   });
 });
