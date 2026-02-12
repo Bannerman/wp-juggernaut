@@ -109,7 +109,7 @@ DATABASE_PATH=./data/juggernaut.db
 - **Batch push**: Groups of 25 via WP batch API
 - **Plugin system**: Hook-based extensibility with priority ordering
 - **Profile system**: JSON configurations per WordPress site
-- **Tab system**: `CORE_TAB_IDS` (basic, classification, ai) always show regardless of plugins; `HARDCODED_TAB_IDS` (+ seo) have custom JSX rendering and can't be edited in Tab Layout; all other tabs are dynamic and rendered via `DynamicTab` + `FieldRenderer`
+- **Tab system**: `CORE_TAB_IDS` (basic, classification, ai) always show regardless of plugins; `HARDCODED_TAB_IDS` matches core tabs (custom JSX in EditModal). Plugin tabs like `seo` are registered via `registerPluginTab()` and rendered dynamically. All other tabs are profile-driven via `DynamicTab` + `FieldRenderer`
 - **Taxonomy dual push**: Taxonomy data is sent both as top-level REST fields AND as `meta_box.tax_xyz` fields; `tax_xyz` meta keys are filtered from Tab Layout and Field Mapping available fields to avoid double-editing
 - **Environment indicator**: Header shows workspace name (from `profile_name`) + colored environment badge (red=production, yellow=staging, green=development). Environment is set via explicit `environment` field in profile `sites[]`, with auto-derivation from site `id` as fallback
 
@@ -171,7 +171,7 @@ These were added during Phase 2 and do not have corresponding `modules/*/spec.ya
 Juggernaut uses a modular plugin architecture. See **[`docs/plugin-authoring.md`](docs/plugin-authoring.md)** for the full plugin creation guide with step-by-step instructions and a copy-pasteable skeleton (`src/lib/plugins/bundled/_example/`).
 
 - **Bundled Plugins** (`src/lib/plugins/bundled/`): MetaBox, SEOPress, _example (template)
-- **Profile System** (`src/lib/profiles/`): Site-specific configurations (e.g., `plexkits.json`)
+- **Profile System** (`src/lib/profiles/`): Site-specific configurations (e.g., `plexkits-resources.json`)
 - **Hook System** (`src/lib/plugins/hooks.ts`): Event-driven extension points with priority ordering
 - **Plugin Registry** (`src/lib/plugins/registry.ts`): Plugin registration and lifecycle
 - **Plugin Loader** (`src/lib/plugins/loader.ts`): Dynamic plugin loading

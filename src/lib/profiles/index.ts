@@ -11,7 +11,7 @@ import path from 'path';
 import fs from 'fs';
 
 // Import bundled profiles
-import plexkitsProfile from './plexkits.json';
+import plexkitsProfile from './plexkits-resources.json';
 
 /**
  * Profile state

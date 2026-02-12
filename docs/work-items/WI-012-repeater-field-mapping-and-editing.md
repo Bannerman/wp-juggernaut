@@ -63,7 +63,7 @@ When a user adds a field with type `repeater` in the Tab Layout editor, they can
 - `src/app/api/discover-fields/route.ts` — Discovery sees repeaters as single keys
 - `src/components/fields/RepeaterRenderer.tsx` — Renders nested sub-fields from profile definition
 - `src/components/TabLayoutEditor.tsx` — Tab/field visual editor (no sub-field UI)
-- `src/lib/profiles/plexkits.json:379-455` — Example: `download_sections` repeater definition with nested repeater
+- `src/lib/profiles/plexkits-resources.json:379-455` — Example: `download_sections` repeater definition with nested repeater
 
 ### Profile JSON Structure (Example: Downloads)
 

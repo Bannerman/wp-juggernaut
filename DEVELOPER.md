@@ -110,7 +110,7 @@ WordPress REST API
 
 ## Profile System
 
-A profile is a JSON file that configures everything about a WordPress site. See `src/lib/profiles/plexkits.json` for a full example.
+A profile is a JSON file that configures everything about a WordPress site. See `src/lib/profiles/plexkits-resources.json` for a full example.
 
 ### Key Sections
 
@@ -320,10 +320,11 @@ See [`docs/settings-pages.md`](docs/settings-pages.md) for step-by-step instruct
 
 ### "I want to understand the EditModal tabs"
 
-- **Core tabs** (`basic`, `classification`, `ai`): Always show, built into the app
-- **Plugin tabs** (e.g. `seo`): Provided by enabled plugins
+- **Core tabs** (`basic`, `classification`, `ai`): Always show, hardcoded JSX in EditModal
+- **Plugin tabs** (e.g. `seo`): Registered via `registerPluginTab()` from `@/components/fields`. The SEOPress plugin registers its SEO tab component (`SEOTab.tsx`) as a side-effect import. EditModal passes plugin-specific state through the `context` prop on `PluginTabProps`.
 - **Dynamic tabs**: Defined in the profile's `ui.tabs` + `ui.field_layout`, rendered via `DynamicTab` + `FieldRenderer`
 - Tab Layout Editor (`/settings/tab-layout`) lets users visually configure dynamic tabs
+- **Rendering priority**: Hardcoded core tabs → Dynamic field_layout tabs → Plugin-registered tabs
 
 ### "I want to understand how taxonomies work"
 
@@ -348,11 +349,16 @@ npm rebuild better-sqlite3
 
 ### EditModal Size
 
-`EditModal.tsx` is ~1,965 lines — it's a known monolith. The plan is to refactor it into a generic shell + plugin-provided tab components (see `docs/v1.0-spec.md` Phase C).
+`EditModal.tsx` is ~1,625 lines (down from ~1,965). The SEO tab has been extracted to `src/lib/plugins/bundled/seopress/SEOTab.tsx` as the first plugin-registered tab component. Further extraction of Basic/Classification/AI tabs is planned.
 
 ### PLEXKITS Hardcoding
 
-Some files still contain references to "PLEXKITS" (the original WordPress site this was built for). These are being systematically removed as part of the v1.0 generalization effort. The bundled `plexkits.json` profile is the intended home for all site-specific configuration.
+Most PLEXKITS-specific references have been removed:
+- ✅ Hardcoded site URLs replaced with profile-driven values
+- ✅ `TAXONOMY_META_FIELD` and `META_BOX_FIELD_GROUPS` constants removed (profile-driven)
+- ✅ API route profile paths use `getActiveProfileFilePath()` instead of hardcoded `plexkits-resources.json`
+- ✅ Comment references cleaned up
+- ⚠️ Some taxonomy slug references remain in AI fill patterns and table columns (non-critical)
 
 ---
 
