@@ -1,3 +1,4 @@
+import striptags from 'striptags';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -72,7 +73,7 @@ export function truncate(str: string, length: number): string {
 }
 
 export function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '');
+  return striptags(html);
 }
 
 /**
