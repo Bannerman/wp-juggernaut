@@ -52,10 +52,6 @@ export function getWpCredentials(): { username: string; appPassword: string } {
   return { username: '', appPassword: '' };
 }
 
-// Legacy exports for backwards compatibility (now read dynamically)
-export const WP_BASE_URL = process.env.WP_BASE_URL || 'https://plexkits.com';
-export const WP_USERNAME = process.env.WP_USERNAME || '';
-export const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
 
 /**
  * Returns taxonomy slugs from the active profile configuration.
@@ -427,6 +423,10 @@ export async function batchUpdate(requests: BatchRequest[]): Promise<BatchRespon
   const url = `${getWpBaseUrl()}/wp-json/batch/v1`;
 
   console.log(`[wp-client] Batch update: ${requests.length} requests`);
+
+  if (requests.length > 25) {
+    throw new Error("Batch requests limited to 25 items");
+  }
 
   const response = await fetch(url, {
     method: 'POST',
