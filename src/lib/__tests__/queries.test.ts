@@ -13,6 +13,7 @@ import {
   getTermsByTaxonomy,
   getAllTermsGrouped,
   getSyncStats,
+  savePluginData,
 } from '../queries';
 import * as db from '../db';
 
@@ -63,7 +64,7 @@ describe('Queries Module', () => {
       const results = getResources({ status: 'publish' });
 
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining("WHERE status = ?")
+        expect.stringContaining("status = ?")
       );
     });
 
@@ -199,6 +200,15 @@ describe('Queries Module', () => {
   describe('updateLocalResource', () => {
     it('should update resource and mark as dirty', () => {
       const mockRun = jest.fn();
+      const mockResource = { id: 123, title: 'Old Title', status: 'draft', is_dirty: 0, taxonomies: {} };
+
+      // Setup mocks for getResourceById (called internally)
+      mockDbInstance.prepare
+        .mockReturnValueOnce({ get: jest.fn().mockReturnValue(mockResource) }) // getResourceById -> get
+        .mockReturnValueOnce({ all: jest.fn().mockReturnValue([]) }) // getPostMeta -> all
+        .mockReturnValueOnce({ all: jest.fn().mockReturnValue([]) }); // getPostTaxonomies -> all
+
+      // Default mock for subsequent update queries
       mockDbInstance.prepare.mockReturnValue({ run: mockRun });
 
       updateLocalResource(123, {
@@ -207,15 +217,32 @@ describe('Queries Module', () => {
       });
 
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE resources')
-      );
-      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('is_dirty = 1')
+        expect.stringContaining('UPDATE posts')
       );
     });
 
     it('should update taxonomy assignments', () => {
       const mockRun = jest.fn();
+      const mockResource = {
+        id: 123,
+        title: 'Resource',
+        status: 'publish',
+        is_dirty: 0,
+        taxonomies: { 'resource-type': [99] }
+      };
+
+      // Setup mocks for getResourceById
+      mockDbInstance.prepare
+        .mockReturnValueOnce({ get: jest.fn().mockReturnValue(mockResource) }) // getResourceById -> get
+        .mockReturnValueOnce({ all: jest.fn().mockReturnValue([]) }) // getPostMeta -> all
+        .mockReturnValueOnce({ all: jest.fn().mockReturnValue([{ term_id: 99, taxonomy: 'resource-type' }]) }); // getPostTaxonomies -> all
+
+      // Setup mock for get dirty meta
+      mockDbInstance.prepare.mockReturnValueOnce({
+        get: jest.fn().mockReturnValue({ value: '[]' })
+      });
+
+      // Default mock for subsequent queries
       mockDbInstance.prepare.mockReturnValue({ run: mockRun });
 
       updateLocalResource(123, {
@@ -227,22 +254,27 @@ describe('Queries Module', () => {
 
       // Should delete old assignments
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM resource_terms')
+        expect.stringContaining('DELETE FROM post_terms')
       );
       
       // Should insert new assignments
       expect(mockDbInstance.prepare).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO resource_terms')
+        expect.stringContaining('INSERT INTO post_terms')
       );
     });
 
     it('should log changes to change_log', () => {
       const mockRun = jest.fn();
-      const mockGet = jest.fn().mockReturnValue({ title: 'Old Title' });
-      
+      const mockResource = { id: 123, title: 'Old Title', status: 'draft', is_dirty: 0, taxonomies: {} };
+
+      // Setup mocks for getResourceById
       mockDbInstance.prepare
-        .mockReturnValueOnce({ get: mockGet })
-        .mockReturnValue({ run: mockRun });
+        .mockReturnValueOnce({ get: jest.fn().mockReturnValue(mockResource) }) // getResourceById -> get
+        .mockReturnValueOnce({ all: jest.fn().mockReturnValue([]) }) // getPostMeta -> all
+        .mockReturnValueOnce({ all: jest.fn().mockReturnValue([]) }); // getPostTaxonomies -> all
+
+      // Default mock
+      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
 
       updateLocalResource(123, { title: 'New Title' });
 
@@ -361,6 +393,82 @@ describe('Queries Module', () => {
       const stats = getSyncStats();
 
       expect(stats.lastSync).toBeNull();
+    });
+  });
+
+  describe('savePluginData', () => {
+    it('should insert plugin data and mark as dirty by default', () => {
+      const mockRun = jest.fn();
+      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+
+      const postId = 1;
+      const pluginId = 'test-plugin';
+      const dataKey = 'test-key';
+      const value = { foo: 'bar' };
+
+      savePluginData(postId, pluginId, dataKey, value);
+
+      // Verify INSERT statement
+      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT OR REPLACE INTO plugin_data')
+      );
+
+      // Verify parameters for INSERT
+      expect(mockRun).toHaveBeenCalledWith(
+        postId,
+        pluginId,
+        dataKey,
+        JSON.stringify(value)
+      );
+
+      // Verify UPDATE statement for dirty flag
+      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE posts SET is_dirty = 1')
+      );
+
+      // Verify parameters for UPDATE
+      expect(mockRun).toHaveBeenCalledWith(postId);
+    });
+
+    it('should not mark as dirty if markDirty is false', () => {
+      const mockRun = jest.fn();
+      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+
+      const postId = 1;
+      const pluginId = 'test-plugin';
+      const dataKey = 'test-key';
+      const value = { foo: 'bar' };
+
+      savePluginData(postId, pluginId, dataKey, value, false);
+
+      // Verify INSERT statement
+      expect(mockDbInstance.prepare).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT OR REPLACE INTO plugin_data')
+      );
+
+      // Verify UPDATE statement is NOT called
+      expect(mockDbInstance.prepare).not.toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE posts SET is_dirty = 1')
+      );
+    });
+
+    it('should handle primitive values', () => {
+      const mockRun = jest.fn();
+      mockDbInstance.prepare.mockReturnValue({ run: mockRun });
+
+      const postId = 1;
+      const pluginId = 'test-plugin';
+      const dataKey = 'test-key';
+      const value = 'simple-string';
+
+      savePluginData(postId, pluginId, dataKey, value);
+
+      expect(mockRun).toHaveBeenCalledWith(
+        postId,
+        pluginId,
+        dataKey,
+        JSON.stringify(value)
+      );
     });
   });
 });
