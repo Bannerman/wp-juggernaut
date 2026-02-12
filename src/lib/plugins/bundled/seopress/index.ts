@@ -371,18 +371,6 @@ class SEOPressPlugin implements JuggernautPlugin {
     };
   }
 
-  /**
-   * Fetch additional SEO data for a resource after sync
-   */
-  async fetchAdditionalData(
-    resourceId: number,
-    baseUrl: string
-  ): Promise<Record<string, unknown>> {
-    // SEO data is fetched on-demand, not during sync
-    // This method is available if we want to pre-fetch SEO data
-    return {};
-  }
-
   // ─── Redirect Methods ───────────────────────────────────────────────────────
 
   /**
