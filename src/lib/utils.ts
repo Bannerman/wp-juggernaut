@@ -84,6 +84,9 @@ export async function pMap<T, R>(
   mapper: (item: T) => Promise<R>,
   concurrency: number
 ): Promise<R[]> {
+  if (concurrency < 1) {
+    throw new TypeError('Concurrency limit must be at least 1');
+  }
   const results: R[] = new Array(items.length);
   let currentIndex = 0;
   let hasError = false;

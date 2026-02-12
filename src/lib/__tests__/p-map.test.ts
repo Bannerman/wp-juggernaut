@@ -43,6 +43,14 @@ describe('pMap', () => {
     const results = await pMap(items, task, concurrency);
     expect(results).toEqual([2, 4, 6, 8, 10]);
   });
+
+  it('should throw if concurrency is less than 1', async () => {
+    const items = [1, 2, 3];
+    const concurrency = 0;
+    const task = async (item: number) => item * 2;
+
+    await expect(pMap(items, task, concurrency)).rejects.toThrow(TypeError);
+  });
 });
 
 describe('Promise.all baseline (unbounded concurrency)', () => {

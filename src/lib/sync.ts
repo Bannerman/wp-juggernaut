@@ -388,7 +388,7 @@ export async function syncResources(
     saveResource(resource, featuredImageUrl, typeSlug);
   }
 
-  // Fetch and save SEO data for all resources in parallel with concurrency limit
+  // Fetch and save SEO data for all resources in parallel with concurrency limit (3) to prevent rate limiting
   console.log(`Fetching SEO data for ${resources.length} ${typeSlug}...`);
   onProgress?.('seo', 0, `Fetching SEO data for ${resources.length} ${typeSlug}...`);
   let seoFetched = 0;
