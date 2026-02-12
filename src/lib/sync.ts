@@ -2,7 +2,7 @@ import { getDb } from './db';
 import {
   fetchAllTaxonomies,
   fetchAllResources,
-  fetchResourceIds,
+  fetchResourceIds, fetchMedia,
   getTaxonomies,
   getWpBaseUrl,
   getWpCredentials,
@@ -74,29 +74,12 @@ async function fetchMediaUrl(mediaId: number): Promise<string | null> {
   }
 
   try {
-    const { getWpBaseUrl, WP_USERNAME, WP_APP_PASSWORD } = await import('./wp-client');
-    const credentials = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
+    const media = await fetchMedia(mediaId);
+    const url = media.source_url || media.guid?.rendered || null;
 
-    const response = await fetch(
-      `${getWpBaseUrl()}/wp-json/wp/v2/media/${mediaId}`,
-      {
-        headers: {
-          Authorization: `Basic ${credentials}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      console.warn(`Failed to fetch media ${mediaId}: ${response.status}`);
-      return null;
-    }
-
-    const data = await response.json() as { source_url?: string; guid?: { rendered?: string } };
-    const url = data.source_url || data.guid?.rendered || null;
-    
     // Cache the result
-    mediaUrlCache.set(mediaId, url || '');
-    
+    mediaUrlCache.set(mediaId, url || "");
+
     return url;
   } catch (error) {
     console.error(`Error fetching media ${mediaId}:`, error);
