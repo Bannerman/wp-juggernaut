@@ -459,6 +459,20 @@ export function getActiveProfileFilePath(): string {
   return profilePath;
 }
 
+/**
+ * Get the primary post type slug from the current profile.
+ * Returns 'resource' if no profile is loaded or no primary post type is defined.
+ */
+export function getProfilePrimaryPostTypeSlug(): string {
+  try {
+    const manager = getProfileManager();
+    const postType = manager.getPrimaryPostType();
+    return postType?.slug || 'resource';
+  } catch {
+    return 'resource';
+  }
+}
+
 // Export the ProfileManager class for testing
 export { ProfileManager };
 

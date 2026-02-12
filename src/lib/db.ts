@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { getProfilePrimaryPostTypeSlug } from './profiles';
 
 // Default to juggernaut.db, but support legacy plexkits.db for backward compatibility
 const DB_PATH = process.env.DATABASE_PATH || './data/juggernaut.db';
@@ -471,14 +472,7 @@ function initializeSchema(database: Database.Database) {
  * @returns The primary post type slug (e.g. 'resource', 'post')
  */
 export function getPrimaryPostType(): string {
-  try {
-    const { getProfileManager } = require('./profiles');
-    const manager = getProfileManager();
-    const postType = manager.getPrimaryPostType();
-    return postType?.slug || 'resource';
-  } catch {
-    return 'resource';
-  }
+  return getProfilePrimaryPostTypeSlug();
 }
 
 /**
