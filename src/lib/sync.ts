@@ -166,6 +166,7 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
   const content = resource.content?.rendered || '';
   const excerpt = resource.excerpt?.rendered || '';
 
+  // Wrap all database operations in a single transaction for atomicity and performance
   const insertTransaction = db.transaction(() => {
     db.prepare(`
       INSERT OR REPLACE INTO posts (id, post_type, title, slug, status, content, excerpt, featured_media, date_gmt, modified_gmt, synced_at, is_dirty)
