@@ -121,6 +121,25 @@ async function pushSeoData(resourceId: number): Promise<{ success: boolean; erro
 }
 
 /**
+ * Extract the most recent changelog date from a resource's meta_box.
+ * Returns a YYYY-MM-DD string or null if no changelog entries exist.
+ */
+function getLatestChangelogDate(metaBox?: Record<string, unknown>): string | null {
+  if (!metaBox) return null;
+  const changelog = metaBox.group_changelog as Array<{ changelog_date?: string }> | undefined;
+  if (!Array.isArray(changelog) || changelog.length === 0) return null;
+
+  let latest: string | null = null;
+  for (const entry of changelog) {
+    const date = entry.changelog_date;
+    if (date && (!latest || date > latest)) {
+      latest = date;
+    }
+  }
+  return latest;
+}
+
+/**
  * Checks for conflicts between local and server versions of resources.
  * Compares local `modified_gmt` timestamps with the server's current values.
  * @param resourceIds - Array of resource IDs to check
@@ -328,6 +347,18 @@ export async function pushResource(
     }
 
     const payload = await buildUpdatePayload(resourceId);
+
+    // Extract the latest changelog date to preserve as modified_gmt.
+    // WordPress always sets modified_gmt to "now" on update, but we want
+    // to show the most recent changelog date in Juggernaut instead.
+    const resource = getResourceById(resourceId);
+    const changelogDate = getLatestChangelogDate(resource?.meta_box);
+
+    // Set date_gmt on the payload so WordPress preserves the publish date
+    if (changelogDate) {
+      payload.date_gmt = changelogDate + 'T00:00:00';
+    }
+
     const updated = await updateResource(resourceId, payload);
 
     // Push SEO data (non-blocking - log errors but don't fail the push)
@@ -336,10 +367,14 @@ export async function pushResource(
       console.warn(`[push] SEO push warning for resource ${resourceId}: ${seoResult.error}`);
     }
 
-    // Update local modified_gmt, mark as clean, and clear dirty taxonomy tracking
+    // Update local modified_gmt, mark as clean, and clear dirty taxonomy tracking.
+    // Use the latest changelog date instead of WP's response (which is always "now").
+    const localModifiedGmt = changelogDate
+      ? changelogDate + 'T00:00:00'
+      : updated.modified_gmt;
     const db = getDb();
     db.prepare('UPDATE posts SET modified_gmt = ?, is_dirty = 0 WHERE id = ?').run(
-      updated.modified_gmt,
+      localModifiedGmt,
       resourceId
     );
     db.prepare("DELETE FROM post_meta WHERE post_id = ? AND field_id = '_dirty_taxonomies'").run(resourceId);
