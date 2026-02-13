@@ -71,6 +71,7 @@ export interface DownloadLink {
  */
 export interface DownloadSection {
   download_section_heading: string;
+  download_version?: string;
   download_section_color?: string;
   download_archive?: boolean;
   download_links: DownloadLink[];
