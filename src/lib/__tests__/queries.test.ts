@@ -126,8 +126,8 @@ describe('Queries Module', () => {
         })
         .mockReturnValueOnce({
           all: jest.fn().mockReturnValue([
-            { field_id: 'version', value: '"1.0"' },
-            { field_id: 'updated_for_year', value: '"2024"' },
+            { post_id: 1, field_id: 'version', value: '"1.0"' },
+            { post_id: 1, field_id: 'updated_for_year', value: '"2024"' },
           ]),
         })
         .mockReturnValueOnce({

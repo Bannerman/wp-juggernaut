@@ -74,8 +74,8 @@ async function fetchMediaUrl(mediaId: number): Promise<string | null> {
   }
 
   try {
-    const { getWpBaseUrl, WP_USERNAME, WP_APP_PASSWORD } = await import('./wp-client');
-    const credentials = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
+    const creds = getWpCredentials();
+    const credentials = Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
 
     const response = await fetch(
       `${getWpBaseUrl()}/wp-json/wp/v2/media/${mediaId}`,

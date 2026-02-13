@@ -1,7 +1,7 @@
 # WI-013: Fix Sync Media Auth Credentials
 
 ## Status
-To Do
+Done
 
 ## Description
 `sync.ts` currently fetches media using static credential exports from `wp-client`, which can diverge from active credentials in Electron/site-config flows. Update media fetch auth to use the same dynamic credential resolution as the rest of the app.
