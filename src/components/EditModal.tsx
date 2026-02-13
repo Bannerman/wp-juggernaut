@@ -285,7 +285,16 @@ export function EditModal({
       .then(res => res.json())
       .then(data => {
         if (data.seo) {
-          setSeoData(data.seo);
+          const seo = data.seo as SEOData;
+          // If SEO title was previously saved, mark as manually edited so
+          // changing the post title won't overwrite the saved SEO title
+          if (seo.title) {
+            setSeoTitleManuallyEdited(true);
+          } else {
+            // Fallback: use post title when no SEO title has been set
+            seo.title = effectiveResource.title;
+          }
+          setSeoData(seo);
           setOriginalSeoData(data.seo);
         }
       })
@@ -294,6 +303,7 @@ export function EditModal({
         setSeoError('Failed to load SEO data');
       })
       .finally(() => setSeoLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fetch when resource ID changes, not on title edits
   }, [isCreateMode, effectiveResource.id]);
 
   // SEO is now saved locally with the resource, not directly to WordPress
