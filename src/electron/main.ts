@@ -3,7 +3,7 @@ import type { UpdateInfo, ProgressInfo } from 'electron-updater';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
-import { isValidExternalUrl } from '../lib/url-validation';
+import { isValidExternalUrl } from './url-validation';
 
 // Lazy-load electron-updater to avoid crash if module is not bundled
 let autoUpdater: import('electron-updater').AppUpdater | null = null;
