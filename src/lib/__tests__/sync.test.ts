@@ -35,6 +35,7 @@ describe('Sync Engine Module', () => {
         get: jest.fn(),
         all: jest.fn(),
       }),
+      transaction: jest.fn(fn => fn),
       pragma: jest.fn(),
       exec: jest.fn(),
       close: jest.fn(),

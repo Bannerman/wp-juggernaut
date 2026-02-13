@@ -7,6 +7,7 @@ import {
   getWpBaseUrl,
   getWpCredentials,
   getPrimaryPostTypeRestBase,
+  getAuthHeader,
   type WPResource,
   type WPTerm,
 } from './wp-client';
@@ -14,57 +15,16 @@ import { getProfileManager, ensureProfileLoaded, getProfileTaxonomyMetaFieldMapp
 import { collectMetaBoxKeys, runFieldAudit, saveAuditResults } from './field-audit';
 import { decodeHtmlEntities, pMap } from './utils';
 import { saveResourceSeo, type LocalSeoData } from './queries';
+import { seopressPlugin } from './plugins/bundled/seopress';
 
 // Cache for media URLs to avoid duplicate requests during sync
 const mediaUrlCache = new Map<number, string>();
 
 // Fetch SEO data from SEOPress for a resource
 async function fetchSeoData(resourceId: number): Promise<LocalSeoData | null> {
-  try {
-    const creds = getWpCredentials();
-    const authHeader = 'Basic ' + Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
-
-    const response = await fetch(
-      `${getWpBaseUrl()}/wp-json/seopress/v1/posts/${resourceId}`,
-      {
-        headers: { Authorization: authHeader },
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 404) return null;
-      console.warn(`Failed to fetch SEO for resource ${resourceId}: ${response.status}`);
-      return null;
-    }
-
-    const data = await response.json();
-
-    return {
-      title: data.title || '',
-      description: data.description || '',
-      canonical: data.canonical || '',
-      targetKeywords: data.target_kw || '',
-      og: {
-        title: data.og?.title || '',
-        description: data.og?.description || '',
-        image: data.og?.image || '',
-      },
-      twitter: {
-        title: data.twitter?.title || '',
-        description: data.twitter?.description || '',
-        image: data.twitter?.image || '',
-      },
-      robots: {
-        noindex: data.robots?.noindex || false,
-        nofollow: data.robots?.nofollow || false,
-        nosnippet: data.robots?.nosnippet || false,
-        noimageindex: data.robots?.noimageindex || false,
-      },
-    };
-  } catch (error) {
-    console.error(`Error fetching SEO for resource ${resourceId}:`, error);
-    return null;
-  }
+  // Use plugin to fetch data
+  const seoData = await seopressPlugin.fetchSEOData(resourceId, getWpBaseUrl(), getAuthHeader());
+  return seoData as LocalSeoData | null;
 }
 
 async function fetchMediaUrl(mediaId: number): Promise<string | null> {
