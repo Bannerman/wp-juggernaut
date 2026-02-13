@@ -411,6 +411,13 @@
               "placeholder": "Section heading...",
               "default_value": "Download the {{title}}"
             },
+            "download_version": {
+              "key": "download_version",
+              "type": "text",
+              "label": "Version",
+              "placeholder": "e.g., 1.0",
+              "width": "half"
+            },
             "download_section_color": {
               "key": "download_section_color",
               "type": "color",
@@ -664,31 +671,21 @@
       },
       {
         "source": {
-          "key": "intro_text",
-          "category": "meta"
-        },
-        "target": {
-          "key": "intro_text",
-          "category": "meta"
-        }
-      },
-      {
-        "source": {
-          "key": "text_content",
-          "category": "meta"
-        },
-        "target": {
-          "key": "text_content",
-          "category": "meta"
-        }
-      },
-      {
-        "source": {
           "key": "excerpt",
           "category": "core"
         },
         "target": {
           "key": "text_additional",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "content",
+          "category": "core"
+        },
+        "target": {
+          "key": "text_content",
           "category": "meta"
         }
       }
