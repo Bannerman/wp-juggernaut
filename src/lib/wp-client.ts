@@ -128,6 +128,13 @@ export interface WPResource {
   [key: string]: unknown;
 }
 
+
+export interface WPMedia {
+  id: number;
+  source_url: string;
+  guid: { rendered: string };
+  [key: string]: unknown;
+}
 export interface UpdateResourcePayload {
   title?: string;
   slug?: string;
@@ -327,6 +334,11 @@ export async function fetchResourceById(
 ): Promise<WPResource> {
   const restBase = postType || getPrimaryPostTypeRestBase();
   const { data } = await wpFetch<WPResource>(`/${restBase}/${id}`);
+  return data;
+}
+
+export async function fetchMedia(id: number): Promise<WPMedia> {
+  const { data } = await wpFetch<WPMedia>(`/media/${id}`);
   return data;
 }
 
