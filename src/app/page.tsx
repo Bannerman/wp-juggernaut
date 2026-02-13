@@ -17,13 +17,16 @@ import {
   Settings
 } from 'lucide-react';
 import { ResourceTable } from '@/components/ResourceTable';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { FilterPanel } from '@/components/FilterPanel';
 import { EditModal } from '@/components/EditModal';
 import { UpdateNotifier } from '@/components/UpdateNotifier';
 import { PostTypeSwitcher } from '@/components/PostTypeSwitcher';
 import { ConvertPostTypeModal } from '@/components/ConvertPostTypeModal';
+import { EnvironmentIndicator } from '@/components/EnvironmentIndicator';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import type { FieldDefinition } from '@/lib/plugins/types';
+import type { EnvironmentType } from '@/lib/site-config';
 
 interface SyncStats {
   totalResources: number;
@@ -58,6 +61,7 @@ export default function Home() {
   const [stats, setStats] = useState<SyncStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
   const [isPushing, setIsPushing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -78,7 +82,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'general' | 'power'>('general');
 
   // Plugin-enabled features and profile config
-  const [enabledTabs, setEnabledTabs] = useState<string[]>(['basic', 'classification', 'ai']);
+  const [enabledTabs, setEnabledTabs] = useState<string[]>(['basic', 'classification']);
   const [fieldLayout, setFieldLayout] = useState<Record<string, FieldDefinition[]> | undefined>(undefined);
   const [tabConfig, setTabConfig] = useState<Array<{ id: string; label: string; source: string; icon?: string; position?: number; dynamic?: boolean }>>([]);
   const [taxonomyConfig, setTaxonomyConfig] = useState<Array<{
@@ -103,6 +107,10 @@ export default function Home() {
   const [postTypes, setPostTypes] = useState<Array<{ slug: string; name: string; rest_base: string; icon?: string; is_primary?: boolean }>>([]);
   const [allTaxonomyConfig, setAllTaxonomyConfig] = useState<typeof taxonomyConfig>([]);
   const [editableTaxonomies, setEditableTaxonomies] = useState<string[]>([]);
+  const [powerColumns, setPowerColumns] = useState<Array<{ key: string; label: string; type: 'download_stats' | 'count' | 'text' }>>([]);
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [activeEnvironment, setActiveEnvironment] = useState<EnvironmentType>('development');
+  const [enabledPlugins, setEnabledPlugins] = useState<string[]>([]);
 
   // Fetch profile config (includes enabled plugins and taxonomy config)
   useEffect(() => {
@@ -149,8 +157,25 @@ export default function Home() {
           setPostTypeLabel(data.postType.name || 'Resource');
           setPostTypeRestBase(data.postType.rest_base || 'resource');
         }
+        if (data.enabledPlugins) {
+          setEnabledPlugins(data.enabledPlugins);
+        }
+        if (data.ui?.power_columns) {
+          setPowerColumns(data.ui.power_columns);
+        }
       })
       .catch(err => console.error('Failed to fetch profile:', err));
+  }, []);
+
+  // Fetch workspace name and environment from site config
+  useEffect(() => {
+    fetch('/api/site-config')
+      .then(res => res.json())
+      .then(data => {
+        if (data.profileName) setWorkspaceName(data.profileName);
+        if (data.activeTarget?.environment) setActiveEnvironment(data.activeTarget.environment);
+      })
+      .catch(err => console.error('Failed to fetch site config:', err));
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -215,6 +240,7 @@ export default function Home() {
 
   const handleSync = async (incremental: boolean = false) => {
     setIsSyncing(true);
+    setSyncProgress(0);
     setError(null);
     setSuccess(null);
 
@@ -222,23 +248,58 @@ export default function Home() {
       const res = await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ incremental }),
+        body: JSON.stringify({ incremental, stream: true }),
       });
 
-      const result = await res.json();
-
       if (!res.ok) {
-        throw new Error(result.error || 'Sync failed');
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Sync failed');
       }
 
-      setSuccess(
-        `Synced ${result.resourcesUpdated} resources, ${result.taxonomiesUpdated} terms`
-      );
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalResult: { resourcesUpdated?: number; taxonomiesUpdated?: number; error?: string } | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let currentEvent = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+            if (currentEvent === 'progress') {
+              setSyncProgress(data.progress);
+            } else if (currentEvent === 'complete') {
+              finalResult = data;
+              setSyncProgress(1);
+            } else if (currentEvent === 'error') {
+              throw new Error(data.error || 'Sync failed');
+            }
+          }
+        }
+      }
+
+      if (finalResult) {
+        setSuccess(
+          `Synced ${finalResult.resourcesUpdated} resources, ${finalResult.taxonomiesUpdated} terms`
+        );
+      }
       await fetchData();
     } catch (err) {
       setError(String(err));
     } finally {
       setIsSyncing(false);
+      setSyncProgress(0);
     }
   };
 
@@ -433,25 +494,36 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       {/* Header - electron-drag allows window to be moved by dragging header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 electron-drag">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 electron-drag relative">
+        {/* Sync progress bar — overlays the bottom border */}
+        {isSyncing && (
+          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gray-200 dark:bg-gray-700 z-10">
+            <div
+              className="h-full bg-brand-500 transition-all duration-300 ease-out"
+              style={{ width: `${Math.max(syncProgress * 100, 1)}%` }}
+            />
+          </div>
+        )}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <img src="/icon.png" alt="Juggernaut" className="w-8 h-8" />
-              <h1 className="text-xl font-bold text-gray-900">Juggernaut</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Juggernaut</h1>
               <Link
                 href="/settings"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors electron-no-drag"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors electron-no-drag"
               >
                 <Settings className="w-4 h-4" />
                 Settings
               </Link>
+              <EnvironmentIndicator workspaceName={workspaceName} environment={activeEnvironment} />
             </div>
 
             <div className="flex items-center gap-4 electron-no-drag">
+              <ThemeToggle />
               <UpdateNotifier />
               {stats?.lastSync && (
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                   <Clock className="w-4 h-4" />
                   <span>Last sync: {formatRelativeTime(stats.lastSync)}</span>
                 </div>
@@ -471,7 +543,7 @@ export default function Home() {
                   disabled={isSyncing}
                   className={cn(
                     'flex items-center justify-center gap-2 px-4 py-2 rounded-l-lg text-sm font-medium transition-colors min-w-[100px]',
-                    'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                    'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600',
                     'disabled:opacity-50 disabled:cursor-not-allowed'
                   )}
                 >
@@ -482,22 +554,22 @@ export default function Home() {
                   onClick={() => setShowSyncDropdown(!showSyncDropdown)}
                   disabled={isSyncing}
                   className={cn(
-                    'flex items-center px-2 py-2 rounded-r-lg text-sm font-medium transition-colors border-l border-gray-300',
-                    'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                    'flex items-center px-2 py-2 rounded-r-lg text-sm font-medium transition-colors border-l border-gray-300 dark:border-gray-600',
+                    'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600',
                     'disabled:opacity-50 disabled:cursor-not-allowed'
                   )}
                 >
                   <ChevronDown className="w-4 h-4" />
                 </button>
                 {showSyncDropdown && (
-                  <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                     <button
                       onClick={() => {
                         setShowSyncDropdown(false);
                         handleSync(false);
                       }}
                       disabled={isSyncing}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
                     >
                       <Download className="w-4 h-4" />
                       Force Full Sync
@@ -527,19 +599,19 @@ export default function Home() {
       {(error || success) && (
         <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
           {error && (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 text-red-700 shadow-lg border border-red-200 animate-in slide-in-from-right fade-in">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 shadow-lg border border-red-200 dark:border-red-800 animate-in slide-in-from-right fade-in">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
-              <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">
+              <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200">
                 ×
               </button>
             </div>
           )}
           {success && (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 text-green-700 shadow-lg border border-green-200 animate-in slide-in-from-right fade-in">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 shadow-lg border border-green-200 dark:border-green-800 animate-in slide-in-from-right fade-in">
               <CheckCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{success}</span>
-              <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700">
+              <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-200">
                 ×
               </button>
             </div>
@@ -549,7 +621,7 @@ export default function Home() {
 
       {/* Stats Bar */}
       {stats && (
-        <div className="bg-white border-b border-gray-200">
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-6">
@@ -561,29 +633,29 @@ export default function Home() {
                   />
                 )}
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500">Total:</span>
-                  <span className="font-medium text-gray-900">{stats.totalResources} {postTypeLabel.toLowerCase()}s</span>
+                  <span className="text-gray-500 dark:text-gray-400">Total:</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{stats.totalResources} {postTypeLabel.toLowerCase()}s</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500">Terms:</span>
-                  <span className="font-medium text-gray-900">{stats.totalTerms}</span>
+                  <span className="text-gray-500 dark:text-gray-400">Terms:</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{stats.totalTerms}</span>
                 </div>
                 {stats.dirtyResources > 0 && (
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
-                    <span className="font-medium text-yellow-700">{stats.dirtyResources} unsaved changes</span>
+                    <span className="font-medium text-yellow-700 dark:text-yellow-400">{stats.dirtyResources} unsaved changes</span>
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+              <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
                 <button
                   onClick={() => setViewMode('general')}
                   className={cn(
                     'px-3 py-1 rounded-md text-xs font-medium transition-colors',
                     viewMode === 'general'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   )}
                 >
                   General
@@ -593,8 +665,8 @@ export default function Home() {
                   className={cn(
                     'px-3 py-1 rounded-md text-xs font-medium transition-colors',
                     viewMode === 'power'
-                      ? 'bg-white text-brand-700 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-400 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   )}
                 >
                   Power
@@ -617,14 +689,14 @@ export default function Home() {
                 placeholder={`Search ${postTypeLabel.toLowerCase()}s...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             >
               <option value="">All Statuses</option>
               <option value="publish">Published</option>
@@ -640,7 +712,7 @@ export default function Home() {
                 onChange={(e) => setShowDirtyOnly(e.target.checked)}
                 className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
               />
-              <span className="text-sm text-gray-700">Unsaved only</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Unsaved only</span>
             </label>
 
             <button
@@ -648,8 +720,8 @@ export default function Home() {
               className={cn(
                 'flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors',
                 showFilters
-                  ? 'bg-brand-50 border-brand-300 text-brand-700'
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  ? 'bg-brand-50 dark:bg-brand-900/30 border-brand-300 dark:border-brand-700 text-brand-700 dark:text-brand-400'
+                  : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
               )}
             >
               <Filter className="w-4 h-4" />
@@ -675,25 +747,77 @@ export default function Home() {
             <RefreshCw className="w-8 h-8 text-brand-600 animate-spin" />
           </div>
         ) : filteredResources.length === 0 ? (
-          <div className="text-center py-12">
-            <Database className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No resources found</h3>
-            <p className="text-gray-500 mb-4">
-              {resources.length === 0
-                ? 'Sync with WordPress to load resources.'
-                : 'Try adjusting your filters.'}
-            </p>
-            {resources.length === 0 && (
-              <button
-                onClick={() => handleSync(false)}
-                disabled={isSyncing}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700"
-              >
-                <Download className="w-4 h-4" />
-                Full Sync
-              </button>
-            )}
-          </div>
+          resources.length === 0 && !stats?.lastSync ? (
+            /* First-launch welcome screen */
+            <div className="text-center py-16 max-w-lg mx-auto">
+              <Database className="w-16 h-16 text-brand-400 mx-auto mb-6" />
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Welcome to Juggernaut</h2>
+              <p className="text-gray-500 dark:text-gray-400 mb-8">
+                Get started by connecting to your WordPress site, then sync your content.
+              </p>
+              <div className="space-y-4 text-left bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-start gap-3">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-sm font-bold shrink-0">1</span>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">Configure your WordPress credentials</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Set your site URL, username, and application password.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm font-bold shrink-0">2</span>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">Run your first sync</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Pull posts, taxonomies, and media from WordPress.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm font-bold shrink-0">3</span>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">Edit and push changes</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Bulk edit content locally, then push back to WordPress.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-center gap-3 mt-8">
+                <Link
+                  href="/settings"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 font-medium transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  Open Settings
+                </Link>
+                <button
+                  onClick={() => handleSync(false)}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  {isSyncing ? 'Syncing...' : 'Sync Now'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Normal empty state (filters active or synced but empty) */
+            <div className="text-center py-12">
+              <Database className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No resources found</h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                {resources.length === 0
+                  ? 'Sync with WordPress to load resources.'
+                  : 'Try adjusting your filters.'}
+              </p>
+              {resources.length === 0 && (
+                <button
+                  onClick={() => handleSync(false)}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700"
+                >
+                  <Download className="w-4 h-4" />
+                  Full Sync
+                </button>
+              )}
+            </div>
+          )
         ) : (
           <ResourceTable
             resources={filteredResources}
@@ -712,6 +836,7 @@ export default function Home() {
                 .map((t) => ({ slug: t.slug, label: t.name, maxDisplay: t.table_max_display }))
             }
             postTypeLabelPlural={`${postTypeLabel.toLowerCase()}s`}
+            powerColumns={powerColumns}
           />
         )}
       </main>
@@ -731,7 +856,7 @@ export default function Home() {
           postTypeLabel={postTypeLabel}
           fieldLayout={fieldLayout}
           tabConfig={tabConfig}
-          onConvertPostType={postTypes.length > 1 ? () => {
+          onConvertPostType={postTypes.length > 1 && enabledPlugins.includes('convert-post-type') ? () => {
             setConvertingResource(editingResource);
             setEditingResource(null);
           } : undefined}
@@ -766,9 +891,13 @@ export default function Home() {
           postTypes={postTypes}
           taxonomyConfig={allTaxonomyConfig}
           onClose={() => setConvertingResource(null)}
-          onConvert={() => {
+          onConvert={({ warnings }) => {
             setConvertingResource(null);
-            setSuccess('Post type converted successfully');
+            if (warnings?.length) {
+              setSuccess(`Post type converted (as draft). Warnings: ${warnings.join('; ')}`);
+            } else {
+              setSuccess('Post type converted as draft. Review and push when ready.');
+            }
             fetchData();
           }}
         />

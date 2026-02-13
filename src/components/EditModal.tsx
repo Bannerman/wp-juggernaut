@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Save, AlertTriangle, Sparkles, Check, Wand2, Upload, Image as ImageIcon, Loader2, Search, Globe, Share2, Repeat } from 'lucide-react';
+import { X, Save, AlertTriangle, Sparkles, Upload, Loader2, Repeat } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { imagePipeline, createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
-import { DynamicTab } from '@/components/fields';
+import { createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
+import { DynamicTab, getPluginTab } from '@/components/fields';
+// Side-effect imports: register plugin tabs via registerPluginTab()
+import '@/lib/plugins/bundled/seopress/SEOTab';
+import '@/lib/plugins/bundled/ai-fill/AIFillTab';
 import type { FieldDefinition } from '@/lib/plugins/types';
 
 interface Term {
@@ -46,7 +49,7 @@ interface EditModalProps {
   enabledTabs?: string[];
   taxonomyConfig?: TaxonomyConfig[];
   taxonomyLabels?: Record<string, string>;
-  /** Site URL from profile (e.g., "https://plexkits.com") */
+  /** Site URL from profile (e.g., "https://example.com") */
   siteUrl?: string;
   /** Post type slug for URL building (e.g., "resource") */
   postTypeSlug?: string;
@@ -98,15 +101,16 @@ const FALLBACK_TABS = [
   { id: 'basic', label: 'Basic', plugin: 'core' },
   { id: 'seo', label: 'SEO', plugin: 'seopress' },
   { id: 'classification', label: 'Classification', plugin: 'core' },
-  { id: 'ai', label: 'AI Fill', icon: 'sparkles', plugin: 'core' },
+  { id: 'ai', label: 'AI Fill', icon: 'sparkles', plugin: 'ai-fill' },
 ];
 
 // Core tabs that are always handled with hardcoded rendering
-// Note: 'seo' is NOT core — it's provided by the seopress plugin via enabledTabs
-const CORE_TAB_IDS = new Set(['basic', 'classification', 'ai']);
+// Plugin tabs like 'seo' and 'ai' are rendered via registerPluginTab + getPluginTab.
+const CORE_TAB_IDS = new Set(['basic', 'classification']);
 
-// Tabs with hardcoded rendering (core + plugin tabs that have custom JSX)
-const HARDCODED_TAB_IDS = new Set(['basic', 'seo', 'classification', 'ai']);
+// Tabs with hardcoded rendering in this file (core tabs only).
+// Plugin tabs like 'seo' and 'ai' are rendered via registerPluginTab + getPluginTab.
+const HARDCODED_TAB_IDS = new Set(['basic', 'classification']);
 
 const STATUS_OPTIONS = ['publish', 'draft'];
 
@@ -381,381 +385,12 @@ export function EditModal({
     setMetaBox(prev => ({ ...prev, [field]: value }));
   };
 
-  // AI Fill state and helpers
-  const [aiPasteContent, setAiPasteContent] = useState('');
-  const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
-  const [parseStatus, setParseStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
-  const [promptTemplates, setPromptTemplates] = useState<Record<string, string>>({});
-
-  // Fetch prompt templates from prompt-templates API
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/prompt-templates/ai-fill').then(res => res.json()),
-      fetch('/api/prompt-templates/featured-image').then(res => res.json()),
-    ])
-      .then(([aiFill, featuredImage]) => {
-        setPromptTemplates({
-          'ai-fill': aiFill.template?.content || '',
-          'featured-image': featuredImage.template?.content || '',
-        });
-      })
-      .catch(() => setPromptTemplates({}));
-  }, []);
-
   // Featured Image Upload state
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showTitlePrompt, setShowTitlePrompt] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const generatePrompt = (templateId: 'ai-fill' | 'featured-image') => {
-    // Build taxonomy options dynamically from synced terms and config
-    const getTaxonomyExamples = (taxonomy: string, maxExamples = 3): string => {
-      const taxTerms = terms[taxonomy] || [];
-      if (taxTerms.length === 0) return '[none available]';
-      return taxTerms.slice(0, maxExamples).map(t => t.name).join(', ');
-    };
-
-    // Build taxonomy lines dynamically from profile config
-    const taxonomyLines = taxonomyConfig.map(tax => {
-      const note = tax.conditional?.show_when
-        ? `only if ${tax.conditional.show_when.taxonomy} matches`
-        : undefined;
-      return {
-        key: tax.slug,
-        label: tax.slug,
-        examples: getTaxonomyExamples(tax.slug),
-        note,
-      };
-    });
-
-    const taxonomySelectionsBlock = taxonomyLines
-      .filter(t => (terms[t.key]?.length || 0) > 0)
-      .map(t => `${t.label}: [e.g., ${t.examples}${t.note ? ` - ${t.note}` : ''}]`)
-      .join('\n');
-
-    const availableTaxonomies: Record<string, string[]> = {};
-    Object.keys(terms).forEach((taxonomy) => {
-      availableTaxonomies[taxonomy] = terms[taxonomy].map((t) => t.name);
-    });
-
-    const availableTaxonomiesBlock = Object.entries(availableTaxonomies)
-      .map(([tax, names]) => `${taxonomyLabels[tax] || tax}: ${names.slice(0, 15).join(', ')}${names.length > 15 ? '...' : ''}`)
-      .join('\n');
-
-    const aiFeatures = (metaBox.group_features as Array<{ feature_text: string }>) || [];
-    const featuresBlock = aiFeatures.length > 0
-      ? aiFeatures.map(f => `- ${f.feature_text}`).join('\n')
-      : '[List features, one per line with - prefix]\n- Feature 1\n- Feature 2\n- Feature 3';
-
-    const aiChangelog = (metaBox.group_changelog as Array<{ changelog_version: string; changelog_date: string; changelog_notes: string[] }>) || [];
-    const changelogBlock = aiChangelog.length > 0
-      ? aiChangelog.map(c =>
-          `version: ${c.changelog_version}\ndate: ${c.changelog_date}\nnotes:\n${(c.changelog_notes || []).map(n => `- ${n}`).join('\n')}`
-        ).join('\n\n')
-      : 'version: 1.0\ndate: [YYYY-MM-DD]\nnotes:\n- Initial release';
-
-    // Build placeholder replacements
-    const replacements: Record<string, string> = {
-      '{{title}}': title || '[Enter a descriptive title]',
-      '{{intro_text}}': (metaBox.intro_text as string) || '[Enter a short introduction paragraph]',
-      '{{text_content}}': (metaBox.text_content as string) || '[Enter the main content/description]',
-      '{{features}}': featuresBlock,
-      '{{available_taxonomies}}': availableTaxonomiesBlock,
-      '{{taxonomy_selections}}': taxonomySelectionsBlock,
-      '{{timer_enabled}}': metaBox.timer_enable ? 'yes' : 'no',
-      '{{timer_title}}': (metaBox.timer_title as string) || '[e.g., EVENT STARTS]',
-      '{{timer_datetime}}': (metaBox.timer_single_datetime as string) || '[YYYY-MM-DDTHH:MM format]',
-      '{{changelog}}': changelogBlock,
-      // SEO fields
-      '{{seo_title}}': seoData.title || '[SEO title - max 60 characters]',
-      '{{seo_description}}': seoData.description || '[Meta description - max 160 characters]',
-      '{{seo_keywords}}': seoData.targetKeywords || '[keyword1, keyword2, keyword3]',
-      '{{og_title}}': seoData.og.title || '[Facebook share title]',
-      '{{og_description}}': seoData.og.description || '[Facebook share description]',
-      '{{twitter_title}}': seoData.twitter.title || '[Twitter share title]',
-      '{{twitter_description}}': seoData.twitter.description || '[Twitter share description]',
-    };
-
-    // Get template content
-    let template = promptTemplates[templateId] || '';
-
-    // Fallback for ai-fill if not loaded
-    if (!template && templateId === 'ai-fill') {
-      template = `Please provide content for a resource titled "{{title}}" with the following fields. Use the EXACT format below with the field markers.
-
----TITLE---
-{{title}}
-
----INTRO_TEXT---
-{{intro_text}}
-
----TEXT_CONTENT---
-{{text_content}}
-
----FEATURES---
-{{features}}
-
----TAXONOMIES---
-IMPORTANT: Do NOT repeat the options below. Only output the "Your selections" section with your chosen values.
-
-Available options for reference:
-{{available_taxonomies}}
-
-Your selections (comma-separated, ONLY include the field name and your selections):
-{{taxonomy_selections}}
-
----TIMER---
-timer_enabled: {{timer_enabled}}
-timer_title: {{timer_title}}
-timer_datetime: {{timer_datetime}}
-
----CHANGELOG---
-{{changelog}}
-
----END---`;
-    }
-
-    // Replace all placeholders
-    for (const [placeholder, value] of Object.entries(replacements)) {
-      template = template.split(placeholder).join(value);
-    }
-
-    return template;
-  };
-
-  const copyPrompt = async (templateId: 'ai-fill' | 'featured-image') => {
-    try {
-      await navigator.clipboard.writeText(generatePrompt(templateId));
-      setCopiedPrompt(templateId);
-      setTimeout(() => setCopiedPrompt(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy prompt:', err);
-    }
-  };
-
-  const parseAiResponse = () => {
-    if (!aiPasteContent.trim()) {
-      setParseStatus({ type: 'error', message: 'Please paste AI response first' });
-      return;
-    }
-
-    try {
-      const content = aiPasteContent;
-      let fieldsUpdated = 0;
-      const updatedMeta = { ...metaBox };
-
-      // Parse Title
-      const titleMatch = content.match(/---TITLE---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
-      if (titleMatch && titleMatch[1].trim()) {
-        const newTitle = titleMatch[1].trim();
-        console.log('Parsed title:', newTitle);
-        setTitle(newTitle);
-        fieldsUpdated++;
-      }
-
-      // Parse Intro Text
-      const introMatch = content.match(/---INTRO_TEXT---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
-      if (introMatch && introMatch[1].trim()) {
-        const introText = introMatch[1].trim();
-        console.log('Parsed intro_text:', introText);
-        updatedMeta.intro_text = introText;
-        fieldsUpdated++;
-      }
-
-      // Parse Text Content
-      const textMatch = content.match(/---TEXT_CONTENT---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
-      if (textMatch && textMatch[1].trim()) {
-        const textContent = textMatch[1].trim();
-        console.log('Parsed text_content:', textContent);
-        updatedMeta.text_content = textContent;
-        fieldsUpdated++;
-      }
-
-      // Parse Features - handle both with and without dash prefix
-      const featuresMatch = content.match(/---FEATURES---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
-      if (featuresMatch && featuresMatch[1].trim()) {
-        const rawText = featuresMatch[1].trim();
-        // Remove any instruction text like "[List features...]"
-        const cleanedText = rawText.replace(/\[.*?\]/g, '');
-        const featureLines = cleanedText.split('\n')
-          .map(line => line.trim())
-          .filter(line => line.length > 0 && !line.startsWith('['))
-          .map(line => ({ feature_text: line.replace(/^[-•*]\s*/, '').trim() }))
-          .filter(f => f.feature_text && f.feature_text.length > 2);
-        if (featureLines.length > 0) {
-          console.log('Parsed features:', featureLines);
-          updatedMeta.group_features = featureLines;
-          fieldsUpdated++;
-        }
-      }
-
-      // Parse Taxonomies - comprehensive patterns
-      const taxMatch = content.match(/---TAXONOMIES---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
-      if (taxMatch) {
-        const taxContent = taxMatch[1];
-        const newTaxonomies = { ...taxonomies };
-        
-        const taxPatterns = [
-          { key: 'resource-type', pattern: /resource-type:\s*(.+)/i },
-          { key: 'intent', pattern: /intent:\s*(.+)/i },
-          { key: 'topic', pattern: /topic:\s*(.+)/i },
-          { key: 'audience', pattern: /audience:\s*(.+)/i },
-          { key: 'leagues', pattern: /league:\s*(.+)/i },
-          { key: 'bracket-size', pattern: /bracket[\s-]*size:\s*(.+)/i },
-          { key: 'file-format', pattern: /file[\s-]*format:\s*(.+)/i },
-          { key: 'competition_format', pattern: /competition[\s-]*format:\s*(.+)/i },
-        ];
-
-        taxPatterns.forEach(({ key, pattern }) => {
-          const match = taxContent.match(pattern);
-          if (match && match[1]) {
-            const selectedNames = match[1].split(',').map(s => s.trim().toLowerCase());
-            const matchedIds = (terms[key] || [])
-              .filter(t => selectedNames.includes(t.name.toLowerCase()))
-              .map(t => t.id);
-            if (matchedIds.length > 0) {
-              newTaxonomies[key] = matchedIds;
-              fieldsUpdated++;
-            }
-          }
-        });
-
-        setTaxonomies(newTaxonomies);
-      }
-
-      // Parse Timer
-      const timerMatch = content.match(/---TIMER---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
-      if (timerMatch) {
-        const timerContent = timerMatch[1];
-        
-        const enabledMatch = timerContent.match(/timer_enabled:\s*(yes|no)/i);
-        if (enabledMatch) {
-          updatedMeta.timer_enable = enabledMatch[1].toLowerCase() === 'yes';
-          fieldsUpdated++;
-        }
-        
-        const titleTimerMatch = timerContent.match(/timer_title:\s*(.+)/i);
-        if (titleTimerMatch && titleTimerMatch[1].trim() && !titleTimerMatch[1].includes('[')) {
-          updatedMeta.timer_title = titleTimerMatch[1].trim();
-          fieldsUpdated++;
-        }
-        
-        const datetimeMatch = timerContent.match(/timer_datetime:\s*(\d{4}-\d{2}-\d{2}T?\d{2}:\d{2})/i);
-        if (datetimeMatch) {
-          updatedMeta.timer_single_datetime = datetimeMatch[1];
-          fieldsUpdated++;
-        }
-      }
-
-      // Parse Changelog - handle notes with or without dash prefix
-      const changelogMatch = content.match(/---CHANGELOG---\s*([\s\S]*?)(?=---END---|$)/);
-      if (changelogMatch && changelogMatch[1].trim()) {
-        const changelogContent = changelogMatch[1].trim();
-        const entries: Array<{ changelog_version: string; changelog_date: string; changelog_notes: string[] }> = [];
-        
-        const versionBlocks = changelogContent.split(/(?=version:)/i).filter(Boolean);
-        versionBlocks.forEach(block => {
-          const versionMatch = block.match(/version:\s*(.+)/i);
-          const dateMatch = block.match(/date:\s*(\d{4}-\d{2}-\d{2})/i);
-          const notesMatch = block.match(/notes:\s*([\s\S]*?)(?=version:|$)/i);
-          
-          if (versionMatch) {
-            let notes: string[] = [];
-            if (notesMatch) {
-              notes = notesMatch[1].split('\n')
-                .map(l => l.replace(/^[-•*]\s*/, '').trim())
-                .filter(l => l.length > 0 && !l.startsWith('['));
-            }
-            entries.push({
-              changelog_version: versionMatch[1].trim(),
-              changelog_date: dateMatch ? dateMatch[1] : '',
-              changelog_notes: notes,
-            });
-          }
-        });
-        
-        if (entries.length > 0) {
-          updatedMeta.group_changelog = entries;
-          fieldsUpdated++;
-        }
-      }
-
-      // Parse SEO fields
-      const seoMatch = content.match(/---SEO---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
-      if (seoMatch) {
-        const seoContent = seoMatch[1];
-        const updatedSeo = { ...seoData };
-
-        const seoTitleMatch = seoContent.match(/seo_title:\s*(.+)/i);
-        if (seoTitleMatch && seoTitleMatch[1].trim() && !seoTitleMatch[1].includes('[')) {
-          updatedSeo.title = seoTitleMatch[1].trim();
-          fieldsUpdated++;
-        }
-
-        const seoDescMatch = seoContent.match(/seo_description:\s*(.+)/i);
-        if (seoDescMatch && seoDescMatch[1].trim() && !seoDescMatch[1].includes('[')) {
-          updatedSeo.description = seoDescMatch[1].trim();
-          fieldsUpdated++;
-        }
-
-        const seoKeywordsMatch = seoContent.match(/seo_keywords:\s*(.+)/i);
-        if (seoKeywordsMatch && seoKeywordsMatch[1].trim() && !seoKeywordsMatch[1].includes('[')) {
-          updatedSeo.targetKeywords = seoKeywordsMatch[1].trim();
-          fieldsUpdated++;
-        }
-
-        setSeoData(updatedSeo);
-      }
-
-      // Parse Social fields
-      const socialMatch = content.match(/---SOCIAL---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
-      if (socialMatch) {
-        const socialContent = socialMatch[1];
-        const updatedSeo = { ...seoData };
-
-        const ogTitleMatch = socialContent.match(/og_title:\s*(.+)/i);
-        if (ogTitleMatch && ogTitleMatch[1].trim() && !ogTitleMatch[1].includes('[')) {
-          updatedSeo.og = { ...updatedSeo.og, title: ogTitleMatch[1].trim() };
-          fieldsUpdated++;
-        }
-
-        const ogDescMatch = socialContent.match(/og_description:\s*(.+)/i);
-        if (ogDescMatch && ogDescMatch[1].trim() && !ogDescMatch[1].includes('[')) {
-          updatedSeo.og = { ...updatedSeo.og, description: ogDescMatch[1].trim() };
-          fieldsUpdated++;
-        }
-
-        const twitterTitleMatch = socialContent.match(/twitter_title:\s*(.+)/i);
-        if (twitterTitleMatch && twitterTitleMatch[1].trim() && !twitterTitleMatch[1].includes('[')) {
-          updatedSeo.twitter = { ...updatedSeo.twitter, title: twitterTitleMatch[1].trim() };
-          fieldsUpdated++;
-        }
-
-        const twitterDescMatch = socialContent.match(/twitter_description:\s*(.+)/i);
-        if (twitterDescMatch && twitterDescMatch[1].trim() && !twitterDescMatch[1].includes('[')) {
-          updatedSeo.twitter = { ...updatedSeo.twitter, description: twitterDescMatch[1].trim() };
-          fieldsUpdated++;
-        }
-
-        setSeoData(updatedSeo);
-      }
-
-      // Apply all metaBox updates at once
-      setMetaBox(updatedMeta);
-
-      if (fieldsUpdated > 0) {
-        setParseStatus({ type: 'success', message: `Successfully updated ${fieldsUpdated} field(s)! Review the other tabs.` });
-        setAiPasteContent('');
-      } else {
-        setParseStatus({ type: 'error', message: 'No fields could be parsed. Check the format.' });
-      }
-    } catch (err) {
-      setParseStatus({ type: 'error', message: 'Error parsing response. Check format.' });
-      console.error('Parse error:', err);
-    }
-  };
 
   // Featured Image Upload handlers
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -858,10 +493,10 @@ timer_datetime: {{timer_datetime}}
 
     return (
       <div key={taxonomy}>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           {displayLabel} {required && <span className="text-red-500">*</span>}
         </label>
-        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
+        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
           {taxonomyTerms.map((term) => {
             const isSelected = selectedIds.includes(term.id);
             return (
@@ -873,7 +508,7 @@ timer_datetime: {{timer_datetime}}
                   'px-3 py-1 rounded-full text-sm border transition-colors',
                   isSelected
                     ? 'bg-brand-100 border-brand-300 text-brand-700'
-                    : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
+                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-brand-300'
                 )}
               >
                 {term.name}
@@ -931,10 +566,10 @@ timer_datetime: {{timer_datetime}}
 
     return (
       <div key={taxSlug}>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
-        <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
+        <div className="flex flex-wrap gap-2 p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
           {topLevel.map((term) => {
             const isSelected = selectedIds.includes(term.id);
             const hasChildren = childrenByParent.has(term.id);
@@ -950,7 +585,7 @@ timer_datetime: {{timer_datetime}}
                     ? 'bg-brand-600 border-brand-600 text-white font-medium'
                     : childSelected
                       ? 'bg-brand-50 border-brand-300 text-brand-700'
-                      : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
+                      : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-brand-300'
                 )}
               >
                 {term.name}
@@ -982,17 +617,17 @@ timer_datetime: {{timer_datetime}}
 
     return (
       <div key={`${taxSlug}-subtopics`}>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           {taxLabel} Subtopics
         </label>
-        <div className="space-y-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+        <div className="space-y-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
           {expandedParents.map((parent) => {
             const children = childrenByParent.get(parent.id) || [];
             if (children.length === 0) return null;
 
             return (
               <div key={`children-${parent.id}`}>
-                <p className="text-xs text-gray-600 mb-2 font-medium uppercase tracking-wide">{parent.name}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 font-medium uppercase tracking-wide">{parent.name}</p>
                 <div className="flex flex-wrap gap-2">
                   {children.map((term) => {
                     const isSelected = selectedIds.includes(term.id);
@@ -1005,7 +640,7 @@ timer_datetime: {{timer_datetime}}
                           'px-3 py-1 rounded-full text-sm border transition-colors',
                           isSelected
                             ? 'bg-brand-100 border-brand-300 text-brand-700'
-                            : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
+                            : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-brand-300'
                         )}
                       >
                         {term.name}
@@ -1026,18 +661,18 @@ timer_datetime: {{timer_datetime}}
       <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onClose} />
 
       <div className="relative min-h-full flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl w-[900px] h-[85vh] flex flex-col overflow-hidden">
+        <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-[900px] h-[85vh] flex flex-col overflow-hidden">
           {/* Header */}
           <div className={cn(
-            "flex items-center justify-between px-6 py-4 border-b border-gray-200",
-            isCreateMode && "bg-green-50"
+            "flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700",
+            isCreateMode && "bg-green-50 dark:bg-green-900/20"
           )}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 line-clamp-1">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-1">
                 {isCreateMode ? (title || `New ${postTypeLabel}`) : title}
               </h2>
               {!isCreateMode && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   ID: {effectiveResource.id}
                   {slug && siteUrl && (
                     <>
@@ -1056,13 +691,13 @@ timer_datetime: {{timer_datetime}}
               )}
               {isCreateMode && <p className="text-sm text-green-600">Creating new {postTypeLabel.toLowerCase()}</p>}
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Tabs */}
-          <div className="border-b border-gray-200 px-6">
+          <div className="border-b border-gray-200 dark:border-gray-700 px-6">
             <nav className="flex gap-4 -mb-px overflow-x-auto">
               {TABS.map((tab) => (
                 <button
@@ -1071,8 +706,8 @@ timer_datetime: {{timer_datetime}}
                   className={cn(
                     'py-3 px-1 text-sm font-medium border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5',
                     activeTab === tab.id
-                      ? tab.id === 'ai' ? 'border-purple-500 text-purple-600' : 'border-brand-500 text-brand-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      ? tab.id === 'ai' ? 'border-purple-500 text-purple-600 dark:text-purple-400' : 'border-brand-500 text-brand-600 dark:text-brand-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   )}
                 >
                   {tab.id === 'ai' && <Sparkles className="w-4 h-4" />}
@@ -1088,16 +723,16 @@ timer_datetime: {{timer_datetime}}
             {activeTab === 'basic' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => handleTitleChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     URL Slug
                     {isCreateMode && !slugManuallyEdited && <span className="text-green-600 font-normal ml-1">(auto-synced from title)</span>}
                     {isCreateMode && slugManuallyEdited && <span className="text-gray-400 font-normal ml-1">(manually edited)</span>}
@@ -1107,13 +742,13 @@ timer_datetime: {{timer_datetime}}
                     value={slug}
                     onChange={(e) => handleSlugChange(e.target.value)}
                     placeholder={isCreateMode ? 'auto-generated' : ''}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
                   />
                 </div>
 
                 {/* Featured Image */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Featured Image</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Featured Image</label>
                   
                   {/* URL Input */}
                   <input
@@ -1121,7 +756,7 @@ timer_datetime: {{timer_datetime}}
                     value={rewriteMediaUrl(metaBox.featured_image_url)}
                     onChange={(e) => updateMetaField('featured_image_url', e.target.value)}
                     placeholder={`${siteUrl || 'https://example.com'}/wp-content/uploads/...`}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 mb-2"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 mb-2"
                   />
                   
                   {/* Upload Button */}
@@ -1139,7 +774,7 @@ timer_datetime: {{timer_datetime}}
                       className={cn(
                         'flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors',
                         isUploading
-                          ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                          ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                           : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                       )}
                     >
@@ -1155,7 +790,7 @@ timer_datetime: {{timer_datetime}}
                         </>
                       )}
                     </button>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
                       Max 10MB. JPG, PNG, WebP, GIF
                     </span>
                   </div>
@@ -1168,11 +803,11 @@ timer_datetime: {{timer_datetime}}
                   {/* Image Preview */}
                   {(metaBox.featured_image_url as string) && (
                     <div className="mt-3">
-                      <p className="text-xs text-gray-500 mb-1">Preview:</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Preview:</p>
                       <img
                         src={rewriteMediaUrl(metaBox.featured_image_url)}
                         alt="Featured image preview"
-                        className="max-w-xs max-h-48 rounded-lg border border-gray-200 object-cover"
+                        className="max-w-xs max-h-48 rounded-lg border border-gray-200 dark:border-gray-700 object-cover"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                         }}
@@ -1184,15 +819,15 @@ timer_datetime: {{timer_datetime}}
                 {/* Title Prompt Modal */}
                 {showTitlePrompt && (
                   <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Post Title Required</h3>
-                      <p className="text-sm text-gray-600 mb-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Post Title Required</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                         Please enter a post title to name the image file. This will also be used as the page title.
                       </p>
                       <input
                         type="text"
                         placeholder="Enter post title..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 mb-4"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 mb-4"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             handleTitlePromptSubmit((e.target as HTMLInputElement).value);
@@ -1206,7 +841,7 @@ timer_datetime: {{timer_datetime}}
                             setShowTitlePrompt(false);
                             setPendingFile(null);
                           }}
-                          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                          className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
                         >
                           Cancel
                         </button>
@@ -1226,241 +861,7 @@ timer_datetime: {{timer_datetime}}
               </div>
             )}
 
-            {/* SEO Tab */}
-            {activeTab === 'seo' && (
-              <div className="space-y-6">
-                {isCreateMode && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-sm text-blue-700">
-                      SEO settings will be saved automatically after the resource is created.
-                    </p>
-                  </div>
-                )}
-                {!isCreateMode && seoLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                    <span className="ml-2 text-gray-500">Loading SEO data...</span>
-                  </div>
-                ) : !isCreateMode && seoError ? (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-sm text-red-700">{seoError}</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Basic SEO */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                        <Search className="w-4 h-4" />
-                        Search Engine Optimization
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          SEO Title
-                          <span className="text-gray-400 font-normal ml-2">
-                            {seoData.title.length}/60
-                          </span>
-                          {isCreateMode && !seoTitleManuallyEdited && <span className="text-green-600 font-normal ml-2">(auto-synced from title)</span>}
-                          {isCreateMode && seoTitleManuallyEdited && <span className="text-gray-400 font-normal ml-2">(manually edited)</span>}
-                        </label>
-                        <input
-                          type="text"
-                          value={seoData.title}
-                          onChange={(e) => handleSeoTitleChange(e.target.value)}
-                          placeholder="Custom title for search engines..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Meta Description
-                          <span className="text-gray-400 font-normal ml-2">
-                            {seoData.description.length}/160
-                          </span>
-                        </label>
-                        <textarea
-                          value={seoData.description}
-                          onChange={(e) => updateSeoField('description', e.target.value)}
-                          placeholder="Brief description for search results..."
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Target Keywords
-                        </label>
-                        <input
-                          type="text"
-                          value={seoData.targetKeywords}
-                          onChange={(e) => updateSeoField('targetKeywords', e.target.value)}
-                          placeholder="keyword1, keyword2, keyword3..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Comma-separated list of target keywords</p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Canonical URL
-                        </label>
-                        <input
-                          type="url"
-                          value={seoData.canonical}
-                          onChange={(e) => updateSeoField('canonical', e.target.value)}
-                          placeholder="https://..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono text-sm"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Leave empty to use default URL</p>
-                      </div>
-                    </div>
-
-                    {/* Social Media */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                        <Share2 className="w-4 h-4" />
-                        Social Media
-                      </div>
-
-                      {/* Facebook/OG */}
-                      <div className="border-l-4 border-blue-500 pl-4 space-y-3">
-                        <h4 className="text-sm font-medium text-blue-700">Facebook / Open Graph</h4>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
-                          <input
-                            type="text"
-                            value={seoData.og.title}
-                            onChange={(e) => updateSeoNestedField('og', 'title', e.target.value)}
-                            placeholder="Facebook share title..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                          <textarea
-                            value={seoData.og.description}
-                            onChange={(e) => updateSeoNestedField('og', 'description', e.target.value)}
-                            placeholder="Facebook share description..."
-                            rows={2}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Image URL</label>
-                          <input
-                            type="url"
-                            value={seoData.og.image}
-                            onChange={(e) => updateSeoNestedField('og', 'image', e.target.value)}
-                            placeholder="https://..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm font-mono"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Twitter */}
-                      <div className="border-l-4 border-sky-500 pl-4 space-y-3">
-                        <h4 className="text-sm font-medium text-sky-700">Twitter / X</h4>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
-                          <input
-                            type="text"
-                            value={seoData.twitter.title}
-                            onChange={(e) => updateSeoNestedField('twitter', 'title', e.target.value)}
-                            placeholder="Twitter share title..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                          <textarea
-                            value={seoData.twitter.description}
-                            onChange={(e) => updateSeoNestedField('twitter', 'description', e.target.value)}
-                            placeholder="Twitter share description..."
-                            rows={2}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Image URL</label>
-                          <input
-                            type="url"
-                            value={seoData.twitter.image}
-                            onChange={(e) => updateSeoNestedField('twitter', 'image', e.target.value)}
-                            placeholder="https://..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm font-mono"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Robots / Indexing */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                        <Globe className="w-4 h-4" />
-                        Indexing & Robots
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={seoData.robots.noindex}
-                            onChange={(e) => updateSeoNestedField('robots', 'noindex', e.target.checked)}
-                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                          />
-                          <span className="text-sm text-gray-700">No Index</span>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={seoData.robots.nofollow}
-                            onChange={(e) => updateSeoNestedField('robots', 'nofollow', e.target.checked)}
-                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                          />
-                          <span className="text-sm text-gray-700">No Follow</span>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={seoData.robots.nosnippet}
-                            onChange={(e) => updateSeoNestedField('robots', 'nosnippet', e.target.checked)}
-                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                          />
-                          <span className="text-sm text-gray-700">No Snippet</span>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={seoData.robots.noimageindex}
-                            onChange={(e) => updateSeoNestedField('robots', 'noimageindex', e.target.checked)}
-                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                          />
-                          <span className="text-sm text-gray-700">No Image Index</span>
-                        </label>
-                      </div>
-
-                      <p className="text-xs text-gray-500">
-                        Check these options to prevent search engines from indexing or following links on this page.
-                      </p>
-                    </div>
-
-                    {seoHasChanges && !isCreateMode && (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                        <p className="text-sm text-yellow-700 flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4" />
-                          SEO changes will be saved when you click Save Changes
-                        </p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
+            {/* SEO Tab — rendered by seopress plugin via registerPluginTab('seo', SEOTab) */}
 
             {/* Classification Tab */}
             {activeTab === 'classification' && (
@@ -1488,125 +889,73 @@ timer_datetime: {{timer_datetime}}
                 values={metaBox}
                 onChange={updateMetaField}
                 terms={terms}
+                resourceTitle={title}
               />
             )}
 
-            {/* AI Fill Tab */}
-            {activeTab === 'ai' && (
-              <div className="space-y-6">
-                {/* Copy Prompt Buttons */}
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => copyPrompt('ai-fill')}
-                    className={cn(
-                      'flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 transition-all',
-                      copiedPrompt === 'ai-fill'
-                        ? 'bg-green-50 border-green-300 text-green-700'
-                        : 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-400 hover:shadow-md'
-                    )}
-                  >
-                    {copiedPrompt === 'ai-fill' ? (
-                      <Check className="w-8 h-8" />
-                    ) : (
-                      <Sparkles className="w-8 h-8 text-purple-600" />
-                    )}
-                    <div className="text-center">
-                      <span className="block font-semibold text-gray-900">
-                        {copiedPrompt === 'ai-fill' ? 'Copied!' : 'Copy AI Fill Prompt'}
-                      </span>
-                      <span className="text-xs text-gray-500 mt-1">Generate all content fields</span>
-                    </div>
-                  </button>
+            {/* Plugin-registered Tabs (custom React components via registerPluginTab) */}
+            {!HARDCODED_TAB_IDS.has(activeTab) && !(fieldLayout && fieldLayout[activeTab]) && (() => {
+              const PluginTab = getPluginTab(activeTab);
+              if (!PluginTab) return null;
 
-                  <button
-                    onClick={() => copyPrompt('featured-image')}
-                    className={cn(
-                      'flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 transition-all',
-                      copiedPrompt === 'featured-image'
-                        ? 'bg-green-50 border-green-300 text-green-700'
-                        : 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 hover:border-amber-400 hover:shadow-md'
-                    )}
-                  >
-                    {copiedPrompt === 'featured-image' ? (
-                      <Check className="w-8 h-8" />
-                    ) : (
-                      <ImageIcon className="w-8 h-8 text-amber-600" />
-                    )}
-                    <div className="text-center">
-                      <span className="block font-semibold text-gray-900">
-                        {copiedPrompt === 'featured-image' ? 'Copied!' : 'Copy Image Prompt'}
-                      </span>
-                      <span className="text-xs text-gray-500 mt-1">Generate featured image ideas</span>
-                    </div>
-                  </button>
-                </div>
+              // Build plugin-specific context
+              const pluginContext: Record<string, unknown> = {};
+              if (activeTab === 'seo') {
+                Object.assign(pluginContext, {
+                  seoData,
+                  seoLoading,
+                  seoError,
+                  seoHasChanges,
+                  seoTitleManuallyEdited,
+                  handleSeoTitleChange,
+                  updateSeoField,
+                  updateSeoNestedField,
+                });
+              }
+              if (activeTab === 'ai') {
+                Object.assign(pluginContext, {
+                  title,
+                  metaBox,
+                  taxonomies,
+                  seoData,
+                  taxonomyConfig,
+                  taxonomyLabels,
+                  fieldLayout,
+                  setTitle,
+                  setMetaBox,
+                  setTaxonomies,
+                  setSeoData,
+                });
+              }
 
-                {/* Instructions */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                  <p className="text-sm text-gray-600 text-center">
-                    Copy a prompt above → Paste into ChatGPT/Claude → Paste the response below → Click Apply
-                  </p>
-                </div>
+              return (
+                <PluginTab
+                  key={activeTab}
+                  resource={effectiveResource}
+                  terms={terms}
+                  updateMetaField={updateMetaField}
+                  isCreateMode={isCreateMode}
+                  siteUrl={siteUrl}
+                  context={pluginContext}
+                />
+              );
+            })()}
 
-                {/* Paste Response */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Paste AI Response
-                  </label>
-                  <textarea
-                    value={aiPasteContent}
-                    onChange={(e) => {
-                      setAiPasteContent(e.target.value);
-                      setParseStatus({ type: null, message: '' });
-                    }}
-                    placeholder="Paste the AI-generated response here..."
-                    rows={12}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm"
-                  />
-                </div>
-
-                {/* Parse Status */}
-                {parseStatus.type && (
-                  <div className={cn(
-                    'p-3 rounded-lg text-sm',
-                    parseStatus.type === 'success'
-                      ? 'bg-green-50 text-green-700 border border-green-200'
-                      : 'bg-red-50 text-red-700 border border-red-200'
-                  )}>
-                    {parseStatus.message}
-                  </div>
-                )}
-
-                {/* Apply Button */}
-                <button
-                  onClick={parseAiResponse}
-                  disabled={!aiPasteContent.trim()}
-                  className={cn(
-                    'w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-colors',
-                    aiPasteContent.trim()
-                      ? 'bg-purple-600 text-white hover:bg-purple-700'
-                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  )}
-                >
-                  <Wand2 className="w-4 h-4" />
-                  Apply AI Response to Fields
-                </button>
-              </div>
-            )}
+            {/* AI Fill Tab — rendered by ai-fill plugin via registerPluginTab('ai', AIFillTab) */}
           </div>
 
           {/* Footer */}
           <div className={cn(
-            "flex items-center justify-between px-6 py-4 border-t border-gray-200",
-            isCreateMode ? "bg-green-50" : "bg-gray-50"
+            "flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700",
+            isCreateMode ? "bg-green-50 dark:bg-green-900/20" : "bg-gray-50 dark:bg-gray-800/80"
           )}>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700">Status:</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white"
+                  className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white dark:bg-gray-700 dark:text-gray-100"
                 >
                   {STATUS_OPTIONS.map((opt) => (
                     <option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>
@@ -1614,8 +963,8 @@ timer_datetime: {{timer_datetime}}
                 </select>
               </div>
               {hasChanges && !isCreateMode && (
-                <div className="flex items-center gap-1.5 text-yellow-700">
-                  <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                <div className="flex items-center gap-1.5 text-yellow-700 dark:text-yellow-400">
+                  <AlertTriangle className="w-4 h-4 text-yellow-500 dark:text-yellow-400" />
                   <span className="text-sm">Unsaved changes</span>
                 </div>
               )}
@@ -1624,7 +973,7 @@ timer_datetime: {{timer_datetime}}
               {!isCreateMode && onConvertPostType && (
                 <button
                   onClick={onConvertPostType}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
                 >
                   <Repeat className="w-3.5 h-3.5" />
                   Convert Type
@@ -1632,7 +981,7 @@ timer_datetime: {{timer_datetime}}
               )}
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
               >
                 Cancel
               </button>

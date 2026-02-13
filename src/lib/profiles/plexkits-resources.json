@@ -8,20 +8,23 @@
       "id": "local",
       "name": "Local Development",
       "url": "http://plexkits-v4.local",
-      "description": "Local WordPress development environment"
+      "description": "Local WordPress development environment",
+      "environment": "development"
     },
     {
       "id": "staging",
       "name": "PLEXKITS Staging",
       "url": "https://staging.plexkits.com",
-      "description": "Staging environment for testing"
+      "description": "Staging environment for testing",
+      "environment": "staging"
     },
     {
       "id": "production",
       "name": "PLEXKITS Production",
       "url": "https://plexkits.com",
       "description": "Live production site",
-      "is_default": true
+      "is_default": true,
+      "environment": "production"
     }
   ],
   "required_plugins": [
@@ -33,6 +36,18 @@
     },
     {
       "id": "seopress",
+      "version": ">=1.0.0",
+      "source": "bundled",
+      "auto_enable": true
+    },
+    {
+      "id": "ai-fill",
+      "version": ">=1.0.0",
+      "source": "bundled",
+      "auto_enable": true
+    },
+    {
+      "id": "convert-post-type",
       "version": ">=1.0.0",
       "source": "bundled",
       "auto_enable": true
@@ -307,9 +322,16 @@
       {
         "id": "ai",
         "label": "AI Fill",
-        "source": "core",
+        "source": "ai-fill",
         "icon": "sparkles",
         "position": 9
+      }
+    ],
+    "power_columns": [
+      {
+        "key": "download_sections",
+        "label": "Downloads",
+        "type": "download_stats"
       }
     ],
     "field_layout": {
@@ -348,12 +370,6 @@
               "placeholder": "Feature description..."
             }
           }
-        },
-        {
-          "key": "text_",
-          "label": "Text ",
-          "type": "text",
-          "width": "full"
         }
       ],
       "timer": [
@@ -392,7 +408,8 @@
               "key": "download_section_heading",
               "type": "text",
               "label": "Section Heading",
-              "placeholder": "Section heading..."
+              "placeholder": "Section heading...",
+              "default_value": "Download the {{title}}"
             },
             "download_section_color": {
               "key": "download_section_color",
@@ -515,6 +532,36 @@
       },
       {
         "source": {
+          "key": "slug",
+          "category": "core"
+        },
+        "target": {
+          "key": "slug",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "status",
+          "category": "core"
+        },
+        "target": {
+          "key": "status",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "featured_media",
+          "category": "core"
+        },
+        "target": {
+          "key": "featured_media",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
           "key": "text_content",
           "category": "meta"
         },
@@ -522,8 +569,129 @@
           "key": "content",
           "category": "core"
         }
+      },
+      {
+        "source": {
+          "key": "intro_text",
+          "category": "meta"
+        },
+        "target": {
+          "key": "excerpt",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "download_sections",
+          "category": "meta"
+        },
+        "target": {
+          "key": "download_sections",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "group_changelog",
+          "category": "meta"
+        },
+        "target": {
+          "key": "group_changelog",
+          "category": "meta"
+        }
       }
     ],
-    "post->resource": []
+    "post->resource": [
+      {
+        "source": {
+          "key": "title",
+          "category": "core"
+        },
+        "target": {
+          "key": "title",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "slug",
+          "category": "core"
+        },
+        "target": {
+          "key": "slug",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "status",
+          "category": "core"
+        },
+        "target": {
+          "key": "status",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "featured_media",
+          "category": "core"
+        },
+        "target": {
+          "key": "featured_media",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "download_sections",
+          "category": "meta"
+        },
+        "target": {
+          "key": "download_sections",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "group_changelog",
+          "category": "meta"
+        },
+        "target": {
+          "key": "group_changelog",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "intro_text",
+          "category": "meta"
+        },
+        "target": {
+          "key": "intro_text",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "text_content",
+          "category": "meta"
+        },
+        "target": {
+          "key": "text_content",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "excerpt",
+          "category": "core"
+        },
+        "target": {
+          "key": "text_additional",
+          "category": "meta"
+        }
+      }
+    ]
   }
 }

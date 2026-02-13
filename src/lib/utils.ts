@@ -77,6 +77,7 @@ export function stripHtml(html: string): string {
 
 /**
  * Maps an array of items through an async function with a concurrency limit.
+ * Useful for rate-limiting API requests (e.g. SEO data fetching).
  */
 export async function pMap<T, R>(
   items: T[],
@@ -110,8 +111,8 @@ export async function pMap<T, R>(
 }
 
 export const STATUS_COLORS: Record<string, string> = {
-  publish: 'bg-green-100 text-green-800',
-  draft: 'bg-yellow-100 text-yellow-800',
-  pending: 'bg-orange-100 text-orange-800',
-  private: 'bg-purple-100 text-purple-800',
+  publish: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  pending: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+  private: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
 };

@@ -10,12 +10,19 @@ import { getProfileManager, ensureProfileLoaded } from './profiles';
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-// Use getter function to allow dynamic switching
+/**
+ * Returns the active WordPress site base URL from the current site config.
+ * @returns The base URL (e.g. 'https://your-site.com')
+ */
 export function getWpBaseUrl(): string {
   return getActiveBaseUrl();
 }
 
-// Get credentials from the appropriate source based on runtime context
+/**
+ * Returns WordPress API credentials from the appropriate source based on runtime context.
+ * Priority: Electron env vars > site-config.json > .env.local fallback.
+ * @returns Object with `username` and `appPassword` fields
+ */
 export function getWpCredentials(): { username: string; appPassword: string } {
   // In Electron production mode, credentials come from secure storage via env vars
   if (process.env.JUGGERNAUT_ELECTRON === '1') {
@@ -46,12 +53,14 @@ export function getWpCredentials(): { username: string; appPassword: string } {
 }
 
 // Legacy exports for backwards compatibility (now read dynamically)
-export const WP_BASE_URL = process.env.WP_BASE_URL || 'https://plexkits.com';
+export const WP_BASE_URL = process.env.WP_BASE_URL || '';
 export const WP_USERNAME = process.env.WP_USERNAME || '';
 export const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
 
 /**
- * Get taxonomy slugs from the active profile
+ * Returns taxonomy slugs from the active profile configuration.
+ * Falls back to a default set if the profile is not loaded.
+ * @returns Array of taxonomy slug strings (e.g. ['category', 'post_tag'])
  */
 export function getTaxonomies(): string[] {
   try {
@@ -77,7 +86,9 @@ export function getTaxonomyLabels(): Record<string, string> {
 }
 
 /**
- * Get the primary post type REST base from the active profile
+ * Returns the REST base path for the primary post type from the active profile.
+ * Falls back to 'resource' if the profile is not loaded.
+ * @returns REST base string (e.g. 'posts', 'resource')
  */
 export function getPrimaryPostTypeRestBase(): string {
   try {
@@ -177,7 +188,11 @@ async function wpFetch<T>(
 // ─── Taxonomy Functions ──────────────────────────────────────────────────────
 
 /**
- * Fetch terms for a specific taxonomy
+ * Fetches all terms for a specific taxonomy from the WordPress REST API.
+ * Handles pagination automatically to retrieve all terms.
+ * @param taxonomy - The taxonomy slug (e.g. 'category')
+ * @param restBase - Optional REST base override (defaults to taxonomy slug)
+ * @returns Array of WPTerm objects
  */
 export async function fetchTaxonomyTerms(
   taxonomy: string,
@@ -190,7 +205,9 @@ export async function fetchTaxonomyTerms(
 }
 
 /**
- * Fetch all taxonomy terms based on the active profile configuration
+ * Fetches terms for all taxonomies defined in the active profile.
+ * Runs taxonomy fetches in parallel for performance.
+ * @returns Record mapping taxonomy slugs to arrays of WPTerm objects
  */
 export async function fetchAllTaxonomies(): Promise<Record<string, WPTerm[]>> {
   const profile = getProfileManager().getCurrentProfile();
@@ -276,18 +293,28 @@ export async function fetchResources(
   };
 }
 
+/**
+ * Fetches all resources from WordPress, handling pagination automatically.
+ * @param modifiedAfter - Optional ISO timestamp; only fetch resources modified after this time
+ * @param postType - Optional post type REST base override
+ * @returns Array of all WPResource objects
+ */
 export async function fetchAllResources(
   modifiedAfter?: string,
-  postType?: string
+  postType?: string,
+  onProgress?: (fetched: number, total: number) => void
 ): Promise<WPResource[]> {
   const allResources: WPResource[] = [];
   let page = 1;
   let totalPages = 1;
+  let total = 0;
 
   while (page <= totalPages) {
     const result = await fetchResources({ page, modifiedAfter, postType });
     allResources.push(...result.resources);
     totalPages = result.totalPages;
+    total = result.total;
+    if (onProgress) onProgress(allResources.length, total);
     page++;
   }
 
@@ -303,6 +330,12 @@ export async function fetchResourceById(
   return data;
 }
 
+/**
+ * Fetches only the IDs of all resources from WordPress. Used for deletion detection
+ * during full sync (compare server IDs vs local IDs).
+ * @param postType - Optional post type REST base override
+ * @returns Array of resource ID numbers
+ */
 export async function fetchResourceIds(postType?: string): Promise<number[]> {
   const restBase = postType || getPrimaryPostTypeRestBase();
   const hasAuth = hasValidCredentials();
@@ -384,6 +417,12 @@ export interface BatchResponse {
   }>;
 }
 
+/**
+ * Sends a batch of update requests to the WordPress REST API batch endpoint.
+ * WordPress limits batches to 25 requests max.
+ * @param requests - Array of BatchRequest objects (method, path, body)
+ * @returns BatchResponse with results keyed by request path
+ */
 export async function batchUpdate(requests: BatchRequest[]): Promise<BatchResponse> {
   const url = `${getWpBaseUrl()}/wp-json/batch/v1`;
 
@@ -429,6 +468,11 @@ export async function batchUpdate(requests: BatchRequest[]): Promise<BatchRespon
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
+/**
+ * Tests the WordPress REST API connection using current credentials.
+ * Verifies both API accessibility and authentication.
+ * @returns Object with `success` boolean and `message` describing the result
+ */
 export async function testConnection(): Promise<{ success: boolean; message: string }> {
   try {
     const response = await fetch(`${getWpBaseUrl()}/wp-json/wp/v2/`, {

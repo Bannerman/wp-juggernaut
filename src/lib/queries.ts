@@ -26,11 +26,20 @@ export interface LocalTerm {
   parent_id: number;
 }
 
+/**
+ * Returns all taxonomy terms from the local database, ordered by taxonomy and name.
+ * @returns Array of all LocalTerm objects
+ */
 export function getAllTerms(): LocalTerm[] {
   const db = getDb();
   return db.prepare('SELECT * FROM terms ORDER BY taxonomy, name').all() as LocalTerm[];
 }
 
+/**
+ * Returns all terms for a specific taxonomy, ordered by name.
+ * @param taxonomy - The taxonomy slug (e.g. 'category', 'post_tag')
+ * @returns Array of LocalTerm objects for the given taxonomy
+ */
 export function getTermsByTaxonomy(taxonomy: string): LocalTerm[] {
   const db = getDb();
   return db
@@ -38,6 +47,11 @@ export function getTermsByTaxonomy(taxonomy: string): LocalTerm[] {
     .all(taxonomy) as LocalTerm[];
 }
 
+/**
+ * Returns all terms grouped by taxonomy slug. Keys are taxonomy slugs,
+ * values are arrays of terms. Only includes taxonomies from the active profile.
+ * @returns Record mapping taxonomy slugs to arrays of LocalTerm objects
+ */
 export function getAllTermsGrouped(): Record<string, LocalTerm[]> {
   const terms = getAllTerms();
   const grouped: Record<string, LocalTerm[]> = {};
@@ -63,6 +77,13 @@ export interface ResourceFilters {
   taxonomies?: Partial<Record<string, number[]>>;
 }
 
+/**
+ * Returns resources from the local database, with optional filtering by status,
+ * search text, dirty state, and taxonomy assignments.
+ * @param filters - Optional filters (status, search, isDirty, taxonomies)
+ * @param postType - Optional post type slug filter (defaults to primary post type)
+ * @returns Array of LocalResource objects with hydrated meta_box and taxonomies
+ */
 export function getResources(filters: ResourceFilters = {}, postType?: string): LocalResource[] {
   const db = getDb();
   const type = postType || getPrimaryPostType();
@@ -103,12 +124,74 @@ export function getResources(filters: ResourceFilters = {}, postType?: string): 
     is_dirty: number;
   }>;
 
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const postIds = rows.map((r) => r.id);
+  const placeholders = postIds.map(() => '?').join(',');
+
+  // Fetch all meta
+  const metaRows = db
+    .prepare(`SELECT post_id, field_id, value FROM post_meta WHERE post_id IN (${placeholders})`)
+    .all(...postIds) as Array<{ post_id: number; field_id: string; value: string }>;
+
+  const metaByPost: Record<number, Record<string, unknown>> = {};
+  for (const row of metaRows) {
+    if (!metaByPost[row.post_id]) {
+      metaByPost[row.post_id] = {};
+    }
+    try {
+      metaByPost[row.post_id][row.field_id] = JSON.parse(row.value);
+    } catch {
+      metaByPost[row.post_id][row.field_id] = row.value;
+    }
+  }
+
+  // Fetch all taxonomies
+  const termRows = db
+    .prepare(`SELECT post_id, term_id, taxonomy FROM post_terms WHERE post_id IN (${placeholders})`)
+    .all(...postIds) as Array<{ post_id: number; term_id: number; taxonomy: string }>;
+
+  const termsByPost: Record<number, Record<string, number[]>> = {};
+  const profileTaxonomies = getTaxonomies();
+
+  for (const row of termRows) {
+    if (!termsByPost[row.post_id]) {
+      termsByPost[row.post_id] = {};
+      // Initialize with empty arrays for all profile taxonomies
+      for (const tax of profileTaxonomies) {
+        termsByPost[row.post_id][tax] = [];
+      }
+    }
+
+    // Ensure this specific taxonomy array exists (in case it wasn't in profile)
+    if (!termsByPost[row.post_id][row.taxonomy]) {
+      termsByPost[row.post_id][row.taxonomy] = [];
+    }
+
+    termsByPost[row.post_id][row.taxonomy].push(row.term_id);
+  }
+
   return rows.map((row) => {
+    // Ensure we have empty objects if no meta/terms found for this post
+    const meta = metaByPost[row.id] || {};
+
+    // For taxonomies, we need to make sure we return the structure with all profile taxonomies
+    // even if no terms were found
+    let taxonomies = termsByPost[row.id];
+    if (!taxonomies) {
+      taxonomies = {};
+      for (const tax of profileTaxonomies) {
+        taxonomies[tax] = [];
+      }
+    }
+
     const resource: LocalResource = {
       ...row,
       is_dirty: row.is_dirty === 1,
-      meta_box: getPostMeta(row.id),
-      taxonomies: getPostTaxonomies(row.id),
+      meta_box: meta,
+      taxonomies: taxonomies,
     };
 
     // Apply taxonomy filters
@@ -128,6 +211,11 @@ export function getResources(filters: ResourceFilters = {}, postType?: string): 
   }).filter((r): r is LocalResource => r !== null);
 }
 
+/**
+ * Returns a single resource by ID with hydrated meta_box fields and taxonomy assignments.
+ * @param id - The resource/post ID
+ * @returns LocalResource object or null if not found
+ */
 export function getResourceById(id: number): LocalResource | null {
   const db = getDb();
   const row = db.prepare('SELECT * FROM posts WHERE id = ?').get(id) as {
@@ -205,6 +293,13 @@ function getResourceTaxonomies(resourceId: number): Record<string, number[]> {
   return getPostTaxonomies(resourceId);
 }
 
+/**
+ * Updates a local resource with new field values and sets `is_dirty = 1`.
+ * Handles core fields (title, slug, status, etc.), meta_box fields, and taxonomy
+ * assignments. Logs changes to the change_log table for audit trail.
+ * @param id - The resource/post ID to update
+ * @param updates - Object containing fields to update (title, slug, status, content, excerpt, featured_media, meta_box, taxonomies)
+ */
 export function updateLocalResource(
   id: number,
   updates: {
@@ -300,7 +395,7 @@ export function updateLocalResource(
     // Persist dirty taxonomy set
     db.prepare(
       "INSERT OR REPLACE INTO post_meta (post_id, field_id, value) VALUES (?, '_dirty_taxonomies', ?)"
-    ).run(id, JSON.stringify([...dirtyTaxonomies]));
+    ).run(id, JSON.stringify(Array.from(dirtyTaxonomies)));
 
     db.prepare('UPDATE posts SET is_dirty = 1 WHERE id = ?').run(id);
   }
@@ -319,15 +414,30 @@ export function updateLocalResource(
   }
 }
 
+/**
+ * Returns all resources with `is_dirty = 1` (locally modified, not yet pushed).
+ * @param postType - Optional post type filter
+ * @returns Array of dirty LocalResource objects
+ */
 export function getDirtyResources(postType?: string): LocalResource[] {
   return getResources({ isDirty: true }, postType);
 }
 
-export function markResourceClean(id: number) {
+/**
+ * Clears the dirty flag on a resource after a successful push.
+ * @param id - The resource/post ID to mark as clean
+ */
+export function markResourceClean(id: number): void {
   const db = getDb();
   db.prepare('UPDATE posts SET is_dirty = 0 WHERE id = ?').run(id);
 }
 
+/**
+ * Returns summary statistics for the dashboard: total resources, dirty count,
+ * and last sync timestamp.
+ * @param postType - Optional post type filter
+ * @returns Object with totalResources, dirtyResources, and lastSync
+ */
 export function getSyncStats(postType?: string): {
   totalResources: number;
   dirtyResources: number;
@@ -385,6 +495,12 @@ const DEFAULT_SEO: LocalSeoData = {
   robots: { noindex: false, nofollow: false, nosnippet: false, noimageindex: false },
 };
 
+/**
+ * Returns SEO data for a resource. Reads from the plugin_data table (seopress plugin).
+ * Falls back to the legacy resource_seo table if plugin_data is empty.
+ * @param resourceId - The resource/post ID
+ * @returns LocalSeoData object (defaults to empty strings/false if no data)
+ */
 export function getResourceSeo(resourceId: number): LocalSeoData {
   const db = getDb();
 
@@ -452,6 +568,13 @@ export function getResourceSeo(resourceId: number): LocalSeoData {
   };
 }
 
+/**
+ * Saves SEO data for a resource to the plugin_data table and optionally marks
+ * the resource as dirty.
+ * @param resourceId - The resource/post ID
+ * @param seo - The SEO data to save
+ * @param markDirty - Whether to set is_dirty = 1 on the resource (default: true)
+ */
 export function saveResourceSeo(resourceId: number, seo: LocalSeoData, markDirty = true): void {
   const db = getDb();
 

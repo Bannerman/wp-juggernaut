@@ -59,6 +59,7 @@ interface FieldMappingEditorProps {
   showFieldKeys?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>;
+  headerActions?: React.ReactNode;
 }
 
 // ─── Category icon helper ────────────────────────────────────────────────
@@ -79,40 +80,40 @@ function CategoryIcon({ category }: { category: string }): React.ReactElement {
 function categoryColor(category: string): string {
   switch (category) {
     case 'core':
-      return 'bg-blue-50 border-blue-200 text-blue-700';
+      return 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300';
     case 'meta':
-      return 'bg-purple-50 border-purple-200 text-purple-700';
+      return 'bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300';
     case 'taxonomy':
-      return 'bg-green-50 border-green-200 text-green-700';
+      return 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300';
     default:
-      return 'bg-gray-50 border-gray-200 text-gray-700';
+      return 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300';
   }
 }
 
 function categoryBadgeColor(category: string): string {
   switch (category) {
     case 'core':
-      return 'bg-blue-100 text-blue-600';
+      return 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400';
     case 'meta':
-      return 'bg-purple-100 text-purple-600';
+      return 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400';
     case 'taxonomy':
-      return 'bg-green-100 text-green-600';
+      return 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400';
     default:
-      return 'bg-gray-100 text-gray-600';
+      return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
   }
 }
 
 // ─── Mapping color generator ─────────────────────────────────────────────
 
 const MAPPING_COLORS = [
-  'border-indigo-400 bg-indigo-50',
-  'border-emerald-400 bg-emerald-50',
-  'border-amber-400 bg-amber-50',
-  'border-rose-400 bg-rose-50',
-  'border-cyan-400 bg-cyan-50',
-  'border-violet-400 bg-violet-50',
-  'border-orange-400 bg-orange-50',
-  'border-teal-400 bg-teal-50',
+  'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-500',
+  'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 dark:border-emerald-500',
+  'border-amber-400 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-500',
+  'border-rose-400 bg-rose-50 dark:bg-rose-900/30 dark:border-rose-500',
+  'border-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 dark:border-cyan-500',
+  'border-violet-400 bg-violet-50 dark:bg-violet-900/30 dark:border-violet-500',
+  'border-orange-400 bg-orange-50 dark:bg-orange-900/30 dark:border-orange-500',
+  'border-teal-400 bg-teal-50 dark:bg-teal-900/30 dark:border-teal-500',
 ];
 
 const MAPPING_LINE_COLORS = [
@@ -176,7 +177,7 @@ function DraggableField({
         isDragging && 'opacity-0',
         isMapped
           ? getMappingColor(mappingIndex)
-          : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm'
       )}
     >
       <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -240,10 +241,10 @@ function DroppableField({
       }}
       className={cn(
         'flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all',
-        isOver && !isMapped && 'border-brand-400 bg-brand-50 shadow-md scale-[1.02]',
-        isOver && isMapped && 'border-red-300 bg-red-50',
+        isOver && !isMapped && 'border-brand-400 bg-brand-50 dark:bg-brand-900/30 shadow-md scale-[1.02]',
+        isOver && isMapped && 'border-red-300 dark:border-red-500 bg-red-50 dark:bg-red-900/30',
         !isOver && isMapped && getMappingColor(mappingIndex),
-        !isOver && !isMapped && 'border-dashed border-gray-300 bg-gray-50/50'
+        !isOver && !isMapped && 'border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30'
       )}
     >
       <CategoryIcon category={field.category} />
@@ -327,6 +328,7 @@ export function FieldMappingEditor({
   showFieldKeys,
   onDirtyChange,
   saveRef,
+  headerActions,
 }: FieldMappingEditorProps): React.ReactElement {
   const [mappings, setMappings] = useState<FieldMappingEntry[]>(initialMappings);
   const [activeField, setActiveField] = useState<MappableField | null>(null);
@@ -505,29 +507,30 @@ export function FieldMappingEditor({
     <div className="space-y-6" ref={containerRef}>
       {/* Header bar */}
       <div className="flex items-center gap-3 text-sm">
-        <span className="font-semibold text-gray-900">{sourcePostType.name}</span>
+        <span className="font-semibold text-gray-900 dark:text-white">{sourcePostType.name}</span>
         <ArrowRight className="w-4 h-4 text-gray-400" />
-        <span className="font-semibold text-gray-900">{targetPostType.name}</span>
-        <span className="text-gray-400">
+        <span className="font-semibold text-gray-900 dark:text-white">{targetPostType.name}</span>
+        <span className="text-gray-400 dark:text-gray-500">
           ({mappings.length} mapping{mappings.length !== 1 ? 's' : ''})
         </span>
+        {headerActions && <div className="ml-auto flex items-center gap-3">{headerActions}</div>}
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-gray-500">
+      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-200" />
+          <div className="w-3 h-3 rounded-sm bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700" />
           Core fields
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-sm bg-purple-100 border border-purple-200" />
+          <div className="w-3 h-3 rounded-sm bg-purple-100 dark:bg-purple-900/40 border border-purple-200 dark:border-purple-700" />
           Meta Box fields
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-sm bg-green-100 border border-green-200" />
+          <div className="w-3 h-3 rounded-sm bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-700" />
           Taxonomies
         </div>
-        <div className="ml-auto text-gray-400">
+        <div className="ml-auto text-gray-400 dark:text-gray-500">
           Drag a source field and drop it on a target field to create a mapping
         </div>
       </div>
@@ -565,7 +568,7 @@ export function FieldMappingEditor({
           )}
           {/* Source column */}
           <div className="min-w-0 overflow-hidden" style={{ zIndex: 1 }}>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 px-1">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 px-1">
               Source: {sourcePostType.name}
             </h3>
             <div className="space-y-2">
@@ -615,7 +618,7 @@ export function FieldMappingEditor({
 
           {/* Target column */}
           <div className="min-w-0 overflow-hidden" style={{ zIndex: 1 }}>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 px-1">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 px-1">
               Target: {targetPostType.name}
             </h3>
             <div className="space-y-2">

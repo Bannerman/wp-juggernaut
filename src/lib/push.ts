@@ -9,8 +9,9 @@ import {
   type UpdateResourcePayload,
   type BatchRequest,
 } from './wp-client';
-import { TAXONOMY_META_FIELD } from './plugins/bundled/metabox';
+import { getProfileTaxonomyMetaFieldMapping } from './profiles';
 import { getResourceById, markResourceClean, getDirtyResources, getResourceSeo, type LocalSeoData } from './queries';
+import { seopressPlugin } from './plugins/bundled/seopress';
 
 export interface PushResult {
   success: boolean;
@@ -75,7 +76,9 @@ function normalizeDownloadSections(sections: unknown[]): DownloadSection[] {
 
 /**
  * Push SEO data to WordPress via SEOPress API.
- * SEO is pushed separately from the resource since it uses a different API endpoint.
+ * Uses the SEOPress plugin's updateSEOData method which calls the correct
+ * individual endpoints (title-description-metas, target-keywords, social-settings,
+ * meta-robot-settings) rather than the read-only general posts endpoint.
  */
 async function pushSeoData(resourceId: number): Promise<{ success: boolean; error?: string }> {
   const seo = getResourceSeo(resourceId);
@@ -95,48 +98,18 @@ async function pushSeoData(resourceId: number): Promise<{ success: boolean; erro
     const creds = getWpCredentials();
     const authHeader = 'Basic ' + Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
 
-    // SEOPress API payload format
-    const seoPayload = {
-      title: seo.title,
-      description: seo.description,
-      canonical: seo.canonical,
-      target_kw: seo.targetKeywords,
-      og: {
-        title: seo.og.title,
-        description: seo.og.description,
-        image: seo.og.image,
-      },
-      twitter: {
-        title: seo.twitter.title,
-        description: seo.twitter.description,
-        image: seo.twitter.image,
-      },
-      robots: {
-        noindex: seo.robots.noindex,
-        nofollow: seo.robots.nofollow,
-        nosnippet: seo.robots.nosnippet,
-        noimageindex: seo.robots.noimageindex,
-      },
-    };
-
     console.log(`[push] Pushing SEO data for resource ${resourceId}`);
 
-    const response = await fetch(
-      `${getWpBaseUrl()}/wp-json/seopress/v1/posts/${resourceId}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: authHeader,
-        },
-        body: JSON.stringify(seoPayload),
-      }
+    const result = await seopressPlugin.updateSEOData(
+      resourceId,
+      seo,
+      getWpBaseUrl(),
+      authHeader
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[push] SEO push failed for resource ${resourceId}: ${response.status} - ${errorText}`);
-      return { success: false, error: `SEO push failed: ${response.status}` };
+    if (!result.success) {
+      console.error(`[push] SEO push errors for resource ${resourceId}:`, result.errors);
+      return { success: false, error: `SEO push failed: ${result.errors.join('; ')}` };
     }
 
     console.log(`[push] SEO data pushed successfully for resource ${resourceId}`);
@@ -147,6 +120,12 @@ async function pushSeoData(resourceId: number): Promise<{ success: boolean; erro
   }
 }
 
+/**
+ * Checks for conflicts between local and server versions of resources.
+ * Compares local `modified_gmt` timestamps with the server's current values.
+ * @param resourceIds - Array of resource IDs to check
+ * @returns Array of ConflictInfo objects for resources that have server-side changes
+ */
 export async function checkForConflicts(resourceIds: number[]): Promise<ConflictInfo[]> {
   const db = getDb();
   const conflicts: ConflictInfo[] = [];
@@ -177,16 +156,88 @@ export async function checkForConflicts(resourceIds: number[]): Promise<Conflict
   return conflicts;
 }
 
-function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
+/**
+ * Resolves a media URL to its WordPress attachment ID by extracting the
+ * filename and searching the media library.
+ */
+async function resolveMediaIdFromUrl(url: string): Promise<number> {
+  try {
+    const baseUrl = getWpBaseUrl();
+    const creds = getWpCredentials();
+    const auth = 'Basic ' + Buffer.from(`${creds.username}:${creds.appPassword}`).toString('base64');
+
+    // Extract filename without extension for search
+    // Also strip WordPress size suffixes like -1024x778, -300x200, etc.
+    const urlPath = new URL(url).pathname;
+    const filenameWithExt = urlPath.split('/').pop() || '';
+    const filename = filenameWithExt
+      .replace(/\.[^.]+$/, '')        // remove extension
+      .replace(/-\d+x\d+$/, '');      // remove WP size suffix
+    if (!filename) return 0;
+
+    console.log(`[push] Resolving media URL: ${url} (search: "${filename}")`);
+
+    const response = await fetch(
+      `${baseUrl}/wp-json/wp/v2/media?search=${encodeURIComponent(filename)}&per_page=10`,
+      { headers: { Authorization: auth } }
+    );
+    if (!response.ok) return 0;
+
+    const media = await response.json() as Array<{ id: number; source_url?: string; guid?: { rendered?: string } }>;
+
+    // Try exact URL match first
+    const exactMatch = media.find(m =>
+      m.source_url === url || m.guid?.rendered === url
+    );
+    if (exactMatch) {
+      console.log(`[push] Resolved media URL to attachment ID ${exactMatch.id} (exact match)`);
+      return exactMatch.id;
+    }
+
+    // Try matching by base filename (handles resized URLs like image-1024x778.png → image.png)
+    const baseUrl_ = url.replace(/-\d+x\d+(\.[^.]+)$/, '$1');
+    const baseMatch = media.find(m =>
+      m.source_url === baseUrl_ || m.guid?.rendered === baseUrl_
+    );
+    if (baseMatch) {
+      console.log(`[push] Resolved media URL to attachment ID ${baseMatch.id} (base URL match)`);
+      return baseMatch.id;
+    }
+
+    // If only one result from search, use it
+    if (media.length === 1) {
+      console.log(`[push] Resolved media URL to attachment ID ${media[0].id} (single search result)`);
+      return media[0].id;
+    }
+
+    console.warn(`[push] Could not resolve media URL: ${url} (${media.length} search results, no match)`);
+    return 0;
+  } catch (error) {
+    console.warn(`[push] Failed to resolve media URL: ${error}`);
+    return 0;
+  }
+}
+
+async function buildUpdatePayload(resourceId: number): Promise<UpdateResourcePayload> {
   const resource = getResourceById(resourceId);
   if (!resource) throw new Error(`Resource ${resourceId} not found`);
 
-  // Get featured_media from meta_box if available, otherwise fall back to the column
+  // Resolve featured_media: if we have a URL, always resolve it to an attachment ID
+  // (handles the case where user pasted a new URL but featured_media_id still points to the old image)
   const metaMediaId = resource.meta_box?.featured_media_id;
-  const featuredMediaId = (typeof metaMediaId === 'number' ? metaMediaId : 0) || resource.featured_media || 0;
+  const storedMediaId = (typeof metaMediaId === 'number' ? metaMediaId : 0) || resource.featured_media || 0;
+  const imageUrl = resource.meta_box?.featured_image_url as string | undefined;
+
+  let featuredMediaId = storedMediaId;
+  if (imageUrl) {
+    const resolvedId = await resolveMediaIdFromUrl(imageUrl);
+    if (resolvedId) {
+      featuredMediaId = resolvedId;
+    }
+  }
 
   console.log(`[push] Resource ${resourceId} featured_media: meta_box.featured_media_id=${metaMediaId}, resource.featured_media=${resource.featured_media}, using=${featuredMediaId}`);
-  console.log(`[push] Resource ${resourceId} featured_image_url: ${resource.meta_box?.featured_image_url}`);
+  console.log(`[push] Resource ${resourceId} featured_image_url: ${imageUrl}`);
 
   const payload: UpdateResourcePayload = {
     title: resource.title,
@@ -221,6 +272,7 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
 
   const taxSummary: Record<string, number[]> = {};
   const taxonomies = getTaxonomies();
+  const taxonomyMetaMapping = getProfileTaxonomyMetaFieldMapping();
   for (const taxonomy of taxonomies) {
     // Skip file_format - WP auto-syncs it from download_file_format in download links
     if (taxonomy === 'file_format') continue;
@@ -233,7 +285,7 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
     (payload as Record<string, unknown>)[taxonomy] = termIds;
 
     // Meta Box field (e.g., 'tax_topic', 'tax_resource_type')
-    const metaField = TAXONOMY_META_FIELD[taxonomy];
+    const metaField = taxonomyMetaMapping[taxonomy];
     if (metaField) {
       metaBox[metaField] = termIds;
     }
@@ -250,6 +302,14 @@ function buildUpdatePayload(resourceId: number): UpdateResourcePayload {
   return payload;
 }
 
+/**
+ * Pushes a single dirty resource to WordPress. Builds the update payload from
+ * local data, optionally checks for conflicts, and updates the server.
+ * On success, clears the dirty flag and updates local timestamps.
+ * @param resourceId - The ID of the resource to push
+ * @param skipConflictCheck - If true, skip conflict detection and force push
+ * @returns PushResult with success status, resource ID, and any error message
+ */
 export async function pushResource(
   resourceId: number,
   skipConflictCheck: boolean = false
@@ -267,7 +327,7 @@ export async function pushResource(
       }
     }
 
-    const payload = buildUpdatePayload(resourceId);
+    const payload = await buildUpdatePayload(resourceId);
     const updated = await updateResource(resourceId, payload);
 
     // Push SEO data (non-blocking - log errors but don't fail the push)
@@ -295,6 +355,13 @@ export async function pushResource(
   }
 }
 
+/**
+ * Pushes all dirty (locally modified) resources to WordPress in batches of 25.
+ * Returns detailed results including successes, failures, and conflicts.
+ * @param skipConflictCheck - If true, skip conflict detection and force push all
+ * @param postType - Optional post type filter (only push dirty resources of this type)
+ * @returns Object with `results` array, `successCount`, `failureCount`, and `conflicts`
+ */
 export async function pushAllDirty(
   skipConflictCheck: boolean = false,
   postType?: string
@@ -359,14 +426,12 @@ async function pushBatch(
   }
 
   try {
-    const requests: BatchRequest[] = safeIds.map((id) => {
-      const payload = buildUpdatePayload(id);
-      return {
-        method: 'POST' as const,
-        path: `/wp/v2/resource/${id}`,
-        body: payload as unknown as Record<string, unknown>,
-      };
-    });
+    const payloads = await Promise.all(safeIds.map((id) => buildUpdatePayload(id)));
+    const requests: BatchRequest[] = safeIds.map((id, i) => ({
+      method: 'POST' as const,
+      path: `/wp/v2/resource/${id}`,
+      body: payloads[i] as unknown as Record<string, unknown>,
+    }));
 
     const batchResponse = await batchUpdate(requests);
     const db = getDb();

@@ -25,11 +25,14 @@ interface Placeholder {
   description: string;
 }
 
+type EnvironmentType = 'production' | 'staging' | 'development';
+
 interface SiteTarget {
   id: string;
   name: string;
   url: string;
   description: string;
+  environment: EnvironmentType;
 }
 
 interface DiagnosticResult {
@@ -442,9 +445,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <SettingsNav
         activeTab={activeTab}
+        enabledPlugins={plugins.filter(p => p.enabled).map(p => p.id)}
         onTabClick={(tabId) => {
           if (tabId === 'prompts') { setActiveTab('prompts'); setPromptsView('edit'); }
           else setActiveTab(tabId);
@@ -455,7 +459,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleResetPrompt}
                 disabled={isSaving || !activeTemplateId}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
               >
                 <RotateCcw className="w-4 h-4" />
                 Reset
@@ -467,7 +471,7 @@ export default function SettingsPage() {
                   'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
                   hasPromptChanges
                     ? 'bg-brand-600 text-white hover:bg-brand-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                 )}
               >
                 <Save className="w-4 h-4" />
@@ -484,7 +488,7 @@ export default function SettingsPage() {
           <div
             className={cn(
               'flex items-center gap-3 p-4 rounded-lg',
-              message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+              message.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
             )}
           >
             {message.type === 'success' ? <Check className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
@@ -498,8 +502,8 @@ export default function SettingsPage() {
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">Target Site</h2>
-              <p className="text-sm text-gray-500">Select which WordPress site to connect to</p>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Target Site</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Select which WordPress site to connect to</p>
             </div>
 
             <div className="grid gap-4">
@@ -511,19 +515,39 @@ export default function SettingsPage() {
                   className={cn(
                     'w-full text-left p-4 rounded-lg border-2 transition-all',
                     activeTarget?.id === target.id
-                      ? 'bg-brand-50 border-brand-500'
-                      : 'bg-white border-gray-200 hover:border-gray-300'
+                      ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-500'
+                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                   )}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         'w-3 h-3 rounded-full',
-                        activeTarget?.id === target.id ? 'bg-brand-500' : 'bg-gray-300'
+                        activeTarget?.id === target.id ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-600'
                       )} />
                       <div>
-                        <h3 className="font-medium text-gray-900">{target.name}</h3>
-                        <p className="text-sm text-gray-500">{target.url}</p>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium text-gray-900 dark:text-white">{target.name}</h3>
+                          <span className={cn(
+                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                            target.environment === 'production'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                              : target.environment === 'staging'
+                                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
+                                : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                          )}>
+                            <span className={cn(
+                              'w-1.5 h-1.5 rounded-full',
+                              target.environment === 'production' ? 'bg-red-500'
+                                : target.environment === 'staging' ? 'bg-yellow-500'
+                                : 'bg-green-500'
+                            )} />
+                            {target.environment === 'production' ? 'Production'
+                              : target.environment === 'staging' ? 'Staging'
+                              : 'Development'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{target.url}</p>
                       </div>
                     </div>
                     {activeTarget?.id === target.id && (
@@ -532,25 +556,25 @@ export default function SettingsPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-500 mt-2 ml-6">{target.description}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 ml-6">{target.description}</p>
                 </button>
               ))}
             </div>
 
             {targetSwitching && (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Switching target...
               </div>
             )}
 
             {/* Credentials Section */}
-            <div className="mt-8 pt-8 border-t border-gray-200">
+            <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
               <div className="mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
                   WordPress Credentials{activeTarget ? ` — ${activeTarget.name}` : ''}
                 </h2>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   Enter your WordPress username and application password for {activeTarget?.name || 'the active site'}.
                   {hasCredentials && (
                     <span className="ml-2 text-green-600 font-medium">✓ Credentials saved</span>
@@ -563,7 +587,7 @@ export default function SettingsPage() {
 
               <div className="space-y-4 max-w-md">
                 <div>
-                  <label htmlFor="wp-username" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="wp-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     WordPress Username
                   </label>
                   <input
@@ -572,12 +596,12 @@ export default function SettingsPage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="admin"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="wp-password" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="wp-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Application Password
                   </label>
                   <input
@@ -586,9 +610,9 @@ export default function SettingsPage() {
                     value={appPassword}
                     onChange={(e) => setAppPassword(e.target.value)}
                     placeholder={hasCredentials ? '••••••••••••••••' : 'xxxx xxxx xxxx xxxx xxxx xxxx'}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Generate an application password in WordPress: Users → Profile → Application Passwords
                   </p>
                 </div>
@@ -617,8 +641,8 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-700">
+            <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
                 <strong>Note:</strong> Credentials are saved per site. After switching targets, you should re-sync your data to load resources from the new site.
                 {activeTarget && !hasCredentials && (
                   <span className="block mt-1 font-medium text-amber-700">
@@ -636,8 +660,8 @@ export default function SettingsPage() {
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="space-y-6">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">Plugins</h2>
-              <p className="text-sm text-gray-500">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Plugins</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 Manage Juggernaut plugins to extend functionality for different WordPress plugins
               </p>
             </div>
@@ -645,20 +669,20 @@ export default function SettingsPage() {
             {/* Stats Cards */}
             {pluginStats && (
               <div className="grid grid-cols-4 gap-4">
-                <div className="bg-white rounded-lg border border-gray-200 p-4">
-                  <p className="text-sm text-gray-500">Total Plugins</p>
-                  <p className="text-2xl font-semibold text-gray-900">{pluginStats.total}</p>
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Total Plugins</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">{pluginStats.total}</p>
                 </div>
-                <div className="bg-white rounded-lg border border-gray-200 p-4">
-                  <p className="text-sm text-gray-500">Enabled</p>
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Enabled</p>
                   <p className="text-2xl font-semibold text-green-600">{pluginStats.enabled}</p>
                 </div>
-                <div className="bg-white rounded-lg border border-gray-200 p-4">
-                  <p className="text-sm text-gray-500">Bundled</p>
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Bundled</p>
                   <p className="text-2xl font-semibold text-brand-600">{pluginStats.bundled}</p>
                 </div>
-                <div className="bg-white rounded-lg border border-gray-200 p-4">
-                  <p className="text-sm text-gray-500">Community</p>
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Community</p>
                   <p className="text-2xl font-semibold text-purple-600">{pluginStats.community}</p>
                 </div>
               </div>
@@ -668,12 +692,12 @@ export default function SettingsPage() {
             {pluginsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                <span className="ml-2 text-gray-500">Loading plugins...</span>
+                <span className="ml-2 text-gray-500 dark:text-gray-400">Loading plugins...</span>
               </div>
             ) : plugins.length === 0 ? (
-              <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
                 <Puzzle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">No plugins available</p>
+                <p className="text-gray-500 dark:text-gray-400">No plugins available</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -681,15 +705,15 @@ export default function SettingsPage() {
                   <div
                     key={plugin.id}
                     className={cn(
-                      'bg-white rounded-lg border-2 p-5 transition-all',
-                      plugin.enabled ? 'border-brand-200 bg-brand-50/30' : 'border-gray-200'
+                      'bg-white dark:bg-gray-800 rounded-lg border-2 p-5 transition-all',
+                      plugin.enabled ? 'border-brand-200 dark:border-brand-800 bg-brand-50/30 dark:bg-brand-900/10' : 'border-gray-200 dark:border-gray-700'
                     )}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
-                          <h3 className="text-lg font-semibold text-gray-900">{plugin.name}</h3>
-                          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plugin.name}</h3>
+                          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
                             v{plugin.version}
                           </span>
                           <span className={cn(
@@ -703,11 +727,11 @@ export default function SettingsPage() {
                             {plugin.tier}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">{plugin.description}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{plugin.description}</p>
 
                         {/* WordPress Plugin Info */}
                         {plugin.wordpress_plugin && (
-                          <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+                          <div className="mt-3 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                             <Globe className="w-4 h-4" />
                             <span>Supports: </span>
                             {plugin.wordpress_plugin.url ? (
@@ -729,12 +753,12 @@ export default function SettingsPage() {
                         {plugin.provides && (
                           <div className="mt-3 flex flex-wrap gap-2">
                             {plugin.provides.tabs?.map((tab) => (
-                              <span key={tab} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                              <span key={tab} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded">
                                 Tab: {tab}
                               </span>
                             ))}
                             {plugin.provides.api_extensions?.map((ext) => (
-                              <span key={ext} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded">
+                              <span key={ext} className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-1 rounded">
                                 API: {ext}
                               </span>
                             ))}
@@ -771,8 +795,8 @@ export default function SettingsPage() {
             )}
 
             {/* Info Box */}
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-700">
+            <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
                 <strong>Note:</strong> Bundled plugins ship with Juggernaut and provide support for popular WordPress plugins like Meta Box and SEOPress.
                 Enable the plugins that match the WordPress plugins installed on your site.
               </p>
@@ -787,7 +811,7 @@ export default function SettingsPage() {
           <div className="grid grid-cols-4 gap-6 flex-1 min-h-0">
             {/* Sidebar */}
             <div className="col-span-1 space-y-2 overflow-y-auto">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Templates</p>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Templates</p>
               {templates.map((template) => (
                 <button
                   key={template.id}
@@ -795,30 +819,30 @@ export default function SettingsPage() {
                   className={cn(
                     'w-full text-left px-4 py-3 rounded-lg border transition-colors',
                     activeTemplateId === template.id
-                      ? 'bg-brand-50 border-brand-300 text-brand-900'
-                      : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                      ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-700 text-brand-900 dark:text-brand-300'
+                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                   )}
                 >
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4" />
                     <span className="font-medium">{template.name}</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">{template.description}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{template.description}</p>
                 </button>
               ))}
 
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Placeholders</p>
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Placeholders</p>
                 <div className="space-y-1">
                   {placeholders.map((p) => (
                     <button
                       key={p.tag}
                       onClick={() => copyPlaceholder(p.tag)}
-                      className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 group"
+                      className="w-full text-left px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 group"
                       title={`Click to copy: ${p.tag}`}
                     >
                       <code className="text-xs font-mono text-brand-600 group-hover:text-brand-800">{p.tag}</code>
-                      <p className="text-xs text-gray-500 truncate">{p.description}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{p.description}</p>
                     </button>
                   ))}
                 </div>
@@ -828,15 +852,15 @@ export default function SettingsPage() {
             {/* Editor */}
             <div className="col-span-3 flex flex-col min-h-0">
               {activeTemplate && (
-                <div className="bg-white rounded-lg border border-gray-200 flex flex-col flex-1 min-h-0">
-                  <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex flex-col flex-1 min-h-0">
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
                     <div>
-                      <h2 className="text-lg font-semibold text-gray-900">{activeTemplate.name}</h2>
-                      <p className="text-sm text-gray-500">{activeTemplate.description}</p>
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{activeTemplate.name}</h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{activeTemplate.description}</p>
                     </div>
                     <button
                       onClick={openVersionHistory}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                     >
                       <History className="w-4 h-4" />
                       History
@@ -847,7 +871,7 @@ export default function SettingsPage() {
                     <textarea
                       value={editedContent[activeTemplateId!] || ''}
                       onChange={(e) => setEditedContent(prev => ({ ...prev, [activeTemplateId!]: e.target.value }))}
-                      className="w-full flex-1 px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 resize-none"
+                      className="w-full flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 resize-none"
                       placeholder="Enter your prompt template..."
                     />
 
@@ -871,7 +895,7 @@ export default function SettingsPage() {
           <div className="mb-4">
             <button
               onClick={() => setPromptsView('edit')}
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+              className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Editor
@@ -880,7 +904,7 @@ export default function SettingsPage() {
 
           <div className="grid grid-cols-4 gap-6 flex-1 min-h-0">
             <div className="col-span-1 overflow-y-auto">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Versions</p>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Versions</p>
               <div className="space-y-1">
                 {versions.map((v) => (
                   <button
@@ -889,17 +913,17 @@ export default function SettingsPage() {
                     className={cn(
                       'w-full text-left px-4 py-3 rounded-lg border transition-colors',
                       v.filename === 'template.md'
-                        ? 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                        ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                         : selectedVersion === v.filename
-                          ? 'bg-amber-50 border-amber-300 text-amber-900'
-                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                          ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-300'
+                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                     )}
                   >
                     <span className="font-medium">
                       {v.filename === 'template.md' ? 'Current Version' : v.displayDate}
                     </span>
                     {v.filename === 'template.md' && (
-                      <p className="text-xs text-gray-500 mt-0.5">Click to return to editor</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Click to return to editor</p>
                     )}
                   </button>
                 ))}
@@ -911,11 +935,11 @@ export default function SettingsPage() {
 
             <div className="col-span-3 flex flex-col min-h-0">
               {selectedVersion && versionContent !== null ? (
-                <div className="bg-white rounded-lg border border-gray-200 flex flex-col flex-1 min-h-0">
-                  <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex flex-col flex-1 min-h-0">
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
                     <div>
-                      <h2 className="text-lg font-semibold text-gray-900">Previous Version</h2>
-                      <p className="text-sm text-gray-500">
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Previous Version</h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {versions.find(v => v.filename === selectedVersion)?.displayDate}
                       </p>
                     </div>
@@ -929,15 +953,15 @@ export default function SettingsPage() {
                     </button>
                   </div>
                   <div className="p-6 flex-1 min-h-0 overflow-y-auto">
-                    <pre className="font-mono text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <pre className="font-mono text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
                       {versionContent}
                     </pre>
                   </div>
                 </div>
               ) : (
-                <div className="bg-white rounded-lg border border-gray-200 p-12 text-center flex-1 flex flex-col items-center justify-center">
-                  <History className="w-12 h-12 text-gray-300 mb-4" />
-                  <p className="text-gray-500">Select a version to preview</p>
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center flex-1 flex flex-col items-center justify-center">
+                  <History className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400">Select a version to preview</p>
                 </div>
               )}
             </div>
@@ -951,8 +975,8 @@ export default function SettingsPage() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Connection Diagnostics</h2>
-                <p className="text-sm text-gray-500">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Connection Diagnostics</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   Test the connection to {activeTarget?.name || 'WordPress'}
                 </p>
               </div>
@@ -971,25 +995,25 @@ export default function SettingsPage() {
             </div>
 
             {/* Current Target Info */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Current Target</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Target</h3>
               <div className="flex items-center gap-3">
                 <Globe className="w-5 h-5 text-gray-400" />
                 <div>
-                  <p className="font-medium text-gray-900">{activeTarget?.name}</p>
-                  <p className="text-sm text-gray-500">{activeTarget?.url}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{activeTarget?.name}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{activeTarget?.url}</p>
                 </div>
               </div>
             </div>
 
             {/* Diagnostic Results */}
             {diagnostics && (
-              <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
-                <h3 className="text-sm font-medium text-gray-700">Test Results</h3>
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-4">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Test Results</h3>
 
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">API Reachable</span>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">API Reachable</span>
                     <span className={cn(
                       'text-sm font-medium',
                       diagnostics.apiReachable ? 'text-green-600' : 'text-red-600'
@@ -998,8 +1022,8 @@ export default function SettingsPage() {
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">Authentication Valid</span>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Authentication Valid</span>
                     <span className={cn(
                       'text-sm font-medium',
                       diagnostics.authValid ? 'text-green-600' : 'text-red-600'
@@ -1009,16 +1033,16 @@ export default function SettingsPage() {
                   </div>
 
                   {diagnostics.resourceCount !== undefined && (
-                    <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                      <span className="text-sm text-gray-600">Resources Found</span>
-                      <span className="text-sm font-medium text-gray-900">
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Resources Found</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
                         {diagnostics.resourceCount}
                       </span>
                     </div>
                   )}
 
                   <div className="flex items-center justify-between py-2">
-                    <span className="text-sm text-gray-600">Overall Status</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Overall Status</span>
                     <span className={cn(
                       'text-sm font-medium px-2 py-1 rounded',
                       diagnostics.success
@@ -1031,24 +1055,24 @@ export default function SettingsPage() {
                 </div>
 
                 {diagnostics.error && (
-                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-700">{diagnostics.error}</p>
+                  <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-sm text-red-700 dark:text-red-300">{diagnostics.error}</p>
                   </div>
                 )}
               </div>
             )}
 
             {!diagnostics && !diagLoading && (
-              <div className="bg-gray-50 rounded-lg border border-gray-200 p-8 text-center">
-                <Activity className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Click &quot;Run Test&quot; to check the connection</p>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+                <Activity className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-500 dark:text-gray-400">Click &quot;Run Test&quot; to check the connection</p>
               </div>
             )}
 
             {/* Field Audit Link */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Field Mapping Audit</h3>
-              <p className="text-sm text-gray-500 mb-3">
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Field Mapping Audit</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Compare local field mappings against WordPress meta_box fields to identify mismatches.
               </p>
               <Link

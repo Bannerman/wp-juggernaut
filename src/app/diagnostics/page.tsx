@@ -74,24 +74,24 @@ export default function DiagnosticsPage() {
   return (
     <div className="min-h-screen">
       {/* Header - electron-drag allows window to be moved by dragging header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 electron-drag">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 electron-drag">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
           <div className="flex items-center h-16 gap-4 electron-no-drag">
             <Link
               href="/"
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               Back
             </Link>
-            <h1 className="text-xl font-bold text-gray-900">Field Diagnostics</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Field Diagnostics</h1>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-50 text-red-700 border border-red-200">
+          <div className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
             {error}
           </div>
         )}
@@ -100,8 +100,8 @@ export default function DiagnosticsPage() {
           /* Empty state */
           <div className="text-center py-16">
             <AlertTriangle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No audit data available</h3>
-            <p className="text-gray-500 mb-4">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No audit data available</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
               Run a <strong>Full Sync</strong> from the dashboard to generate field diagnostics.
             </p>
             <Link
@@ -115,7 +115,7 @@ export default function DiagnosticsPage() {
         ) : (
           <>
             {/* Audit timestamp */}
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Last audit: {new Date(audit.audit_run_at).toLocaleString()}
             </p>
 
@@ -156,13 +156,13 @@ export default function DiagnosticsPage() {
                   placeholder="Search field names..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               >
                 <option value="">All Statuses</option>
                 <option value="ok">OK</option>
@@ -172,21 +172,21 @@ export default function DiagnosticsPage() {
             </div>
 
             {/* Results table */}
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Field Name</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Source</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Category</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Detail</th>
+                  <tr className="bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700">
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Field Name</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Source</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Category</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Status</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">Detail</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {filteredEntries.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                         No fields match your filters
                       </td>
                     </tr>
@@ -195,21 +195,21 @@ export default function DiagnosticsPage() {
                       const config = STATUS_CONFIG[entry.status] || STATUS_CONFIG.ok;
                       const Icon = config.icon;
                       return (
-                        <tr key={entry.field_name} className="hover:bg-gray-50">
+                        <tr key={entry.field_name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                           <td className="px-4 py-3">
-                            <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded font-mono">
+                            <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded font-mono">
                               {entry.field_name}
                             </code>
                           </td>
-                          <td className="px-4 py-3 text-gray-600">{entry.source}</td>
-                          <td className="px-4 py-3 text-gray-600">{entry.category}</td>
+                          <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{entry.source}</td>
+                          <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{entry.category}</td>
                           <td className="px-4 py-3">
                             <span className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium', config.bg, config.color)}>
                               <Icon className="w-3 h-3" />
                               {config.label}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-gray-500 text-xs max-w-xs truncate">
+                          <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs max-w-xs truncate">
                             {entry.detail}
                           </td>
                         </tr>

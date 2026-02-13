@@ -8,11 +8,21 @@ const DEFAULT_CONFIG_DIR = path.join(os.homedir(), '.juggernaut');
 const CONFIG_DIR = process.env.JUGGERNAUT_CONFIG_DIR || DEFAULT_CONFIG_DIR;
 const CONFIG_PATH = path.join(CONFIG_DIR, 'site-config.json');
 
+export type EnvironmentType = 'production' | 'staging' | 'development';
+
 export interface SiteTarget {
   id: string;
   name: string;
   url: string;
   description: string;
+  environment: EnvironmentType;
+}
+
+function deriveEnvironment(siteId: string): EnvironmentType {
+  const id = siteId.toLowerCase();
+  if (id.includes('prod')) return 'production';
+  if (id.includes('stag')) return 'staging';
+  return 'development';
 }
 
 /**
@@ -25,6 +35,7 @@ export function getSiteTargets(): SiteTarget[] {
     name: site.name,
     url: site.url,
     description: site.description || '',
+    environment: site.environment || deriveEnvironment(site.id),
   }));
 }
 

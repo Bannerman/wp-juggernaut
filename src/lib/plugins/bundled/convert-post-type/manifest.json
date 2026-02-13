@@ -1,0 +1,32 @@
+{
+  "id": "convert-post-type",
+  "name": "Convert Post Type",
+  "version": "1.0.0",
+  "description": "Convert posts between post types with field mapping support. Includes a visual field mapping editor, conversion preview with data values, and optional SEOPress redirect creation.",
+  "author": {
+    "name": "Juggernaut",
+    "url": "https://github.com/Bannerman/wp-juggernaut"
+  },
+  "license": "MIT",
+  "requires_core": ">=1.0.0",
+  "tier": "bundled",
+  "provides": {
+    "tabs": [],
+    "field_types": [],
+    "api_extensions": ["convert-post-type", "field-mappings"]
+  },
+  "settings_schema": {
+    "default_create_redirect": {
+      "type": "boolean",
+      "label": "Default: Create 301 redirect",
+      "description": "Whether the redirect checkbox is checked by default when converting",
+      "default": true
+    },
+    "default_trash_old_post": {
+      "type": "boolean",
+      "label": "Default: Trash old post",
+      "description": "Whether the trash checkbox is checked by default when converting",
+      "default": true
+    }
+  }
+}

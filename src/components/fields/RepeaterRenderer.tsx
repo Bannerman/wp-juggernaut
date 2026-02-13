@@ -12,7 +12,7 @@ const subFieldWidthClasses: Record<string, string> = {
   quarter: 'w-[calc(25%-0.5625rem)]',
 };
 
-export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: FieldRendererProps) {
+export function RepeaterRenderer({ field, value, onChange, terms, depth = 0, resourceTitle }: FieldRendererProps) {
   const items = Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
   const subFields = field.fields ? Object.values(field.fields) : [];
 
@@ -26,7 +26,12 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
       } else if (sf.type === 'textarea-list') {
         empty[sf.key] = [];
       } else {
-        empty[sf.key] = sf.default_value ?? '';
+        let defaultVal = sf.default_value ?? '';
+        // Resolve {{title}} template in default values
+        if (typeof defaultVal === 'string' && resourceTitle) {
+          defaultVal = defaultVal.replace(/\{\{title\}\}/g, resourceTitle);
+        }
+        empty[sf.key] = defaultVal;
       }
     }
     onChange([...items, empty]);
@@ -73,7 +78,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
   return (
     <div className={isSimple ? 'space-y-2' : 'space-y-3'}>
       <div className="flex items-center justify-between">
-        <label className={isNested ? 'text-xs font-medium text-gray-600 uppercase' : 'text-sm font-medium text-gray-700'}>
+        <label className={isNested ? 'text-xs font-medium text-gray-600 dark:text-gray-400 uppercase' : 'text-sm font-medium text-gray-700 dark:text-gray-300'}>
           {field.label}
         </label>
         <button
@@ -87,7 +92,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
       </div>
 
       {items.length === 0 ? (
-        <p className={`${isNested ? 'text-xs' : 'text-sm'} text-gray-500 italic`}>
+        <p className={`${isNested ? 'text-xs' : 'text-sm'} text-gray-500 dark:text-gray-400 italic`}>
           No {field.label.toLowerCase()} added yet.
         </p>
       ) : isSimple ? (
@@ -102,11 +107,12 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
                 onChange={(val) => updateItem(index, subFields[0].key, val)}
                 terms={terms}
                 depth={depth + 1}
+                resourceTitle={resourceTitle}
               />
               <button
                 type="button"
                 onClick={() => removeItem(index)}
-                className="p-2 text-red-500 hover:bg-red-50 rounded flex-shrink-0"
+                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded flex-shrink-0"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -128,13 +134,13 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
             return (
               <div
                 key={index}
-                className={`relative border border-gray-200 rounded-lg ${isNested ? 'p-3' : 'p-4'} bg-gray-50`}
+                className={`relative border border-gray-200 dark:border-gray-700 rounded-lg ${isNested ? 'p-3' : 'p-4'} bg-gray-50 dark:bg-gray-800/50`}
               >
                 {/* Delete button — top right */}
                 <button
                   type="button"
                   onClick={() => removeItem(index)}
-                  className={`absolute ${isNested ? 'top-2 right-2 p-1' : 'top-3 right-3 p-2'} text-red-500 hover:bg-red-50 rounded`}
+                  className={`absolute ${isNested ? 'top-2 right-2 p-1' : 'top-3 right-3 p-2'} text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded`}
                 >
                   <Trash2 className={isNested ? 'w-3 h-3' : 'w-4 h-4'} />
                 </button>
@@ -142,7 +148,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
                 {/* Header field inline, if any */}
                 {headerField && (
                   <div className="mb-3 pr-10">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                       {headerField.label}
                     </label>
                     <FieldRenderer
@@ -151,6 +157,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
                       onChange={(val) => updateItem(index, headerField.key, val)}
                       terms={terms}
                       depth={depth + 1}
+                      resourceTitle={resourceTitle}
                     />
                   </div>
                 )}
@@ -167,6 +174,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0 }: F
                         updateItem={updateItem}
                         terms={terms}
                         depth={depth}
+                        resourceTitle={resourceTitle}
                       />
                     ))}
                   </div>
@@ -187,6 +195,7 @@ function SubFieldWrapper({
   updateItem,
   terms,
   depth,
+  resourceTitle,
 }: {
   subField: FieldDefinition;
   item: Record<string, unknown>;
@@ -194,6 +203,7 @@ function SubFieldWrapper({
   updateItem: (index: number, key: string, value: unknown) => void;
   terms?: Record<string, Array<{ id: number; name: string }>>;
   depth: number;
+  resourceTitle?: string;
 }) {
   // Evaluate conditional visibility within the repeater item
   if (subField.conditional) {
@@ -227,7 +237,7 @@ function SubFieldWrapper({
   return (
     <div className={cn(subFieldWidthClasses[width] ?? 'w-full')}>
       {showLabel && (
-        <label className="block text-xs font-medium text-gray-600 mb-1">
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
           {subField.label}
         </label>
       )}
@@ -237,6 +247,7 @@ function SubFieldWrapper({
         onChange={(val) => updateItem(index, subField.key, val)}
         terms={terms}
         depth={depth + 1}
+        resourceTitle={resourceTitle}
       />
     </div>
   );

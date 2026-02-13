@@ -48,6 +48,40 @@ interface TabLayoutEditorProps {
 // Tabs with hardcoded rendering — shown with lock icon, non-editable in the layout editor
 const HARDCODED_TAB_IDS = new Set(['basic', 'seo', 'classification', 'ai']);
 
+// Read-only field summaries for core/hardcoded tabs so users can see what's in them
+const CORE_TAB_FIELDS: Record<string, Array<{ label: string; type: string; note?: string }>> = {
+  basic: [
+    { label: 'Title', type: 'text' },
+    { label: 'URL Slug', type: 'text' },
+    { label: 'Featured Image', type: 'url + upload', note: 'Image preview with upload support' },
+  ],
+  seo: [
+    { label: 'SEO Title', type: 'text', note: '60 character limit' },
+    { label: 'Meta Description', type: 'textarea', note: '160 character limit' },
+    { label: 'Target Keywords', type: 'text', note: 'Comma-separated' },
+    { label: 'Canonical URL', type: 'url' },
+    { label: 'OG Title', type: 'text', note: 'Facebook / Open Graph' },
+    { label: 'OG Description', type: 'text' },
+    { label: 'OG Image URL', type: 'url' },
+    { label: 'Twitter Title', type: 'text', note: 'Twitter / X' },
+    { label: 'Twitter Description', type: 'text' },
+    { label: 'Twitter Image URL', type: 'url' },
+    { label: 'No Index', type: 'checkbox', note: 'Robots' },
+    { label: 'No Follow', type: 'checkbox' },
+    { label: 'No Snippet', type: 'checkbox' },
+    { label: 'No Image Index', type: 'checkbox' },
+  ],
+  classification: [
+    { label: 'Taxonomies', type: 'multi-select', note: 'All configured taxonomies with filter support' },
+  ],
+  ai: [
+    { label: 'Copy AI Fill Prompt', type: 'action', note: 'Generates prompt for all content fields' },
+    { label: 'Copy Image Prompt', type: 'action', note: 'Generates prompt for featured image ideas' },
+    { label: 'Paste AI Response', type: 'textarea', note: 'Paste and parse AI-generated content' },
+    { label: 'Apply to Fields', type: 'action', note: 'Auto-fills title, content, SEO, taxonomies, etc.' },
+  ],
+};
+
 const FIELD_TYPE_OPTIONS: FieldDefinition['type'][] = [
   'text', 'textarea', 'number', 'checkbox', 'date', 'datetime',
   'color', 'select', 'url', 'repeater', 'textarea-list',
@@ -233,7 +267,7 @@ export function TabLayoutEditor({
     <div className="flex gap-6 min-h-[500px]">
       {/* Left Panel — Tab list */}
       <div className="w-64 flex-shrink-0">
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Tabs</p>
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Tabs</p>
         <div className="space-y-1">
           {sortedTabs.map((tab, idx) => {
             const isCore = HARDCODED_TAB_IDS.has(tab.id);
@@ -246,8 +280,8 @@ export function TabLayoutEditor({
                 className={cn(
                   'group flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors',
                   isSelected
-                    ? 'bg-brand-50 border-brand-300 text-brand-900'
-                    : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                    ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-700 text-brand-900 dark:text-brand-300'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                 )}
                 onClick={() => setSelectedTabId(tab.id)}
               >
@@ -278,7 +312,7 @@ export function TabLayoutEditor({
                         setRenamingTabId(tab.id);
                         setRenameValue(tab.label);
                       }}
-                      className="p-0.5 rounded hover:bg-brand-100"
+                      className="p-0.5 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30"
                       title="Rename"
                     >
                       <Pencil className="w-3 h-3" />
@@ -286,7 +320,7 @@ export function TabLayoutEditor({
                     <button
                       onClick={(e) => { e.stopPropagation(); handleMoveTab(tab.id, 'up'); }}
                       disabled={idx === 0}
-                      className="p-0.5 rounded hover:bg-brand-100 disabled:opacity-30"
+                      className="p-0.5 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30 disabled:opacity-30"
                       title="Move up"
                     >
                       <ChevronUp className="w-3 h-3" />
@@ -294,14 +328,14 @@ export function TabLayoutEditor({
                     <button
                       onClick={(e) => { e.stopPropagation(); handleMoveTab(tab.id, 'down'); }}
                       disabled={idx === sortedTabs.length - 1}
-                      className="p-0.5 rounded hover:bg-brand-100 disabled:opacity-30"
+                      className="p-0.5 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30 disabled:opacity-30"
                       title="Move down"
                     >
                       <ChevronDown className="w-3 h-3" />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteTab(tab.id); }}
-                      className="p-0.5 rounded hover:bg-red-100 text-gray-400 hover:text-red-600"
+                      className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600"
                       title="Delete tab"
                     >
                       <X className="w-3 h-3" />
@@ -325,7 +359,7 @@ export function TabLayoutEditor({
                 if (e.key === 'Escape') { setAddingTab(false); setNewTabName(''); }
               }}
               placeholder="Tab name..."
-              className="flex-1 text-sm px-2 py-1.5 rounded border border-gray-300 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none"
+              className="flex-1 text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none"
             />
             <button
               onClick={handleAddTab}
@@ -338,7 +372,7 @@ export function TabLayoutEditor({
         ) : (
           <button
             onClick={() => setAddingTab(true)}
-            className="mt-3 flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-500 hover:text-brand-600 hover:bg-gray-50 rounded-lg border border-dashed border-gray-300 hover:border-brand-300 transition-colors"
+            className="mt-3 flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-600 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 hover:border-brand-300 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add Tab
@@ -353,20 +387,42 @@ export function TabLayoutEditor({
             Select a tab to configure its fields
           </div>
         ) : isCoreTabs ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <Lock className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">
-                {selectedTabId === 'seo'
-                  ? 'This tab is provided by the SEOPress plugin and cannot be edited here.'
-                  : 'This is a core tab and cannot be edited here.'}
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Fields — {tabs.find((t) => t.id === selectedTabId)?.label}
               </p>
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-xs text-gray-500 dark:text-gray-400">
+                <Lock className="w-3 h-3" />
+                {selectedTabId === 'seo' ? 'SEOPress plugin' : 'Core tab'}
+              </span>
             </div>
+            <div className="space-y-2 opacity-50 pointer-events-none select-none">
+              {(CORE_TAB_FIELDS[selectedTabId] ?? []).map((field, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                >
+                  <span className="flex-1 text-sm text-gray-600 dark:text-gray-400">{field.label}</span>
+                  <span className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                    {field.type}
+                  </span>
+                  {field.note && (
+                    <span className="text-xs text-gray-400 max-w-[180px] truncate">{field.note}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-gray-400 text-center">
+              {selectedTabId === 'seo'
+                ? 'This tab is provided by the SEOPress plugin and cannot be edited here.'
+                : 'This is a core tab and cannot be edited in Tab Layout.'}
+            </p>
           </div>
         ) : (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Fields — {tabs.find((t) => t.id === selectedTabId)?.label}
               </p>
               <div className="relative">
@@ -379,8 +435,8 @@ export function TabLayoutEditor({
                 </button>
 
                 {showFieldSearch && (
-                  <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-64 overflow-hidden flex flex-col">
-                    <div className="p-2 border-b border-gray-100">
+                  <div className="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 max-h-64 overflow-hidden flex flex-col">
+                    <div className="p-2 border-b border-gray-100 dark:border-gray-700">
                       <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                         <input
@@ -388,7 +444,7 @@ export function TabLayoutEditor({
                           value={fieldSearchQuery}
                           onChange={(e) => setFieldSearchQuery(e.target.value)}
                           placeholder="Search fields..."
-                          className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded focus:border-brand-400 outline-none"
+                          className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:border-brand-400 outline-none"
                         />
                       </div>
                     </div>
@@ -400,7 +456,7 @@ export function TabLayoutEditor({
                           <button
                             key={field.key}
                             onClick={() => handleAddField(field)}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between"
                           >
                             <span className="truncate">{field.label}</span>
                             <code className="text-xs text-gray-400 font-mono flex-shrink-0 ml-2">
@@ -416,7 +472,7 @@ export function TabLayoutEditor({
             </div>
 
             {selectedFields.length === 0 ? (
-              <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
+              <div className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center">
                 <p className="text-sm text-gray-400">No fields yet. Click &quot;Add Field&quot; to get started.</p>
               </div>
             ) : (
@@ -424,21 +480,21 @@ export function TabLayoutEditor({
                 {selectedFields.map((field, idx) => (
                   <div
                     key={field.key}
-                    className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg group"
+                    className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg group"
                   >
                     {/* Reorder buttons */}
                     <div className="flex flex-col gap-0.5">
                       <button
                         onClick={() => handleMoveField(idx, 'up')}
                         disabled={idx === 0}
-                        className="p-0.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                        className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30"
                       >
                         <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
                       </button>
                       <button
                         onClick={() => handleMoveField(idx, 'down')}
                         disabled={idx === selectedFields.length - 1}
-                        className="p-0.5 rounded hover:bg-gray-100 disabled:opacity-30"
+                        className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30"
                       >
                         <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
                       </button>
@@ -448,14 +504,14 @@ export function TabLayoutEditor({
                     <input
                       value={field.label}
                       onChange={(e) => handleUpdateField(idx, { label: e.target.value })}
-                      className="flex-1 text-sm px-2 py-1 rounded border border-transparent hover:border-gray-200 focus:border-brand-400 outline-none"
+                      className="flex-1 text-sm px-2 py-1 rounded border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-brand-400 outline-none bg-transparent text-gray-900 dark:text-gray-100"
                     />
 
                     {/* Type dropdown */}
                     <select
                       value={field.type}
                       onChange={(e) => handleUpdateField(idx, { type: e.target.value as FieldDefinition['type'] })}
-                      className="text-xs px-2 py-1 rounded border border-gray-200 bg-gray-50 text-gray-600"
+                      className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
                     >
                       {FIELD_TYPE_OPTIONS.map((t) => (
                         <option key={t} value={t}>{t}</option>
@@ -466,7 +522,7 @@ export function TabLayoutEditor({
                     <select
                       value={field.width ?? 'full'}
                       onChange={(e) => handleUpdateField(idx, { width: e.target.value as FieldDefinition['width'] })}
-                      className="text-xs px-2 py-1 rounded border border-gray-200 bg-gray-50 text-gray-600"
+                      className="text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
                     >
                       {WIDTH_OPTIONS.map((w) => (
                         <option key={w.value} value={w.value}>{w.label}</option>
@@ -474,14 +530,14 @@ export function TabLayoutEditor({
                     </select>
 
                     {/* Key badge */}
-                    <code className="text-xs text-gray-400 font-mono bg-gray-50 px-1.5 py-0.5 rounded max-w-[120px] truncate">
+                    <code className="text-xs text-gray-400 font-mono bg-gray-50 dark:bg-gray-700 px-1.5 py-0.5 rounded max-w-[120px] truncate">
                       {field.key}
                     </code>
 
                     {/* Remove */}
                     <button
                       onClick={() => handleRemoveField(idx)}
-                      className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Remove field"
                     >
                       <X className="w-3.5 h-3.5" />

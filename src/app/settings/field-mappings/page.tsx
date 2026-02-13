@@ -36,7 +36,7 @@ export default function FieldMappingsPage(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [previewEnabled, setPreviewEnabled] = useState(false);
-  const [showFieldKeys, setShowFieldKeys] = useState(false);
+  const [showFieldKeys, setShowFieldKeys] = useState(true);
   const [sourcePosts, setSourcePosts] = useState<{ id: number; title: string }[]>([]);
   const [targetPosts, setTargetPosts] = useState<{ id: number; title: string }[]>([]);
   const [selectedSourcePost, setSelectedSourcePost] = useState<number | null>(null);
@@ -206,7 +206,7 @@ export default function FieldMappingsPage(): React.ReactElement {
   const targetPostType = postTypes.find((pt) => pt.slug === targetType);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <SettingsNav
         activeTab="field-mappings"
         actions={
@@ -217,7 +217,7 @@ export default function FieldMappingsPage(): React.ReactElement {
               'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
               hasChanges
                 ? 'bg-brand-600 text-white hover:bg-brand-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
             )}
           >
             <Save className="w-4 h-4" />
@@ -230,13 +230,13 @@ export default function FieldMappingsPage(): React.ReactElement {
       {(error || success) && (
         <div className="fixed top-4 right-4 z-50 max-w-sm">
           {error && (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 text-red-700 shadow-lg border border-red-200">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 shadow-lg border border-red-200 dark:border-red-800">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
             </div>
           )}
           {success && (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 text-green-700 shadow-lg border border-green-200">
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 shadow-lg border border-green-200 dark:border-green-800">
               <CheckCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{success}</span>
             </div>
@@ -246,16 +246,16 @@ export default function FieldMappingsPage(): React.ReactElement {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Description */}
-        <p className="text-sm text-gray-500 mb-6">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
           Map fields between post types for conversion. When you convert a post from one
           type to another, these mappings determine which fields carry over and where
           they land in the target post type.
         </p>
 
-        {/* Post type selectors */}
-        <div className="flex items-center gap-4 mb-8">
+        {/* Post type selectors + preview post selectors */}
+        <div className="flex items-start gap-4 mb-8">
           <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
               Source post type
             </label>
             <select
@@ -267,7 +267,7 @@ export default function FieldMappingsPage(): React.ReactElement {
                 }
                 setSourceType(newSource);
               }}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             >
               {postTypes.map((pt) => (
                 <option key={pt.slug} value={pt.slug}>
@@ -275,6 +275,25 @@ export default function FieldMappingsPage(): React.ReactElement {
                 </option>
               ))}
             </select>
+            {previewEnabled && sourceType && targetType && sourceType !== targetType && (
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider">
+                  Preview source post
+                </label>
+                <select
+                  value={selectedSourcePost ?? ''}
+                  onChange={(e) => setSelectedSourcePost(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">Select a post...</option>
+                  {sourcePosts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} (#{p.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <button
@@ -289,7 +308,7 @@ export default function FieldMappingsPage(): React.ReactElement {
           </button>
 
           <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
               Target post type
             </label>
             <select
@@ -301,7 +320,7 @@ export default function FieldMappingsPage(): React.ReactElement {
                 }
                 setTargetType(newTarget);
               }}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             >
               {postTypes.map((pt) => (
                 <option key={pt.slug} value={pt.slug}>
@@ -309,77 +328,27 @@ export default function FieldMappingsPage(): React.ReactElement {
                 </option>
               ))}
             </select>
-          </div>
-        </div>
-
-        {/* Preview controls */}
-        {sourceType && targetType && sourceType !== targetType && (
-          <div className="mb-6">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => {
-                  setPreviewEnabled((v) => !v);
-                  if (previewEnabled) {
-                    setSelectedSourcePost(null);
-                    setSelectedTargetPost(null);
-                    setSourcePreviewValues({});
-                    setTargetPreviewValues({});
-                  }
-                }}
-                className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                {previewEnabled ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                {previewEnabled ? 'Hide preview values' : 'Preview values'}
-              </button>
-              <button
-                onClick={() => setShowFieldKeys((v) => !v)}
-                className={`flex items-center gap-2 text-sm transition-colors ${showFieldKeys ? 'text-gray-700' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                <Code className="w-4 h-4" />
-                {showFieldKeys ? 'Hide field keys' : 'Show field keys'}
-              </button>
-            </div>
-
-            {previewEnabled && (
-              <div className="flex items-center gap-4 mt-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">
-                    Preview source post
-                  </label>
-                  <select
-                    value={selectedSourcePost ?? ''}
-                    onChange={(e) => setSelectedSourcePost(e.target.value ? Number(e.target.value) : null)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                  >
-                    <option value="">Select a post...</option>
-                    {sourcePosts.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.title} (#{p.id})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">
-                    Preview target post
-                  </label>
-                  <select
-                    value={selectedTargetPost ?? ''}
-                    onChange={(e) => setSelectedTargetPost(e.target.value ? Number(e.target.value) : null)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                  >
-                    <option value="">Select a post...</option>
-                    {targetPosts.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.title} (#{p.id})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {previewEnabled && sourceType && targetType && sourceType !== targetType && (
+              <div className="mt-3">
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider">
+                  Preview target post
+                </label>
+                <select
+                  value={selectedTargetPost ?? ''}
+                  onChange={(e) => setSelectedTargetPost(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                >
+                  <option value="">Select a post...</option>
+                  {targetPosts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} (#{p.id})
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
-        )}
+        </div>
 
         {/* Editor */}
         {isLoading ? (
@@ -387,11 +356,11 @@ export default function FieldMappingsPage(): React.ReactElement {
             <RefreshCw className="w-8 h-8 text-brand-600 animate-spin" />
           </div>
         ) : sourceType === targetType ? (
-          <div className="text-center py-16 text-gray-500">
+          <div className="text-center py-16 text-gray-500 dark:text-gray-400">
             Select two different post types to map fields between them.
           </div>
         ) : sourcePostType && targetPostType ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <FieldMappingEditor
               sourcePostType={sourcePostType}
               targetPostType={targetPostType}
@@ -406,6 +375,42 @@ export default function FieldMappingsPage(): React.ReactElement {
               showFieldKeys={showFieldKeys}
               onDirtyChange={setHasChanges}
               saveRef={saveRef}
+              headerActions={
+                <>
+                  <button
+                    onClick={() => {
+                      setPreviewEnabled((v) => !v);
+                      if (previewEnabled) {
+                        setSelectedSourcePost(null);
+                        setSelectedTargetPost(null);
+                        setSourcePreviewValues({});
+                        setTargetPreviewValues({});
+                      }
+                    }}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors',
+                      previewEnabled
+                        ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-200 dark:border-brand-700 text-brand-600 dark:text-brand-400'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200'
+                    )}
+                  >
+                    {previewEnabled ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    Preview values
+                  </button>
+                  <button
+                    onClick={() => setShowFieldKeys((v) => !v)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors',
+                      showFieldKeys
+                        ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-200 dark:border-brand-700 text-brand-600 dark:text-brand-400'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200'
+                    )}
+                  >
+                    <Code className="w-3.5 h-3.5" />
+                    Field keys
+                  </button>
+                </>
+              }
             />
           </div>
         ) : null}
