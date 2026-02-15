@@ -274,6 +274,17 @@ export function EditModal({
 
   const seoHasChanges = JSON.stringify(seoData) !== JSON.stringify(originalSeoData);
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   // Fetch SEO data when editing an existing resource
   useEffect(() => {
     if (isCreateMode || !effectiveResource.id) return;
@@ -514,6 +525,7 @@ export function EditModal({
                 key={term.id}
                 type="button"
                 onClick={() => toggleTerm(taxonomy, term.id)}
+                aria-pressed={isSelected}
                 className={cn(
                   'px-3 py-1 rounded-full text-sm border transition-colors',
                   isSelected
@@ -589,6 +601,7 @@ export function EditModal({
                 key={term.id}
                 type="button"
                 onClick={() => toggleTerm(taxSlug, term.id)}
+                aria-pressed={isSelected}
                 className={cn(
                   'px-3 py-1.5 rounded-full text-sm border transition-colors',
                   isSelected
@@ -646,6 +659,7 @@ export function EditModal({
                         key={term.id}
                         type="button"
                         onClick={() => toggleTerm(taxSlug, term.id)}
+                        aria-pressed={isSelected}
                         className={cn(
                           'px-3 py-1 rounded-full text-sm border transition-colors',
                           isSelected
@@ -671,14 +685,19 @@ export function EditModal({
       <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onClose} />
 
       <div className="relative min-h-full flex items-center justify-center p-4">
-        <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-[900px] h-[85vh] flex flex-col overflow-hidden">
+        <div
+          className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-[900px] h-[85vh] flex flex-col overflow-hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-title"
+        >
           {/* Header */}
           <div className={cn(
             "flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700",
             isCreateMode && "bg-green-50 dark:bg-green-900/20"
           )}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-1">
+              <h2 id="modal-title" className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-1">
                 {isCreateMode ? (title || `New ${postTypeLabel}`) : title}
               </h2>
               {!isCreateMode && (
@@ -701,7 +720,11 @@ export function EditModal({
               )}
               {isCreateMode && <p className="text-sm text-green-600">Creating new {postTypeLabel.toLowerCase()}</p>}
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              aria-label="Close modal"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -733,8 +756,9 @@ export function EditModal({
             {activeTab === 'basic' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                  <label htmlFor="resource-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
                   <input
+                    id="resource-title"
                     type="text"
                     value={title}
                     onChange={(e) => handleTitleChange(e.target.value)}
