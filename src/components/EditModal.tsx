@@ -667,7 +667,7 @@ export function EditModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
       <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onClose} />
 
       <div className="relative min-h-full flex items-center justify-center p-4">
@@ -678,7 +678,7 @@ export function EditModal({
             isCreateMode && "bg-green-50 dark:bg-green-900/20"
           )}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-1">
+              <h2 id="edit-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-1">
                 {isCreateMode ? (title || `New ${postTypeLabel}`) : title}
               </h2>
               {!isCreateMode && (
@@ -701,7 +701,11 @@ export function EditModal({
               )}
               {isCreateMode && <p className="text-sm text-green-600">Creating new {postTypeLabel.toLowerCase()}</p>}
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <button
+              onClick={onClose}
+              aria-label="Close modal"
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -1007,7 +1011,7 @@ export function EditModal({
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 )}
               >
-                <Save className="w-4 h-4" />
+                {isSaving || isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 {isSaving || isCreating
                   ? (isCreateMode ? 'Creating...' : 'Saving...')
                   : (isCreateMode ? 'Create Resource' : 'Save Changes')}
