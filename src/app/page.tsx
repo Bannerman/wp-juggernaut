@@ -17,6 +17,7 @@ import {
   Settings
 } from 'lucide-react';
 import { ResourceTable } from '@/components/ResourceTable';
+import { DownloadsTable } from '@/components/DownloadsTable';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { FilterPanel } from '@/components/FilterPanel';
 import { EditModal } from '@/components/EditModal';
@@ -79,7 +80,7 @@ export default function Home() {
   const [showSyncDropdown, setShowSyncDropdown] = useState(false);
   const [convertingResource, setConvertingResource] = useState<Resource | null>(null);
   
-  const [viewMode, setViewMode] = useState<'general' | 'power'>('general');
+  const [viewMode, setViewMode] = useState<'general' | 'power' | 'downloads'>('general');
 
   // Plugin-enabled features and profile config
   const [enabledTabs, setEnabledTabs] = useState<string[]>(['basic', 'classification']);
@@ -671,6 +672,17 @@ export default function Home() {
                 >
                   Power
                 </button>
+                <button
+                  onClick={() => setViewMode('downloads')}
+                  className={cn(
+                    'px-3 py-1 rounded-md text-xs font-medium transition-colors',
+                    viewMode === 'downloads'
+                      ? 'bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-400 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  )}
+                >
+                  Downloads
+                </button>
               </div>
             </div>
           </div>
@@ -678,7 +690,10 @@ export default function Home() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className={cn(
+        'mx-auto px-4 sm:px-6 lg:px-8 py-6',
+        viewMode === 'downloads' ? 'max-w-full' : 'max-w-7xl'
+      )}>
         {/* Search and Filters */}
         <div className="mb-6 space-y-4">
           <div className="flex items-center gap-4">
@@ -818,6 +833,13 @@ export default function Home() {
               )}
             </div>
           )
+        ) : viewMode === 'downloads' ? (
+          <DownloadsTable
+            resources={filteredResources}
+            terms={terms}
+            onUpdate={handleUpdateResource}
+            onEdit={setEditingResource}
+          />
         ) : (
           <ResourceTable
             resources={filteredResources}

@@ -348,15 +348,20 @@ export async function pushResource(
 
     const payload = await buildUpdatePayload(resourceId);
 
-    // Extract the latest changelog date to preserve as modified_gmt.
+    // Capture the pre-push state so we can preserve dates after push.
     // WordPress always sets modified_gmt to "now" on update, but we want
-    // to show the most recent changelog date in Juggernaut instead.
+    // to keep the original date or use the most recent changelog date.
     const resource = getResourceById(resourceId);
     const changelogDate = getLatestChangelogDate(resource?.meta_box);
+    const originalModifiedGmt = resource?.modified_gmt;
 
     // Set date_gmt on the payload so WordPress preserves the publish date
-    if (changelogDate) {
-      payload.date_gmt = changelogDate + 'T00:00:00';
+    // (use changelog date if available, otherwise keep the original date)
+    const preservedDate = changelogDate
+      ? changelogDate + 'T00:00:00'
+      : originalModifiedGmt || undefined;
+    if (preservedDate) {
+      payload.date_gmt = preservedDate;
     }
 
     const updated = await updateResource(resourceId, payload);
@@ -368,10 +373,10 @@ export async function pushResource(
     }
 
     // Update local modified_gmt, mark as clean, and clear dirty taxonomy tracking.
-    // Use the latest changelog date instead of WP's response (which is always "now").
+    // Use changelog date > original date > WP response (last resort).
     const localModifiedGmt = changelogDate
       ? changelogDate + 'T00:00:00'
-      : updated.modified_gmt;
+      : originalModifiedGmt || updated.modified_gmt;
     const db = getDb();
     db.prepare('UPDATE posts SET modified_gmt = ?, is_dirty = 0 WHERE id = ?').run(
       localModifiedGmt,
