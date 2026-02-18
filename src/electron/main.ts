@@ -21,7 +21,9 @@ interface StoredCredentials {
   appPassword: string;
 }
 
-function getSecureCredentials(): StoredCredentials | null {
+type SecureStore = Record<string, StoredCredentials>;
+
+function getSecureCredentials(): SecureStore | null {
   try {
     if (!fs.existsSync(CREDENTIALS_FILE)) {
       return null;
@@ -34,14 +36,21 @@ function getSecureCredentials(): StoredCredentials | null {
 
     const encryptedData = fs.readFileSync(CREDENTIALS_FILE);
     const decrypted = safeStorage.decryptString(encryptedData);
-    return JSON.parse(decrypted);
+    const parsed = JSON.parse(decrypted);
+
+    // Handle legacy format (single set of credentials)
+    if (parsed.username && parsed.appPassword) {
+      return { 'default': parsed };
+    }
+
+    return parsed;
   } catch (error) {
     console.error('Failed to read secure credentials:', error);
     return null;
   }
 }
 
-function setSecureCredentials(credentials: StoredCredentials): boolean {
+function setSecureCredentials(credentials: SecureStore): boolean {
   try {
     if (!safeStorage.isEncryptionAvailable()) {
       console.error('Encryption not available - cannot store credentials');
@@ -55,6 +64,56 @@ function setSecureCredentials(credentials: StoredCredentials): boolean {
   } catch (error) {
     console.error('Failed to store secure credentials:', error);
     return false;
+  }
+}
+
+/**
+ * Migrates plaintext credentials from site-config.json to secure storage.
+ * Runs on app startup.
+ */
+function migrateCredentials() {
+  const configDir = process.env.JUGGERNAUT_CONFIG_DIR || path.join(app.getPath('home'), '.juggernaut');
+  const configPath = path.join(configDir, 'site-config.json');
+
+  if (!fs.existsSync(configPath)) return;
+
+  try {
+    const content = fs.readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(content);
+    let migrated = false;
+    const secureCreds = getSecureCredentials() || {};
+
+    // 1. Migrate legacy global credentials
+    if (config.credentials && config.credentials.username && config.credentials.appPassword) {
+      secureCreds['default'] = config.credentials;
+      delete config.credentials;
+      migrated = true;
+      console.log('Migrated legacy global credentials to secure storage');
+    }
+
+    // 2. Migrate per-site credentials
+    if (config.siteCredentials) {
+      for (const [targetId, creds] of Object.entries(config.siteCredentials)) {
+        const c = creds as StoredCredentials;
+        if (c.username && c.appPassword) {
+          secureCreds[targetId] = c;
+          migrated = true;
+          console.log(`Migrated credentials for target "${targetId}" to secure storage`);
+        }
+      }
+      delete config.siteCredentials;
+      migrated = true;
+    }
+
+    if (migrated) {
+      if (setSecureCredentials(secureCreds)) {
+        // Save cleaned config
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        console.log('Plaintext credentials removed from site-config.json');
+      }
+    }
+  } catch (error) {
+    console.error('Failed to migrate credentials:', error);
   }
 }
 
@@ -167,11 +226,17 @@ async function startNextServer(): Promise<void> {
     JUGGERNAUT_ELECTRON: '1',
   };
 
-  // Pass decrypted credentials to the server process
+  // Pass all credentials to the server process as a JSON string
   if (credentials) {
-    serverEnv.WP_USERNAME = credentials.username;
-    serverEnv.WP_APP_PASSWORD = credentials.appPassword;
-    console.log('Credentials loaded from secure storage for user:', credentials.username);
+    serverEnv.JUGGERNAUT_CREDENTIALS = JSON.stringify(credentials);
+
+    // Also pass 'default' or first available as fallback env vars for simplicity
+    const firstCreds = credentials['default'] || Object.values(credentials)[0];
+    if (firstCreds) {
+      serverEnv.WP_USERNAME = firstCreds.username;
+      serverEnv.WP_APP_PASSWORD = firstCreds.appPassword;
+    }
+    console.log(`Loaded ${Object.keys(credentials).length} sets of credentials from secure storage`);
   }
 
   // Use Electron's utilityProcess to fork the server
@@ -308,8 +373,11 @@ ipcMain.handle('get-app-version', () => {
 });
 
 // Secure credential handlers
-ipcMain.handle('get-credentials', () => {
-  const creds = getSecureCredentials();
+ipcMain.handle('get-credentials', (_event, targetId?: string) => {
+  const credsStore = getSecureCredentials();
+  if (!credsStore) return { hasCredentials: false, username: '' };
+
+  const creds = targetId ? credsStore[targetId] : credsStore['default'];
   if (creds) {
     // Return username but not the password for security
     return { hasCredentials: true, username: creds.username };
@@ -317,8 +385,13 @@ ipcMain.handle('get-credentials', () => {
   return { hasCredentials: false, username: '' };
 });
 
-ipcMain.handle('set-credentials', async (_event, { username, appPassword }: { username: string; appPassword: string }) => {
-  const success = setSecureCredentials({ username, appPassword });
+ipcMain.handle('set-credentials', async (_event, { targetId, username, appPassword }: { targetId?: string; username: string; appPassword: string }) => {
+  const credsStore = getSecureCredentials() || {};
+  const id = targetId || 'default';
+
+  credsStore[id] = { username, appPassword };
+
+  const success = setSecureCredentials(credsStore);
   if (success && !isDev) {
     // Restart the Next.js server so it picks up new credentials
     console.log('Credentials updated - restarting Next.js server...');
@@ -355,6 +428,7 @@ ipcMain.handle('delete-credentials', () => {
 
 // App lifecycle
 app.whenReady().then(async () => {
+  migrateCredentials();
   await startNextServer();
 
   const serverReady = await waitForServer(`http://localhost:${PORT}`);

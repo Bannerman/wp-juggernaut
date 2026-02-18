@@ -11,9 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   installUpdate: () => ipcRenderer.invoke('install-update'),
 
   // Secure credential storage (uses macOS Keychain)
-  getCredentials: () => ipcRenderer.invoke('get-credentials'),
-  setCredentials: (username: string, appPassword: string) =>
-    ipcRenderer.invoke('set-credentials', { username, appPassword }),
+  getCredentials: (targetId?: string) => ipcRenderer.invoke('get-credentials', targetId),
+  setCredentials: (username: string, appPassword: string, targetId?: string) =>
+    ipcRenderer.invoke('set-credentials', { username, appPassword, targetId }),
   deleteCredentials: () => ipcRenderer.invoke('delete-credentials'),
 
   // Update status listener
@@ -49,8 +49,8 @@ export interface ElectronAPI {
   checkForUpdates: () => Promise<{ success: boolean; version?: string; error?: string }>;
   downloadUpdate: () => Promise<{ success: boolean; error?: string }>;
   installUpdate: () => void;
-  getCredentials: () => Promise<CredentialStatus>;
-  setCredentials: (username: string, appPassword: string) => Promise<{ success: boolean }>;
+  getCredentials: (targetId?: string) => Promise<CredentialStatus>;
+  setCredentials: (username: string, appPassword: string, targetId?: string) => Promise<{ success: boolean }>;
   deleteCredentials: () => Promise<{ success: boolean }>;
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
 }

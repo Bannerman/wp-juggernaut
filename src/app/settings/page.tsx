@@ -126,7 +126,7 @@ export default function SettingsPage() {
 
         // Check for credentials via Electron secure storage (macOS Keychain)
         if (window.electronAPI) {
-          const credStatus = await window.electronAPI.getCredentials();
+          const credStatus = await window.electronAPI.getCredentials(data.activeTarget?.id);
           setHasCredentials(credStatus.hasCredentials);
           setUsername(credStatus.username);
         } else {
@@ -200,8 +200,14 @@ export default function SettingsPage() {
       setMessage({ type: 'success', text: data.message });
 
       // Update credential status for the new target
-      setHasCredentials(data.hasCredentials || false);
-      setUsername(data.username || '');
+      if (window.electronAPI) {
+        const credStatus = await window.electronAPI.getCredentials(data.activeTarget?.id);
+        setHasCredentials(credStatus.hasCredentials);
+        setUsername(credStatus.username);
+      } else {
+        setHasCredentials(data.hasCredentials || false);
+        setUsername(data.username || '');
+      }
       setAppPassword('');
 
       // Clear diagnostics when switching
@@ -226,7 +232,7 @@ export default function SettingsPage() {
     try {
       if (window.electronAPI) {
         // Use secure storage (macOS Keychain) in Electron
-        const result = await window.electronAPI.setCredentials(username, appPassword);
+        const result = await window.electronAPI.setCredentials(username, appPassword, activeTarget?.id);
         if (!result.success) {
           throw new Error('Failed to save credentials to secure storage');
         }
