@@ -88,7 +88,7 @@ export default function Home() {
   // Plugin-enabled features and profile config
   const [enabledTabs, setEnabledTabs] = useState<string[]>(['basic', 'classification']);
   const [fieldLayout, setFieldLayout] = useState<Record<string, FieldDefinition[]> | undefined>(undefined);
-  const [tabConfig, setTabConfig] = useState<Array<{ id: string; label: string; source: string; icon?: string; position?: number; dynamic?: boolean }>>([]);
+  const [tabConfig, setTabConfig] = useState<Array<{ id: string; label: string; source: string; icon?: string; position?: number; dynamic?: boolean; post_types?: string[] }>>([]);
   const [taxonomyConfig, setTaxonomyConfig] = useState<Array<{
     slug: string;
     name: string;
