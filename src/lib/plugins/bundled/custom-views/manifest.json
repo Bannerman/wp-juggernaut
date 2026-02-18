@@ -1,0 +1,18 @@
+{
+  "id": "custom-views",
+  "name": "Custom Views",
+  "version": "1.0.0",
+  "description": "Create named views with custom column configurations for the resource table. Assign views to specific post types for full control over what columns appear.",
+  "author": {
+    "name": "Juggernaut",
+    "url": "https://github.com/Bannerman/wp-juggernaut"
+  },
+  "license": "MIT",
+  "requires_core": ">=1.0.0",
+  "tier": "bundled",
+  "provides": {
+    "tabs": [],
+    "field_types": [],
+    "api_extensions": ["views"]
+  }
+}

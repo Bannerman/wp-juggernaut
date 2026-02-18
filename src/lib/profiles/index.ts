@@ -6,7 +6,7 @@
  * and how the UI should be configured.
  */
 
-import type { SiteProfile, SiteConfig, FieldMappingEntry, TabConfig, FieldDefinition } from '../plugins/types';
+import type { SiteProfile, SiteConfig, FieldMappingEntry, TabConfig, FieldDefinition, ViewConfig } from '../plugins/types';
 import path from 'path';
 import fs from 'fs';
 
@@ -375,6 +375,33 @@ class ProfileManager {
       this.state.currentProfile.ui = {};
     }
     this.state.currentProfile.ui.field_layout = layout;
+  }
+
+  /**
+   * Set views in the current profile's UI config (mutates in-memory)
+   */
+  setViews(views: ViewConfig[]): void {
+    if (!this.state.currentProfile) return;
+    if (!this.state.currentProfile.ui) {
+      this.state.currentProfile.ui = {};
+    }
+    this.state.currentProfile.ui.views = views;
+  }
+
+  /**
+   * Get all views from the current profile
+   */
+  getViews(): ViewConfig[] {
+    return this.state.currentProfile?.ui?.views ?? [];
+  }
+
+  /**
+   * Get views filtered for a specific post type
+   */
+  getViewsForPostType(postType: string): ViewConfig[] {
+    return this.getViews().filter(
+      (v) => !v.post_types || v.post_types.length === 0 || v.post_types.includes(postType)
+    );
   }
 
   /**

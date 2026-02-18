@@ -13,6 +13,7 @@ import seopressPlugin from './seopress';
 import aiFillPlugin from './ai-fill';
 import convertPostTypePlugin from './convert-post-type';
 import woocommercePlugin from './woocommerce';
+import customViewsPlugin from './custom-views';
 // Future bundled plugins:
 // import acfPlugin from './acf';
 
@@ -25,6 +26,7 @@ export const bundledPlugins: JuggernautPlugin[] = [
   aiFillPlugin,
   convertPostTypePlugin,
   woocommercePlugin,
+  customViewsPlugin,
   // acfPlugin,
 ];
 
@@ -48,4 +50,5 @@ export { seopressPlugin };
 export { aiFillPlugin };
 export { convertPostTypePlugin };
 export { woocommercePlugin };
+export { customViewsPlugin };
 // export { acfPlugin };

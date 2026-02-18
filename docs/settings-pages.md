@@ -43,6 +43,7 @@ import { SettingsNav } from '@/components/SettingsNav';
 | `diagnostics` | Diagnostics | `/settings` | In-page tab |
 | `field-mappings` | Field Mapping | `/settings/field-mappings` | Separate page |
 | `tab-layout` | Tab Layout | `/settings/tab-layout` | Separate page |
+| `views` | Views | `/settings/views` | Separate page (gated by `custom-views` plugin) |
 
 In-page tabs live on `/settings` and are controlled by local state. When clicked from a sub-page (no `onTabClick`), they navigate to `/settings`.
 
