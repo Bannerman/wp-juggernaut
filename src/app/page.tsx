@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
   RefreshCw,
@@ -25,8 +25,9 @@ import { UpdateNotifier } from '@/components/UpdateNotifier';
 import { PostTypeSwitcher } from '@/components/PostTypeSwitcher';
 import { ConvertPostTypeModal } from '@/components/ConvertPostTypeModal';
 import { EnvironmentIndicator } from '@/components/EnvironmentIndicator';
+import { ViewSwitcher } from '@/components/ViewSwitcher';
 import { cn, formatRelativeTime } from '@/lib/utils';
-import type { FieldDefinition } from '@/lib/plugins/types';
+import type { FieldDefinition, ViewConfig, ViewColumn } from '@/lib/plugins/types';
 import type { EnvironmentType } from '@/lib/site-config';
 
 interface SyncStats {
@@ -80,7 +81,9 @@ export default function Home() {
   const [showSyncDropdown, setShowSyncDropdown] = useState(false);
   const [convertingResource, setConvertingResource] = useState<Resource | null>(null);
   
-  const [viewMode, setViewMode] = useState<'general' | 'power' | 'downloads'>('general');
+  // Views state (replaces old viewMode)
+  const [allViews, setAllViews] = useState<ViewConfig[]>([]);
+  const [activeViewId, setActiveViewId] = useState<string>('');
 
   // Plugin-enabled features and profile config
   const [enabledTabs, setEnabledTabs] = useState<string[]>(['basic', 'classification']);
@@ -108,7 +111,6 @@ export default function Home() {
   const [postTypes, setPostTypes] = useState<Array<{ slug: string; name: string; rest_base: string; icon?: string; is_primary?: boolean }>>([]);
   const [allTaxonomyConfig, setAllTaxonomyConfig] = useState<typeof taxonomyConfig>([]);
   const [editableTaxonomies, setEditableTaxonomies] = useState<string[]>([]);
-  const [powerColumns, setPowerColumns] = useState<Array<{ key: string; label: string; type: 'download_stats' | 'count' | 'text' }>>([]);
   const [workspaceName, setWorkspaceName] = useState('');
   const [activeEnvironment, setActiveEnvironment] = useState<EnvironmentType>('development');
   const [enabledPlugins, setEnabledPlugins] = useState<string[]>([]);
@@ -161,8 +163,54 @@ export default function Home() {
         if (data.enabledPlugins) {
           setEnabledPlugins(data.enabledPlugins);
         }
-        if (data.ui?.power_columns) {
-          setPowerColumns(data.ui.power_columns);
+        // Load views from profile — or generate fallback defaults for backward compatibility
+        if (data.ui?.views && data.ui.views.length > 0) {
+          setAllViews(data.ui.views);
+        } else {
+          // Migration fallback: generate default views from taxonomy config + power_columns
+          const primarySlug = data.postType?.slug || 'resource';
+          const taxCols: ViewColumn[] = (data.taxonomies || [])
+            .filter((t: { show_in_table?: boolean; post_types?: string[] }) =>
+              t.show_in_table && (!t.post_types || t.post_types.includes(primarySlug))
+            )
+            .sort((a: { table_position?: number }, b: { table_position?: number }) =>
+              (a.table_position ?? 99) - (b.table_position ?? 99)
+            )
+            .map((t: { slug: string; name: string; table_max_display?: number }) => ({
+              key: t.slug,
+              label: t.name,
+              source: 'taxonomy' as const,
+              taxonomy_slug: t.slug,
+              max_display: t.table_max_display,
+            }));
+          const generalView: ViewConfig = {
+            id: 'general',
+            name: 'General',
+            columns: [
+              { key: 'status', label: 'Status', source: 'core', sortable: true },
+              ...taxCols,
+            ],
+            is_default: true,
+          };
+          const fallbackViews: ViewConfig[] = [generalView];
+          const powerCols = data.ui?.power_columns;
+          if (powerCols && powerCols.length > 0) {
+            fallbackViews.push({
+              id: 'power',
+              name: 'Power',
+              post_types: [primarySlug],
+              columns: [
+                ...powerCols.map((c: { key: string; label: string; type: string }) => ({
+                  key: c.key,
+                  label: c.label,
+                  source: 'meta' as const,
+                  type: c.type as ViewColumn['type'],
+                })),
+                { key: 'date_gmt', label: 'Created', source: 'core' as const, sortable: true },
+              ],
+            });
+          }
+          setAllViews(fallbackViews);
         }
       })
       .catch(err => console.error('Failed to fetch profile:', err));
@@ -178,6 +226,38 @@ export default function Home() {
       })
       .catch(err => console.error('Failed to fetch site config:', err));
   }, []);
+
+  // Filter views for the active post type (memoized to avoid infinite useEffect loops)
+  const viewsForPostType = useMemo(
+    () => allViews.filter(
+      (v) => !v.post_types || v.post_types.length === 0 || v.post_types.includes(postTypeSlug)
+    ),
+    [allViews, postTypeSlug]
+  );
+
+  // Resolve the active view (restore from localStorage or pick default)
+  useEffect(() => {
+    if (viewsForPostType.length === 0) return;
+    const storageKey = `juggernaut-view-${postTypeSlug}`;
+    const stored = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
+    const storedView = stored ? viewsForPostType.find((v) => v.id === stored) : null;
+    if (storedView) {
+      setActiveViewId(storedView.id);
+    } else {
+      const defaultView = viewsForPostType.find((v) => v.is_default) || viewsForPostType[0];
+      setActiveViewId(defaultView.id);
+    }
+  }, [viewsForPostType, postTypeSlug]);
+
+  const handleViewChange = useCallback((viewId: string) => {
+    setActiveViewId(viewId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`juggernaut-view-${postTypeSlug}`, viewId);
+    }
+  }, [postTypeSlug]);
+
+  const activeView = viewsForPostType.find((v) => v.id === activeViewId) || viewsForPostType[0];
+  const isDownloadsView = activeView?.built_in === 'downloads';
 
   const fetchData = useCallback(async () => {
     try {
@@ -649,41 +729,11 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
-                <button
-                  onClick={() => setViewMode('general')}
-                  className={cn(
-                    'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                    viewMode === 'general'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                  )}
-                >
-                  General
-                </button>
-                <button
-                  onClick={() => setViewMode('power')}
-                  className={cn(
-                    'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                    viewMode === 'power'
-                      ? 'bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-400 shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                  )}
-                >
-                  Power
-                </button>
-                <button
-                  onClick={() => setViewMode('downloads')}
-                  className={cn(
-                    'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                    viewMode === 'downloads'
-                      ? 'bg-white dark:bg-gray-600 text-brand-700 dark:text-brand-400 shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                  )}
-                >
-                  Downloads
-                </button>
-              </div>
+              <ViewSwitcher
+                views={viewsForPostType}
+                activeViewId={activeViewId}
+                onViewChange={handleViewChange}
+              />
             </div>
           </div>
         </div>
@@ -692,7 +742,7 @@ export default function Home() {
       {/* Main Content */}
       <main className={cn(
         'mx-auto px-4 sm:px-6 lg:px-8 py-6',
-        viewMode === 'downloads' ? 'max-w-full' : 'max-w-7xl'
+        isDownloadsView ? 'max-w-full' : 'max-w-7xl'
       )}>
         {/* Search and Filters */}
         <div className="mb-6 space-y-4">
@@ -833,7 +883,7 @@ export default function Home() {
               )}
             </div>
           )
-        ) : viewMode === 'downloads' ? (
+        ) : isDownloadsView ? (
           <DownloadsTable
             resources={filteredResources}
             terms={terms}
@@ -845,20 +895,13 @@ export default function Home() {
             resources={filteredResources}
             terms={terms}
             selectedIds={selectedResources}
-            viewMode={viewMode}
+            columns={activeView?.columns ?? []}
             onSelect={setSelectedResources}
             onEdit={setEditingResource}
             onUpdate={handleUpdateResource}
             siteUrl={siteUrl}
             postTypeSlug={postTypeSlug}
-            taxonomyColumns={
-              taxonomyConfig
-                .filter((t) => t.show_in_table)
-                .sort((a, b) => (a.table_position ?? 99) - (b.table_position ?? 99))
-                .map((t) => ({ slug: t.slug, label: t.name, maxDisplay: t.table_max_display }))
-            }
             postTypeLabelPlural={`${postTypeLabel.toLowerCase()}s`}
-            powerColumns={powerColumns}
           />
         )}
       </main>

@@ -652,12 +652,52 @@ export interface TaxonomyConfig {
 }
 
 /**
+ * Column definition for a custom view
+ */
+export interface ViewColumn {
+  /** Column key, e.g., 'status', 'resource-type', 'download_sections' */
+  key: string;
+  /** Column header text */
+  label: string;
+  /** Where the column data comes from */
+  source: 'core' | 'taxonomy' | 'meta';
+  /** Render type for meta columns */
+  type?: 'text' | 'count' | 'download_stats';
+  /** Required when source === 'taxonomy' */
+  taxonomy_slug?: string;
+  /** Taxonomy: max terms before "+N more" */
+  max_display?: number;
+  /** Whether this column is sortable */
+  sortable?: boolean;
+}
+
+/**
+ * View configuration — a named set of columns for the resource table
+ */
+export interface ViewConfig {
+  /** Unique view ID, e.g., 'general', 'power', or a UUID */
+  id: string;
+  /** User-facing view name */
+  name: string;
+  /** Which post types this view applies to (omit = all) */
+  post_types?: string[];
+  /** Ordered column list (title and actions columns are implicit) */
+  columns: ViewColumn[];
+  /** Whether this is the default view for its post types */
+  is_default?: boolean;
+  /** Special built-in rendering (e.g., 'downloads' renders DownloadsTable) */
+  built_in?: 'downloads';
+}
+
+/**
  * UI configuration in profile
  */
 export interface UIConfig {
   tabs?: TabConfig[];
   /** Maps tab IDs to ordered arrays of field definitions for dynamic rendering */
   field_layout?: Record<string, FieldDefinition[]>;
+  /** Custom view configurations for the resource table */
+  views?: ViewConfig[];
   branding?: {
     app_name?: string;
     primary_color?: string;

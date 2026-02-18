@@ -112,6 +112,7 @@ DATABASE_PATH=./data/juggernaut.db
 - **Tab system**: `CORE_TAB_IDS` (basic, classification) always show regardless of plugins; `HARDCODED_TAB_IDS` matches core tabs (custom JSX in EditModal). Plugin tabs like `seo` and `ai` are registered via `registerPluginTab()` and rendered dynamically. All other tabs are profile-driven via `DynamicTab` + `FieldRenderer`
 - **Taxonomy dual push**: Taxonomy data is sent both as top-level REST fields AND as `meta_box.tax_xyz` fields; `tax_xyz` meta keys are filtered from Tab Layout and Field Mapping available fields to avoid double-editing
 - **Environment indicator**: Header shows workspace name (from `profile_name`) + colored environment badge (red=production, yellow=staging, green=development). Environment is set via explicit `environment` field in profile `sites[]`, with auto-derivation from site `id` as fallback
+- **Custom views**: Resource table columns are driven by `ui.views[]` in the profile JSON. Each `ViewConfig` has a name, optional post type filter, and an ordered `columns: ViewColumn[]` array. The `ViewSwitcher` component replaces the old hardcoded General/Power/Downloads toggle. Views with `built_in: 'downloads'` render `DownloadsTable` instead of `ResourceTable`. Title and Actions columns are always implicit (not in the columns array). Profiles without `ui.views` auto-generate defaults from `show_in_table` taxonomy config + `ui.power_columns` for backward compatibility. Active view per post type is persisted in localStorage. The Custom Views plugin gates access to `/settings/views` but views render regardless of plugin status
 
 ## **4. Module Registry & Mapping**
 
@@ -142,6 +143,8 @@ These were added during Phase 2 and do not have corresponding `modules/*/spec.ya
 | **prompt-templates** | `src/lib/prompt-templates.ts` | AI prompt template management for content generation |
 | **site-config** | `src/lib/site-config.ts` | Multi-site target switching with environment type derivation |
 | **environment-indicator** | `src/components/EnvironmentIndicator.tsx` | Workspace name + colored environment badge for header |
+| **custom-views** | `src/lib/plugins/bundled/custom-views/` | Feature-flag plugin gating `/settings/views` editor |
+| **view-switcher** | `src/components/ViewSwitcher.tsx` | Dynamic view toggle for resource table (replaces hardcoded 3-button toggle) |
 | **utils** | `src/lib/utils.ts` | Shared utilities (cn, HTML decode, date formatting) |
 
 ### **API Routes** (`src/app/api/`)
@@ -160,6 +163,7 @@ These were added during Phase 2 and do not have corresponding `modules/*/spec.ya
 | `/api/field-audit` | Field integrity auditing |
 | `/api/field-mappings` | Field mapping CRUD (auto-discovers fields from WP) |
 | `/api/tab-layout` | Tab layout CRUD (create/reorder/delete custom tabs, assign fields) |
+| `/api/views` | Custom views CRUD (GET loads views + available columns, PUT saves views to profile) |
 | `/api/prompt-templates` | AI prompt template CRUD |
 | `/api/seo` | SEO data management |
 | `/api/site-config` | Multi-site target switching |
@@ -171,7 +175,7 @@ These were added during Phase 2 and do not have corresponding `modules/*/spec.ya
 
 Juggernaut uses a modular plugin architecture. See **[`docs/plugin-authoring.md`](docs/plugin-authoring.md)** for the full plugin creation guide with step-by-step instructions and a copy-pasteable skeleton (`src/lib/plugins/bundled/_example/`).
 
-- **Bundled Plugins** (`src/lib/plugins/bundled/`): MetaBox, SEOPress, AI Fill, _example (template)
+- **Bundled Plugins** (`src/lib/plugins/bundled/`): MetaBox, SEOPress, AI Fill, Convert Post Type, WooCommerce, Custom Views, _example (template)
 - **Profile System** (`src/lib/profiles/`): Site-specific configurations (e.g., `plexkits-resources.json`)
 - **Hook System** (`src/lib/plugins/hooks.ts`): Event-driven extension points with priority ordering
 - **Plugin Registry** (`src/lib/plugins/registry.ts`): Plugin registration and lifecycle
@@ -186,6 +190,20 @@ Settings are accessible from the gear icon in the main UI:
 - **`/settings`** — Main settings page (post type configs, plugin management)
 - **`/settings/field-mappings`** — Map fields between post types for conversion
 - **`/settings/tab-layout`** — Visual editor for configuring custom EditModal tabs and their fields per post type
+- **`/settings/views`** — Visual editor for configuring custom resource table views with column selection per post type (gated by `custom-views` plugin)
+
+### **Custom Views Architecture**
+
+The resource table renders columns driven by `ViewConfig` objects stored in `ui.views[]` in the profile JSON. Each view has a name, optional post type filter, and an ordered `columns: ViewColumn[]` array. The `ViewSwitcher` component dynamically shows available views filtered for the active post type.
+
+- **Profile storage**: Profile JSON → `ui.views[]` (view definitions with column arrays)
+- **Column sources**: `core` (status, dates), `taxonomy` (term badges with max_display), `meta` (text/count/download_stats from meta_box)
+- **Implicit columns**: Title (always first after checkbox) and Actions (always last) are not in the columns array
+- **Built-in views**: Views with `built_in: 'downloads'` render `DownloadsTable` instead of the generic column loop
+- **Safe merge**: PUT uses `initialViewIds` to diff deleted vs. never-loaded views (same pattern as Tab Layout)
+- **In-memory sync**: After file save, `ProfileManager.setViews()` updates the singleton
+- **Migration fallback**: Profiles without `ui.views` auto-generate defaults from `show_in_table` taxonomies + `ui.power_columns`
+- **Persistence**: Active view per post type stored in localStorage
 
 ### **Tab Layout Architecture**
 

@@ -51,6 +51,12 @@
       "version": ">=1.0.0",
       "source": "bundled",
       "auto_enable": true
+    },
+    {
+      "id": "custom-views",
+      "version": ">=1.0.0",
+      "source": "bundled",
+      "auto_enable": true
     }
   ],
   "post_types": [
@@ -325,6 +331,16 @@
         "source": "ai-fill",
         "icon": "sparkles",
         "position": 9
+      },
+      {
+        "id": "hero",
+        "label": "Hero",
+        "source": "metabox",
+        "position": 9,
+        "dynamic": true,
+        "post_types": [
+          "product"
+        ]
       }
     ],
     "power_columns": [
@@ -332,6 +348,103 @@
         "key": "download_sections",
         "label": "Downloads",
         "type": "download_stats"
+      }
+    ],
+    "views": [
+      {
+        "id": "general",
+        "name": "General",
+        "columns": [
+          {
+            "key": "status",
+            "label": "Status",
+            "source": "core",
+            "sortable": true
+          },
+          {
+            "key": "resource-type",
+            "label": "Resource Type",
+            "source": "taxonomy",
+            "taxonomy_slug": "resource-type"
+          },
+          {
+            "key": "topic",
+            "label": "Topic",
+            "source": "taxonomy",
+            "taxonomy_slug": "topic",
+            "max_display": 3
+          }
+        ],
+        "is_default": true
+      },
+      {
+        "id": "power",
+        "name": "Power",
+        "post_types": [
+          "resource"
+        ],
+        "columns": [
+          {
+            "key": "download_sections",
+            "label": "Downloads",
+            "source": "meta",
+            "type": "download_stats"
+          },
+          {
+            "key": "date_gmt",
+            "label": "Created",
+            "source": "core",
+            "sortable": true
+          }
+        ]
+      },
+      {
+        "id": "downloads",
+        "name": "Downloads",
+        "post_types": [
+          "resource"
+        ],
+        "built_in": "downloads",
+        "columns": []
+      },
+      {
+        "id": "view-mlscm6so-qanzf",
+        "name": "Hero Check",
+        "post_types": [
+          "product"
+        ],
+        "columns": [
+          {
+            "key": "status",
+            "label": "Status",
+            "source": "core",
+            "sortable": true
+          },
+          {
+            "key": "device_image_crop",
+            "label": "Device Image Crop",
+            "source": "meta",
+            "type": "text"
+          },
+          {
+            "key": "device_image_full",
+            "label": "Device Image Full",
+            "source": "meta",
+            "type": "text"
+          },
+          {
+            "key": "header_image",
+            "label": "Header Image",
+            "source": "meta",
+            "type": "text"
+          },
+          {
+            "key": "youtube_url",
+            "label": "Youtube Url",
+            "source": "meta",
+            "type": "text"
+          }
+        ]
       }
     ],
     "field_layout": {
@@ -517,6 +630,32 @@
               "placeholder": "Notes (one per line)..."
             }
           }
+        }
+      ],
+      "hero": [
+        {
+          "key": "device_image_full",
+          "label": "Device Image Full",
+          "type": "text",
+          "width": "full"
+        },
+        {
+          "key": "device_image_crop",
+          "label": "Device Image Crop",
+          "type": "text",
+          "width": "full"
+        },
+        {
+          "key": "header_image",
+          "label": "Header Image",
+          "type": "text",
+          "width": "full"
+        },
+        {
+          "key": "youtube_url",
+          "label": "Youtube Url",
+          "type": "text",
+          "width": "full"
         }
       ]
     },

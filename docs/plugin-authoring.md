@@ -45,6 +45,17 @@ For the plugin type definitions, see [`src/lib/plugins/types.ts`](../src/lib/plu
 | **Tab Components** | Add full custom tabs to EditModal | Call `registerPluginTab()` in `initialize()` |
 | **WordPress Detection** | Auto-detect WP plugin during discovery | Implement `detectWordPressPlugin()` |
 | **Settings Panel** | Add plugin config to Settings page | Implement `getSettingsPanel()` |
+| **Feature Flag** | Gate access to a settings page or feature | Minimal plugin class with no hooks (e.g., `convert-post-type`, `custom-views`) |
+
+---
+
+## Plugin Patterns
+
+### Hook-based Plugins (MetaBox, SEOPress, AI Fill)
+These plugins subscribe to sync/push hooks and/or register custom UI (tabs, field renderers). They actively transform data during the sync/push cycle.
+
+### Feature-flag Plugins (Convert Post Type, Custom Views)
+These plugins have no hooks and no data transformation. They exist solely to gate access to a settings page or UI feature. The feature itself reads from profile config and works regardless of plugin status — the plugin only controls whether the settings UI is accessible. See `src/lib/plugins/bundled/custom-views/` for a minimal example.
 
 ---
 
