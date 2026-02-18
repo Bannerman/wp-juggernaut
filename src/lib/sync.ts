@@ -282,6 +282,30 @@ export function deleteResource(id: number): void {
 }
 
 /**
+ * Deletes multiple resources and their associated meta/terms from the local database.
+ * Cascading deletes handle post_meta and post_terms via foreign keys.
+ * Uses a transaction and bulk DELETE with WHERE IN for performance.
+ * @param ids - Array of resource/post IDs to delete
+ */
+export function deleteResources(ids: number[]): void {
+  if (ids.length === 0) return;
+  const db = getDb();
+
+  const deleteBatch = db.transaction((idsToDelete: number[]) => {
+    // SQLite has a limit on the number of variables in a single query (usually 999).
+    // We chunk the IDs to stay well within this limit.
+    const CHUNK_SIZE = 900;
+    for (let i = 0; i < idsToDelete.length; i += CHUNK_SIZE) {
+      const chunk = idsToDelete.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '?').join(',');
+      db.prepare(`DELETE FROM posts WHERE id IN (${placeholders})`).run(...chunk);
+    }
+  });
+
+  deleteBatch(ids);
+}
+
+/**
  * Syncs all taxonomy terms from WordPress into the local database.
  * Fetches terms for all taxonomies defined in the active profile.
  * @returns The total number of terms synced
@@ -423,11 +447,13 @@ export async function syncResources(
       .prepare('SELECT id FROM posts WHERE post_type = ?')
       .all(typeSlug) as { id: number }[];
 
-    for (const { id } of localIds) {
-      if (!serverIds.has(id)) {
-        deleteResource(id);
-        deletedCount++;
-      }
+    const idsToDelete = localIds
+      .map(row => row.id)
+      .filter(id => !serverIds.has(id));
+
+    if (idsToDelete.length > 0) {
+      deleteResources(idsToDelete);
+      deletedCount += idsToDelete.length;
     }
   }
 
