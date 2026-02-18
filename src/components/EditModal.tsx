@@ -58,7 +58,7 @@ interface EditModalProps {
   /** Field layout from profile (maps tab ID to field definitions) */
   fieldLayout?: Record<string, FieldDefinition[]>;
   /** Tab configuration from profile */
-  tabConfig?: Array<{ id: string; label: string; source: string; icon?: string; position?: number; dynamic?: boolean }>;
+  tabConfig?: Array<{ id: string; label: string; source: string; icon?: string; position?: number; dynamic?: boolean; post_types?: string[] }>;
   /** Callback to open post type conversion (only shown when multiple post types exist) */
   onConvertPostType?: () => void;
 }
@@ -152,15 +152,19 @@ export function EditModal({
   // Build tab list from profile config or fallback
   const TABS = (() => {
     if (tabConfig.length > 0) {
-      // Profile-driven tabs: core tabs + dynamic tabs that have field_layout entries
+      // Profile-driven tabs: core tabs + plugin tabs + dynamic tabs
       return tabConfig
         .filter(tab => {
+          // Core tabs always show
           if (CORE_TAB_IDS.has(tab.id)) return true;
-          // Non-core tabs need to be in enabledTabs
-          if (!enabledTabs.includes(tab.id)) return false;
-          // Dynamic tabs need a field_layout entry
-          if (tab.dynamic && (!fieldLayout || !fieldLayout[tab.id])) return false;
-          return true;
+          // Filter by post_types — skip if tab is scoped and doesn't include current post type
+          if (tab.post_types && tab.post_types.length > 0 && !tab.post_types.includes(postTypeSlug)) return false;
+          // Dynamic tabs (profile-configured) need a field_layout entry but don't need enabledTabs
+          if (tab.dynamic) {
+            return fieldLayout != null && fieldLayout[tab.id] != null;
+          }
+          // Plugin tabs (non-dynamic, non-core) need to be in enabledTabs
+          return enabledTabs.includes(tab.id);
         })
         .sort((a, b) => (a.position ?? 99) - (b.position ?? 99))
         .map(tab => ({ id: tab.id, label: tab.label, plugin: tab.source, icon: tab.icon }));
