@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Save, RotateCcw, Check, AlertCircle, History, FileText, Globe, Loader2, RefreshCw, Puzzle, Activity, ArrowLeft, ToggleLeft, ToggleRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -74,7 +75,16 @@ type SettingsTab = 'target' | 'prompts' | 'plugins' | 'diagnostics';
 type PromptsView = 'edit' | 'history';
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('target');
+  const searchParams = useSearchParams();
+  const tabParam = (searchParams.get('tab') as SettingsTab) || 'target';
+  const [activeTab, setActiveTab] = useState<SettingsTab>(tabParam);
+
+  // Sync activeTab when navigating back from sub-pages with ?tab= param
+  useEffect(() => {
+    if (tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Target state
   const [targets, setTargets] = useState<SiteTarget[]>([]);

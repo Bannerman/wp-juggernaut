@@ -400,6 +400,12 @@
       ],
       "downloads": [
         {
+          "key": "download_offset",
+          "label": "Download Offset",
+          "type": "number",
+          "width": "full"
+        },
+        {
           "key": "download_sections",
           "type": "repeater",
           "label": "Download Sections",

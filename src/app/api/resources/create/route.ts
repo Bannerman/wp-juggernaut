@@ -18,6 +18,15 @@ export async function POST(request: NextRequest) {
 
     const postType = body.postType as string | undefined;
 
+    // Filter synthetic/internal fields from meta_box before sending to WordPress
+    const cleanMetaBox: Record<string, unknown> = {};
+    if (body.meta_box) {
+      for (const [key, value] of Object.entries(body.meta_box)) {
+        if (key === 'featured_image_url' || key === 'featured_media_id' || key === '_dirty_taxonomies') continue;
+        cleanMetaBox[key] = value;
+      }
+    }
+
     // Create on WordPress (pass REST base for the post type)
     const resource = await createResource({
       title: body.title,
@@ -26,7 +35,7 @@ export async function POST(request: NextRequest) {
       content: body.content || '',
       featured_media: featuredMediaId,
       ...body.taxonomies,
-      meta_box: body.meta_box,
+      meta_box: cleanMetaBox,
     }, postType);
 
     // Save to local database with the correct post type slug

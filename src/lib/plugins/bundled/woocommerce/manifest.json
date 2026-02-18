@@ -1,0 +1,34 @@
+{
+  "id": "woocommerce",
+  "name": "WooCommerce",
+  "version": "1.0.0",
+  "description": "Adds WooCommerce product support via the WordPress REST API",
+  "author": {
+    "name": "Juggernaut",
+    "url": "https://github.com/Bannerman/wp-juggernaut"
+  },
+  "license": "MIT",
+  "requires_core": ">=1.0.0",
+  "tier": "bundled",
+  "wordpress_plugin": {
+    "name": "WooCommerce",
+    "slug": "woocommerce",
+    "url": "https://woocommerce.com",
+    "detection": {
+      "rest_endpoint": "/wp-json/wc/v3/"
+    }
+  },
+  "provides": {
+    "tabs": [],
+    "field_types": [],
+    "api_extensions": []
+  },
+  "settings_schema": {
+    "rest_base": {
+      "type": "string",
+      "label": "Product REST base",
+      "description": "WP REST API base for products (usually 'product')",
+      "default": "product"
+    }
+  }
+}

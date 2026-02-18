@@ -15,10 +15,10 @@ interface SettingsNavProps {
 }
 
 const NAV_ITEMS = [
-  { id: 'target', label: 'Target Site', icon: Server, href: '/settings', inPage: true },
-  { id: 'prompts', label: 'Prompts', icon: Sparkles, href: '/settings', inPage: true },
-  { id: 'plugins', label: 'Plugins', icon: Puzzle, href: '/settings', inPage: true },
-  { id: 'diagnostics', label: 'Diagnostics', icon: Activity, href: '/settings', inPage: true },
+  { id: 'target', label: 'Target Site', icon: Server, href: '/settings?tab=target', inPage: true },
+  { id: 'prompts', label: 'Prompts', icon: Sparkles, href: '/settings?tab=prompts', inPage: true },
+  { id: 'plugins', label: 'Plugins', icon: Puzzle, href: '/settings?tab=plugins', inPage: true },
+  { id: 'diagnostics', label: 'Diagnostics', icon: Activity, href: '/settings?tab=diagnostics', inPage: true },
   { id: 'field-mappings', label: 'Field Mapping', icon: Repeat, href: '/settings/field-mappings', inPage: false, pluginId: 'convert-post-type' },
   { id: 'tab-layout', label: 'Tab Layout', icon: LayoutGrid, href: '/settings/tab-layout', inPage: false },
 ];
@@ -42,7 +42,7 @@ export function SettingsNav({ activeTab, actions, onTabClick, enabledPlugins }: 
         </div>
 
         <nav className="flex gap-6 -mb-px electron-no-drag">
-          {NAV_ITEMS.filter(item => !item.pluginId || enabledPlugins?.includes(item.pluginId)).map((item) => {
+          {NAV_ITEMS.filter(item => !item.pluginId || !enabledPlugins || enabledPlugins.includes(item.pluginId)).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             const className = cn(

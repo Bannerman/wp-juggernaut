@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Edit2, ExternalLink, ChevronUp, ChevronDown, Inbox } from 'lucide-react';
+import { Edit2, ExternalLink, Eye, ChevronUp, ChevronDown, Inbox } from 'lucide-react';
 import { cn, formatRelativeTime, STATUS_COLORS, truncate } from '@/lib/utils';
 
 interface Term {
@@ -412,6 +412,18 @@ export function ResourceTable({
                       </button>
                       {siteUrl && (
                         <a
+                          href={`${siteUrl}/wp-admin/post.php?post=${resource.id}&action=edit`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+                          title="Edit in WordPress"
+                          aria-label={`Edit ${resource.title} in WordPress`}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
+                      {siteUrl && resource.slug && (
+                        <a
                           href={`${siteUrl}/${postTypeSlug}/${resource.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -419,7 +431,7 @@ export function ResourceTable({
                           title="View on site"
                           aria-label={`View ${resource.title} on site`}
                         >
-                          <ExternalLink className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                         </a>
                       )}
                     </div>

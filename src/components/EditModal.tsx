@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Save, AlertTriangle, Sparkles, Upload, Loader2, Repeat } from 'lucide-react';
+import { X, Save, AlertTriangle, Sparkles, Upload, Loader2, Repeat, ExternalLink, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
 import { DynamicTab, getPluginTab } from '@/components/fields';
@@ -682,18 +682,33 @@ export function EditModal({
                 {isCreateMode ? (title || `New ${postTypeLabel}`) : title}
               </h2>
               {!isCreateMode && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  ID: {effectiveResource.id}
+                <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1 flex-wrap">
+                  <span>ID: {effectiveResource.id}</span>
+                  {siteUrl && (
+                    <>
+                      <span className="mx-1">·</span>
+                      <a
+                        href={`${siteUrl}/wp-admin/post.php?post=${effectiveResource.id}&action=edit`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-brand-600 hover:underline"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        Edit in WP
+                      </a>
+                    </>
+                  )}
                   {slug && siteUrl && (
                     <>
-                      <span className="mx-2">·</span>
+                      <span className="mx-1">·</span>
                       <a
                         href={`${siteUrl}/${postTypeSlug}/${slug}/`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-brand-600 hover:underline"
+                        className="inline-flex items-center gap-1 text-brand-600 hover:underline"
                       >
-                        {siteUrl.replace(/^https?:\/\//, '')}/{postTypeSlug}/{slug}/
+                        <ExternalLink className="w-3 h-3" />
+                        View
                       </a>
                     </>
                   )}
