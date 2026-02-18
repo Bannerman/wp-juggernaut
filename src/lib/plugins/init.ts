@@ -5,6 +5,7 @@
  * It discovers bundled plugins and restores previously-enabled plugins.
  */
 
+import type { SiteProfile } from './types';
 import { getPluginRegistry } from './registry';
 import { getPluginLoader, createCoreAPI } from './loader';
 import { getHookSystem } from './hooks';
@@ -52,18 +53,6 @@ async function doInitialize(): Promise<void> {
     const registry = getPluginRegistry();
     const enabledIds = registry.getEnabledPluginIds();
 
-    // Activate any previously-enabled plugins
-    if (enabledIds.length > 0) {
-      console.log(`[PluginInit] Restoring ${enabledIds.length} enabled plugins...`);
-      for (const pluginId of enabledIds) {
-        try {
-          await loader.activatePlugin(pluginId);
-        } catch (err) {
-          console.error(`[PluginInit] Failed to activate plugin ${pluginId}:`, err);
-        }
-      }
-    }
-
     // Auto-enable plugins from profile's required_plugins (handles fresh installs
     // where plugin-registry.json doesn't yet have any plugins enabled)
     try {
@@ -75,14 +64,37 @@ async function doInitialize(): Promise<void> {
 
       if (autoEnableIds.length > 0) {
         console.log(`[PluginInit] Auto-enabling ${autoEnableIds.length} plugins from profile...`);
-        const result = await loader.activateProfilePlugins(profile);
-        if (result.failed.length > 0) {
-          console.warn(`[PluginInit] Failed to auto-enable: ${result.failed.join(', ')}`);
+        for (const pluginId of autoEnableIds) {
+          registry.enablePlugin(pluginId);
         }
       }
     } catch (err) {
       // Profile may not be loaded yet (e.g., first run before any profile exists)
       console.debug('[PluginInit] Could not auto-enable from profile:', err);
+    }
+
+    // Activate all enabled plugins with profile context so activate(profile, settings) runs.
+    // This covers both previously-enabled plugins and freshly auto-enabled ones.
+    const allEnabledIds = registry.getEnabledPluginIds();
+    if (allEnabledIds.length > 0) {
+      console.log(`[PluginInit] Activating ${allEnabledIds.length} enabled plugins...`);
+      let profile: SiteProfile | null = null;
+      try {
+        profile = ensureProfileLoaded();
+      } catch {
+        // Profile may not be loaded yet
+      }
+      for (const pluginId of allEnabledIds) {
+        try {
+          if (profile) {
+            await loader.activatePluginForProfile(pluginId, profile);
+          } else {
+            await loader.activatePlugin(pluginId);
+          }
+        } catch (err) {
+          console.error(`[PluginInit] Failed to activate plugin ${pluginId}:`, err);
+        }
+      }
     }
 
     initialized = true;

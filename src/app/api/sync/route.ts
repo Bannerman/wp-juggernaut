@@ -1,7 +1,11 @@
 import { NextRequest } from 'next/server';
 import { fullSync, incrementalSync } from '@/lib/sync';
+import { ensurePluginsInitialized } from '@/lib/plugins/init';
 
 export async function POST(request: NextRequest) {
+  // Ensure plugins are initialized so plugin-injected post types (e.g. WooCommerce products) are available
+  await ensurePluginsInitialized();
+
   const body = await request.json().catch(() => ({}));
   const incremental = body.incremental === true;
   const stream = body.stream === true;

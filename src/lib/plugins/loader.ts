@@ -14,6 +14,7 @@ import type {
 } from './types';
 import { getPluginRegistry } from './registry';
 import { getHookSystem, HOOKS } from './hooks';
+import { getProfileManager } from '../profiles';
 
 /**
  * Plugin loader state
@@ -419,8 +420,7 @@ export function createCoreAPI(hooks: HookSystem): CoreAPI {
     hooks,
 
     getProfile: () => {
-      // Will be connected to profile system
-      return null;
+      return getProfileManager().getCurrentProfile();
     },
 
     getBaseUrl: () => {

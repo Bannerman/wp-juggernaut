@@ -7,8 +7,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getPluginRegistry } from '@/lib/plugins/registry';
+import { getPluginLoader } from '@/lib/plugins/loader';
 import { bundledPlugins } from '@/lib/plugins/bundled';
 import { ensurePluginsInitialized } from '@/lib/plugins/init';
+import { ensureProfileLoaded } from '@/lib/profiles';
 
 /**
  * Plugin info returned by the API
@@ -114,12 +116,21 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Enable or disable
+    // Enable or disable via both registry and loader lifecycle
+    const loader = getPluginLoader();
     let success: boolean;
     if (enabled) {
-      success = registry.enablePlugin(pluginId);
+      // Activate through loader (calls initialize + activate with profile)
+      try {
+        const profile = ensureProfileLoaded();
+        success = await loader.activatePluginForProfile(pluginId, profile);
+      } catch {
+        // Fall back to registry-only if profile isn't available
+        success = registry.enablePlugin(pluginId);
+      }
     } else {
-      success = registry.disablePlugin(pluginId);
+      // Deactivate through loader (calls deactivate + updates registry)
+      success = await loader.deactivatePlugin(pluginId);
     }
 
     if (!success) {
