@@ -9,7 +9,7 @@ import {
   type UpdateResourcePayload,
   type BatchRequest,
 } from './wp-client';
-import { getProfileTaxonomyMetaFieldMapping } from './profiles';
+import { getProfileTaxonomyMetaFieldMapping, getProfileManager } from './profiles';
 import { getResourceById, markResourceClean, getDirtyResources, getResourceSeo, type LocalSeoData } from './queries';
 import { seopressPlugin } from './plugins/bundled/seopress';
 
@@ -24,6 +24,16 @@ export interface ConflictInfo {
   title: string;
   localModified: string;
   serverModified: string;
+}
+
+/**
+ * Resolves the WP REST base for a given post type slug by looking it up
+ * in the profile's post_types config. Falls back to the slug itself.
+ */
+function getRestBaseForPostType(postTypeSlug: string): string {
+  const postTypes = getProfileManager().getPostTypes();
+  const pt = postTypes.find((p) => p.slug === postTypeSlug);
+  return pt?.rest_base || postTypeSlug;
 }
 
 interface DownloadLink {
@@ -151,13 +161,14 @@ export async function checkForConflicts(resourceIds: number[]): Promise<Conflict
 
   for (const id of resourceIds) {
     const localResource = db
-      .prepare('SELECT id, title, modified_gmt FROM posts WHERE id = ?')
-      .get(id) as { id: number; title: string; modified_gmt: string } | undefined;
+      .prepare('SELECT id, title, modified_gmt, post_type FROM posts WHERE id = ?')
+      .get(id) as { id: number; title: string; modified_gmt: string; post_type: string } | undefined;
 
     if (!localResource) continue;
 
     try {
-      const serverResource = await fetchResourceById(id);
+      const restBase = getRestBaseForPostType(localResource.post_type);
+      const serverResource = await fetchResourceById(id, restBase);
       
       if (serverResource.modified_gmt !== localResource.modified_gmt) {
         conflicts.push({
@@ -355,6 +366,9 @@ export async function pushResource(
     const changelogDate = getLatestChangelogDate(resource?.meta_box);
     const originalModifiedGmt = resource?.modified_gmt;
 
+    // Resolve REST base for this post's type (e.g., 'product' -> 'products')
+    const restBase = resource ? getRestBaseForPostType(resource.post_type) : undefined;
+
     // Set date_gmt on the payload so WordPress preserves the publish date
     // (use changelog date if available, otherwise keep the original date)
     const preservedDate = changelogDate
@@ -364,7 +378,7 @@ export async function pushResource(
       payload.date_gmt = preservedDate;
     }
 
-    const updated = await updateResource(resourceId, payload);
+    const updated = await updateResource(resourceId, payload, restBase);
 
     // Push SEO data (non-blocking - log errors but don't fail the push)
     const seoResult = await pushSeoData(resourceId);
