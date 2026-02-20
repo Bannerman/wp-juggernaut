@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
     const filename = formData.get('filename') as string;
     const title = formData.get('title') as string;
     const altText = formData.get('alt_text') as string;
+    const postId = formData.get('post_id') as string;
 
     if (!file) {
       return NextResponse.json(
@@ -59,21 +60,25 @@ export async function POST(request: NextRequest) {
     const mediaData = await wpResponse.json();
     console.log('[upload] WordPress media response:', JSON.stringify(mediaData, null, 2));
 
-    // Update media metadata if title or alt text provided
-    if (title || altText) {
-      const metaResponse = await fetch(`${url}/${mediaData.id}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: title || filename || file.name,
-          alt_text: altText || '',
-        }),
-      });
-      console.log('[upload] Media metadata update status:', metaResponse.status);
+    // Update media metadata (title, alt text, and parent post attachment)
+    const metaUpdate: Record<string, unknown> = {
+      title: title || filename || file.name,
+      alt_text: altText || '',
+    };
+    // Attach media to the parent post so WordPress tracks ownership
+    if (postId) {
+      metaUpdate.post = parseInt(postId, 10);
     }
+
+    const metaResponse = await fetch(`${url}/${mediaData.id}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(metaUpdate),
+    });
+    console.log('[upload] Media metadata update status:', metaResponse.status);
 
     // Get the URL - prefer source_url, fall back to guid.rendered
     const imageUrl = mediaData.source_url || mediaData.guid?.rendered;
