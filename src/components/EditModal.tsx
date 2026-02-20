@@ -449,6 +449,10 @@ export function EditModal({
       formData.append('filename', processed.filename);
       formData.append('title', processed.title);
       formData.append('alt_text', processed.altText);
+      // Attach media to the post so WordPress tracks which images belong to which post
+      if (effectiveResource.id) {
+        formData.append('post_id', String(effectiveResource.id));
+      }
 
       const response = await fetch('/api/upload', {
         method: 'POST',

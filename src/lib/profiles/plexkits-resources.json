@@ -834,6 +834,78 @@
           "category": "meta"
         }
       }
+    ],
+    "product->resource": [
+      {
+        "source": {
+          "key": "title",
+          "category": "core"
+        },
+        "target": {
+          "key": "title",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "content",
+          "category": "core"
+        },
+        "target": {
+          "key": "text_content",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "slug",
+          "category": "core"
+        },
+        "target": {
+          "key": "slug",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "status",
+          "category": "core"
+        },
+        "target": {
+          "key": "status",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "featured_media",
+          "category": "core"
+        },
+        "target": {
+          "key": "featured_media",
+          "category": "core"
+        }
+      },
+      {
+        "source": {
+          "key": "excerpt",
+          "category": "core"
+        },
+        "target": {
+          "key": "intro_text",
+          "category": "meta"
+        }
+      },
+      {
+        "source": {
+          "key": "product_tag",
+          "category": "taxonomy"
+        },
+        "target": {
+          "key": "text_additional",
+          "category": "meta"
+        }
+      }
     ]
   }
 }

@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync, writeFileSync } from 'fs';
 import { getPluginRegistry } from '@/lib/plugins/registry';
 import { ensureProfileLoaded, getProfileManager, getActiveProfileFilePath } from '@/lib/profiles';
+import { ensurePluginsInitialized } from '@/lib/plugins/init';
 import { getWpBaseUrl, getWpCredentials } from '@/lib/wp-client';
 import { discoverFieldsForPostType } from '@/lib/discovery';
 import type { FieldMappingEntry, MappableField } from '@/lib/plugins/types';
@@ -195,6 +196,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    await ensurePluginsInitialized();
     ensureProfileLoaded();
     const manager = getProfileManager();
     const { searchParams } = new URL(request.url);
