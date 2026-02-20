@@ -58,6 +58,9 @@ interface Resource {
   meta_box: Record<string, unknown>;
 }
 
+const pluralize = (word: string): string =>
+  word.endsWith('s') ? word : `${word}s`;
+
 export default function Home() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [terms, setTerms] = useState<Record<string, Term[]>>({});
@@ -716,7 +719,7 @@ export default function Home() {
                 )}
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500 dark:text-gray-400">Total:</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{stats.totalResources} {postTypeLabel.toLowerCase()}s</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{stats.totalResources} {pluralize(postTypeLabel.toLowerCase())}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500 dark:text-gray-400">Terms:</span>
@@ -752,7 +755,7 @@ export default function Home() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder={`Search ${postTypeLabel.toLowerCase()}s...`}
+                placeholder={`Search ${pluralize(postTypeLabel.toLowerCase())}...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-10 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
@@ -910,7 +913,7 @@ export default function Home() {
             onUpdate={handleUpdateResource}
             siteUrl={siteUrl}
             postTypeSlug={postTypeSlug}
-            postTypeLabelPlural={`${postTypeLabel.toLowerCase()}s`}
+            postTypeLabelPlural={`${pluralize(postTypeLabel.toLowerCase())}`}
           />
         )}
       </main>
