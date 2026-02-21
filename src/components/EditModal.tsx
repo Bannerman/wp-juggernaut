@@ -724,7 +724,11 @@ export function EditModal({
               )}
               {isCreateMode && <p className="text-sm text-green-600">Creating new {postTypeLabel.toLowerCase()}</p>}
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              aria-label="Close"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -1030,7 +1034,11 @@ export function EditModal({
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 )}
               >
+              {isSaving || isCreating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
                 <Save className="w-4 h-4" />
+              )}
                 {isSaving || isCreating
                   ? (isCreateMode ? 'Creating...' : 'Saving...')
                   : (isCreateMode ? 'Create Resource' : 'Save Changes')}
