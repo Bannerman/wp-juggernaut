@@ -152,9 +152,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
 
     // Compute which tabs were deleted (were in initial load but not in final submission)
     const deletedIds = new Set<string>();
-    for (const id of initialIds) {
+    Array.from(initialIds).forEach((id) => {
       if (!submittedIds.has(id)) deletedIds.add(id);
-    }
+    });
 
     // Merge: keep existing tabs that weren't deleted, update ones that were modified, add new ones
     const mergedTabs: TabConfig[] = [];
@@ -182,9 +182,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
 
     // Merge field_layout: only touch tabs the editor knew about
     // Delete field_layout for deleted tabs
-    for (const tabId of deletedIds) {
+    Array.from(deletedIds).forEach((tabId) => {
       delete fileContent.ui.field_layout[tabId];
-    }
+    });
     // Update/add field_layout for submitted tabs
     for (const [tabId, fields] of Object.entries(fieldLayout)) {
       if (!HARDCODED_TAB_IDS.has(tabId)) {

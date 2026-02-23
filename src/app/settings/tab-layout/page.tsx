@@ -26,7 +26,7 @@ interface TabConfig {
 
 interface FieldDefinition {
   key: string;
-  type: string;
+  type: 'text' | 'textarea' | 'number' | 'checkbox' | 'date' | 'datetime' | 'color' | 'select' | 'url' | 'repeater' | 'textarea-list';
   label: string;
   width?: 'full' | 'half' | 'quarter';
   [key: string]: unknown;

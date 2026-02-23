@@ -92,9 +92,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const CORE_FIELDS = new Set(['title', 'content', 'excerpt', 'slug', 'status', 'featured_media']);
 
     // Helper: get a value from the resource by field key and category
-    function getSourceValue(key: string, category?: string): unknown {
+    const getSourceValue = (key: string, category?: string): unknown => {
       if (category === 'core' || CORE_FIELDS.has(key)) {
-        return (resource as Record<string, unknown>)[key];
+        return (resource as unknown as Record<string, unknown>)[key];
       }
       if (category === 'taxonomy') {
         return resource.taxonomies?.[key];
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // ─── Step 3: Create redirect (old URL → new URL) ────────────────────────
 
-    let redirectResult = { success: true, error: undefined as string | undefined };
+    let redirectResult: { success: boolean; error?: string } = { success: true };
     if (createRedirect && oldSlug) {
       // Build URL paths from the profile's post type config
       ensureProfileLoaded();

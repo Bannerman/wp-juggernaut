@@ -367,7 +367,7 @@ export async function pushResource(
     const originalModifiedGmt = resource?.modified_gmt;
 
     // Resolve REST base for this post's type (e.g., 'product' -> 'products')
-    const restBase = resource ? getRestBaseForPostType(resource.post_type) : undefined;
+    const restBase = resource ? getRestBaseForPostType(resource.post_type || 'resource') : undefined;
 
     // Set date_gmt on the payload so WordPress preserves the publish date
     // (use changelog date if available, otherwise keep the original date)

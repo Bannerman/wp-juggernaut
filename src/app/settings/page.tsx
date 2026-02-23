@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Save, RotateCcw, Check, AlertCircle, History, FileText, Globe, Loader2, RefreshCw, Puzzle, Activity, ArrowLeft, ToggleLeft, ToggleRight } from 'lucide-react';
@@ -75,6 +75,14 @@ type SettingsTab = 'target' | 'prompts' | 'plugins' | 'diagnostics';
 type PromptsView = 'edit' | 'history';
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 dark:bg-gray-900" />}>
+      <SettingsPageContent />
+    </Suspense>
+  );
+}
+
+function SettingsPageContent() {
   const searchParams = useSearchParams();
   const tabParam = (searchParams.get('tab') as SettingsTab) || 'target';
   const [activeTab, setActiveTab] = useState<SettingsTab>(tabParam);
@@ -461,7 +469,7 @@ export default function SettingsPage() {
         enabledPlugins={plugins.filter(p => p.enabled).map(p => p.id)}
         onTabClick={(tabId) => {
           if (tabId === 'prompts') { setActiveTab('prompts'); setPromptsView('edit'); }
-          else setActiveTab(tabId);
+          else setActiveTab(tabId as SettingsTab);
         }}
         actions={
           activeTab === 'prompts' && promptsView === 'edit' ? (

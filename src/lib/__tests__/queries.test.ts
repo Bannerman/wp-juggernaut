@@ -26,15 +26,17 @@ describe('Queries Module', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     mockDbInstance = {
       prepare: jest.fn(),
       pragma: jest.fn(),
       exec: jest.fn(),
       close: jest.fn(),
     };
-    
+
     mockDb.getDb.mockReturnValue(mockDbInstance);
+    // getPrimaryPostType is imported from db.ts — needs explicit mock
+    (mockDb.getPrimaryPostType as jest.Mock).mockReturnValue('resource');
   });
 
   describe('getResources', () => {
@@ -126,8 +128,8 @@ describe('Queries Module', () => {
         })
         .mockReturnValueOnce({
           all: jest.fn().mockReturnValue([
-            { field_id: 'version', value: '"1.0"' },
-            { field_id: 'updated_for_year', value: '"2024"' },
+            { post_id: 1, field_id: 'version', value: '"1.0"' },
+            { post_id: 1, field_id: 'updated_for_year', value: '"2024"' },
           ]),
         })
         .mockReturnValueOnce({
