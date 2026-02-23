@@ -27,6 +27,10 @@ const TEMPLATE_META: Record<string, { name: string; description: string }> = {
     name: 'Featured Image',
     description: 'Prompt for generating featured image descriptions or prompts',
   },
+  'faq': {
+    name: 'FAQ',
+    description: 'Prompt for generating FAQ question and answer pairs',
+  },
 };
 
 /**
@@ -152,6 +156,41 @@ Please provide:
 [List of key visual elements to include]
 
 ---END---`;
+  }
+
+  if (templateId === 'faq') {
+    return `Generate a set of FAQ (Frequently Asked Questions) for a resource with the following details. Each FAQ should be relevant, helpful, and written in a natural conversational tone.
+
+**Title:** {{title}}
+
+**Introduction:** {{intro_text}}
+
+**Main Content:** {{text_content}}
+
+**Features:**
+{{features}}
+
+**Categories:** {{available_taxonomies}}
+
+Please generate 5-8 FAQ pairs that a user might ask about this resource. Use the EXACT format below.
+
+---FAQ_ITEMS---
+Q: [Question about the resource]
+A: [Clear, helpful answer]
+
+Q: [Another question]
+A: [Clear, helpful answer]
+
+---END---
+
+**Guidelines:**
+- Questions should be natural and reflect what real users would ask
+- Answers should be concise but comprehensive (2-4 sentences)
+- Cover topics like: what it is, how to use it, compatibility, customization, licensing
+- If existing FAQ data is provided above, improve and expand upon it
+
+**Existing FAQ data:**
+{{faq_items}}`;
   }
 
   return `# {{title}}
@@ -359,4 +398,5 @@ export const PLACEHOLDER_TAGS = [
   { tag: '{{og_description}}', description: 'Facebook/OG description' },
   { tag: '{{twitter_title}}', description: 'Twitter/X title' },
   { tag: '{{twitter_description}}', description: 'Twitter/X description' },
+  { tag: '{{faq_items}}', description: 'FAQ question/answer pairs (formatted)' },
 ];

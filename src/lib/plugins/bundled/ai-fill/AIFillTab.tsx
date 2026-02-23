@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Sparkles, Check, Wand2, Image as ImageIcon } from 'lucide-react';
+import { Sparkles, Check, Wand2, Image as ImageIcon, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { registerPluginTab } from '@/components/fields';
 import type { PluginTabProps } from '@/components/fields';
@@ -77,11 +77,13 @@ function AIFillTab({ terms, context }: PluginTabProps) {
     Promise.all([
       fetch('/api/prompt-templates/ai-fill').then(res => res.json()),
       fetch('/api/prompt-templates/featured-image').then(res => res.json()),
+      fetch('/api/prompt-templates/faq').then(res => res.json()),
     ])
-      .then(([aiFill, featuredImage]) => {
+      .then(([aiFill, featuredImage, faq]) => {
         setPromptTemplates({
           'ai-fill': aiFill.template?.content || '',
           'featured-image': featuredImage.template?.content || '',
+          'faq': faq.template?.content || '',
         });
       })
       .catch(() => setPromptTemplates({}));
@@ -107,7 +109,7 @@ function AIFillTab({ terms, context }: PluginTabProps) {
 
   // --- Prompt generation ---
 
-  const generatePrompt = (templateId: 'ai-fill' | 'featured-image') => {
+  const generatePrompt = (templateId: 'ai-fill' | 'featured-image' | 'faq') => {
     // Build taxonomy options dynamically from synced terms and config
     const getTaxonomyExamples = (taxonomy: string, maxExamples = 3): string => {
       const taxTerms = terms[taxonomy] || [];
@@ -214,6 +216,13 @@ function AIFillTab({ terms, context }: PluginTabProps) {
       '{{og_description}}': seoData.og.description || '[Facebook share description]',
       '{{twitter_title}}': seoData.twitter.title || '[Twitter share title]',
       '{{twitter_description}}': seoData.twitter.description || '[Twitter share description]',
+      '{{faq_items}}': (() => {
+        const faqGroup = (metaBox.faq_group as Array<{ question: string; answer: string }>) || [];
+        if (faqGroup.length > 0) {
+          return faqGroup.map(faq => `Q: ${faq.question}\nA: ${faq.answer}`).join('\n\n');
+        }
+        return '[No existing FAQ data]';
+      })(),
     };
 
     // Get template content
@@ -287,6 +296,42 @@ twitter_description: {{twitter_description}}
 ---END---`;
     }
 
+    // Fallback for faq if not loaded
+    if (!template && templateId === 'faq') {
+      template = `Generate a set of FAQ (Frequently Asked Questions) for a resource with the following details. Each FAQ should be relevant, helpful, and written in a natural conversational tone.
+
+**Title:** {{title}}
+
+**Introduction:** {{intro_text}}
+
+**Main Content:** {{text_content}}
+
+**Features:**
+{{features}}
+
+**Categories:** {{available_taxonomies}}
+
+Please generate 5-8 FAQ pairs that a user might ask about this resource. Use the EXACT format below.
+
+---FAQ_ITEMS---
+Q: [Question about the resource]
+A: [Clear, helpful answer]
+
+Q: [Another question]
+A: [Clear, helpful answer]
+
+---END---
+
+**Guidelines:**
+- Questions should be natural and reflect what real users would ask
+- Answers should be concise but comprehensive (2-4 sentences)
+- Cover topics like: what it is, how to use it, compatibility, customization, licensing
+- If existing FAQ data is provided above, improve and expand upon it
+
+**Existing FAQ data:**
+{{faq_items}}`;
+    }
+
     // Replace all placeholders
     for (const [placeholder, value] of Object.entries(replacements)) {
       template = template.split(placeholder).join(value);
@@ -295,7 +340,7 @@ twitter_description: {{twitter_description}}
     return template;
   };
 
-  const copyPrompt = async (templateId: 'ai-fill' | 'featured-image') => {
+  const copyPrompt = async (templateId: 'ai-fill' | 'featured-image' | 'faq') => {
     try {
       await navigator.clipboard.writeText(generatePrompt(templateId));
       setCopiedPrompt(templateId);
@@ -618,6 +663,32 @@ twitter_description: {{twitter_description}}
         }
       }
 
+      // Parse FAQ Items
+      const faqMatch = content.match(/---FAQ_ITEMS---\s*([\s\S]*?)(?=---[A-Z_]+---|---END---|$)/);
+      if (faqMatch && faqMatch[1].trim()) {
+        const faqContent = faqMatch[1].trim();
+        const faqPairs: Array<{ question: string; answer: string }> = [];
+
+        // Split on "Q:" to get individual FAQ entries
+        const faqEntries = faqContent.split(/(?=Q:)/i).filter(Boolean);
+        faqEntries.forEach(entry => {
+          const qMatch = entry.match(/Q:\s*(.+)/i);
+          const aMatch = entry.match(/A:\s*([\s\S]*?)$/i);
+          if (qMatch && aMatch && qMatch[1].trim() && aMatch[1].trim()) {
+            faqPairs.push({
+              question: qMatch[1].trim(),
+              answer: aMatch[1].trim(),
+            });
+          }
+        });
+
+        if (faqPairs.length > 0) {
+          console.log('Parsed FAQ items:', faqPairs);
+          updatedMeta.faq_group = faqPairs;
+          fieldsUpdated++;
+        }
+      }
+
       // Apply all SEO + Social updates in a single setState call
       if (seoFieldsUpdated) {
         setSeoData(updatedSeo);
@@ -643,50 +714,30 @@ twitter_description: {{twitter_description}}
   return (
     <div className="space-y-6">
       {/* Copy Prompt Buttons */}
-      <div className="grid grid-cols-2 gap-4">
-        <button
-          onClick={() => copyPrompt('ai-fill')}
-          className={cn(
-            'flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 transition-all',
-            copiedPrompt === 'ai-fill'
-              ? 'bg-green-50 border-green-300 text-green-700'
-              : 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200 hover:border-purple-400 hover:shadow-md'
-          )}
-        >
-          {copiedPrompt === 'ai-fill' ? (
-            <Check className="w-8 h-8" />
-          ) : (
-            <Sparkles className="w-8 h-8 text-purple-600" />
-          )}
-          <div className="text-center">
-            <span className="block font-semibold text-gray-900 dark:text-white">
-              {copiedPrompt === 'ai-fill' ? 'Copied!' : 'Copy AI Fill Prompt'}
-            </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">Generate all content fields</span>
-          </div>
-        </button>
-
-        <button
-          onClick={() => copyPrompt('featured-image')}
-          className={cn(
-            'flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 transition-all',
-            copiedPrompt === 'featured-image'
-              ? 'bg-green-50 border-green-300 text-green-700'
-              : 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 hover:border-amber-400 hover:shadow-md'
-          )}
-        >
-          {copiedPrompt === 'featured-image' ? (
-            <Check className="w-8 h-8" />
-          ) : (
-            <ImageIcon className="w-8 h-8 text-amber-600" />
-          )}
-          <div className="text-center">
-            <span className="block font-semibold text-gray-900 dark:text-white">
-              {copiedPrompt === 'featured-image' ? 'Copied!' : 'Copy Image Prompt'}
-            </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">Generate featured image ideas</span>
-          </div>
-        </button>
+      <div className="flex flex-wrap gap-2">
+        {[
+          { id: 'ai-fill' as const, label: 'AI Fill', icon: Sparkles, style: 'bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600' },
+          { id: 'featured-image' as const, label: 'Image', icon: ImageIcon, style: 'bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-600' },
+          { id: 'faq' as const, label: 'FAQ', icon: HelpCircle, style: 'bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-700 dark:hover:bg-teal-600' },
+        ].map(({ id, label, icon: Icon, style }) => (
+          <button
+            key={id}
+            onClick={() => copyPrompt(id)}
+            className={cn(
+              'inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all hover:shadow-sm',
+              copiedPrompt === id
+                ? 'bg-green-600 text-white dark:bg-green-700'
+                : style
+            )}
+          >
+            {copiedPrompt === id ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Icon className="w-4 h-4" />
+            )}
+            {copiedPrompt === id ? 'Copied!' : label}
+          </button>
+        ))}
       </div>
 
       {/* Instructions */}
