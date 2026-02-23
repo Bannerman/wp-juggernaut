@@ -102,6 +102,8 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
             <div key={taxonomy} className="border border-gray-200 dark:border-gray-700 rounded-lg">
               <button
                 onClick={() => toggleTaxonomy(taxonomy)}
+                aria-expanded={isExpanded}
+                aria-controls={`taxonomy-${taxonomy}`}
                 className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 <div className="flex items-center gap-2">
@@ -123,7 +125,10 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
               </button>
 
               {isExpanded && (
-                <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                <div
+                  id={`taxonomy-${taxonomy}`}
+                  className="px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+                >
                   {/* Selected terms */}
                   {selectedCount > 0 && (
                     <div className="flex flex-wrap gap-1 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
@@ -139,6 +144,7 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
                               if (term) toggleTerm(taxonomy, term.id);
                             }}
                             className="hover:text-brand-900"
+                            aria-label={`Remove ${name}`}
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -147,6 +153,7 @@ export function FilterPanel({ terms, filters, onChange, taxonomyConfig, taxonomy
                       <button
                         onClick={() => clearTaxonomyFilter(taxonomy)}
                         className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 ml-1"
+                        aria-label={`Clear ${taxonomyLabels[taxonomy] || taxConfig?.name || taxonomy} filter`}
                       >
                         Clear
                       </button>
