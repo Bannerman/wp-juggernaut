@@ -323,6 +323,19 @@ When reviewing PRs (including those from external agents like `agent-gorilla`), 
 - Doesn't include unrelated files (lock files, logs, compiled artifacts)
 - Changes are focused — one concern per PR
 
+### **Local Build & Install**
+
+When building the Electron app locally for testing, **always bump the version** so you can confirm which build you're running. The version shows in the app header (via `UpdateNotifier.tsx`).
+
+1. Bump patch version in `src/package.json` (e.g. `0.9.8` → `0.9.9`)
+2. Build: `npm run electron:build:mac` (from `src/`)
+3. Quit the running app: `osascript -e 'quit app "Juggernaut"'`
+4. Install: copy `dist-electron/Juggernaut-X.Y.Z-arm64.dmg` → `/Applications/` (or open the DMG)
+5. Launch and verify the version in the header matches
+6. Rebuild `better-sqlite3` if the dev server also needs to work: `npm rebuild better-sqlite3`
+
+> **Note:** `npm run electron:build:mac` automatically rebuilds native modules (via `rebuild:electron`), but `npm run dev` does not. If the dev server fails with a native module error after building, run `npm rebuild better-sqlite3` to fix it.
+
 ### **Releasing**
 
 1. Update version in `src/package.json`
@@ -357,6 +370,7 @@ Before completing a task:
 - [ ] Tests pass (`npm run test` from `src/`)
 - [ ] Changes are documented if API surface changes
 - [ ] No hardcoded secrets (use `.env.local`)
+- [ ] Version bumped in `src/package.json` if building/shipping the Electron app
 
 ---
 

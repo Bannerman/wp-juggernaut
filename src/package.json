@@ -1,6 +1,6 @@
 {
   "name": "juggernaut",
-  "version": "0.9.8",
+  "version": "0.9.9",
   "description": "Juggernaut - A modular WordPress content management platform with plugin support",
   "private": true,
   "main": "electron/dist/main.js",
