@@ -221,7 +221,7 @@ describe('Sync Engine Module', () => {
   });
 
   describe('Preserve Dirty Flag', () => {
-    it('should use COALESCE to preserve dirty flag during resource save', async () => {
+    it('should check is_dirty and skip overwrite for dirty posts', async () => {
       mockWpClient.fetchAllTaxonomies.mockResolvedValue({} as any);
       mockWpClient.fetchAllResources.mockResolvedValue([
         {
@@ -240,9 +240,13 @@ describe('Sync Engine Module', () => {
 
       await fullSync();
 
-      // The INSERT OR REPLACE should use COALESCE to preserve is_dirty
+      // Should query is_dirty to decide whether to overwrite or only update snapshot
       expect(mockPrepare).toHaveBeenCalledWith(
-        expect.stringContaining('COALESCE')
+        expect.stringContaining('SELECT is_dirty FROM posts')
+      );
+      // Should store synced_snapshot in the INSERT
+      expect(mockPrepare).toHaveBeenCalledWith(
+        expect.stringContaining('synced_snapshot')
       );
     });
   });

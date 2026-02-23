@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getResourceById, updateLocalResource, getResourceSeo, saveResourceSeo } from '@/lib/queries';
+import { getResourceById, updateLocalResource, getResourceSeo, saveResourceSeo, getSyncedSnapshot } from '@/lib/queries';
 
 export async function GET(
   request: NextRequest,
@@ -19,7 +19,10 @@ export async function GET(
     // Include SEO data
     const seo = getResourceSeo(id);
 
-    return NextResponse.json({ ...resource, seo });
+    // Include synced snapshot when dirty (for field-level change detection)
+    const synced_snapshot = resource.is_dirty ? getSyncedSnapshot(id) : null;
+
+    return NextResponse.json({ ...resource, seo, synced_snapshot });
   } catch (error) {
     console.error('Error fetching resource:', error);
     return NextResponse.json(

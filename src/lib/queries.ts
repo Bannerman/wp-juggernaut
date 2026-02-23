@@ -1,6 +1,14 @@
 import { getDb, getPrimaryPostType } from './db';
 import { getTaxonomies } from './wp-client';
 
+export interface SyncedSnapshot {
+  title: string;
+  slug: string;
+  status: string;
+  meta_box: Record<string, unknown>;
+  taxonomies: Record<string, number[]>;
+}
+
 export interface LocalResource {
   id: number;
   post_type?: string;
@@ -16,6 +24,7 @@ export interface LocalResource {
   is_dirty: boolean;
   meta_box: Record<string, unknown>;
   taxonomies: Record<string, number[]>;
+  synced_snapshot?: SyncedSnapshot | null;
 }
 
 export interface LocalTerm {
@@ -231,15 +240,22 @@ export function getResourceById(id: number): LocalResource | null {
     modified_gmt: string;
     synced_at: string;
     is_dirty: number;
+    synced_snapshot: string | null;
   } | undefined;
 
   if (!row) return null;
+
+  let snapshot: SyncedSnapshot | null = null;
+  if (row.synced_snapshot) {
+    try { snapshot = JSON.parse(row.synced_snapshot); } catch { /* ignore */ }
+  }
 
   return {
     ...row,
     is_dirty: row.is_dirty === 1,
     meta_box: getPostMeta(id),
     taxonomies: getPostTaxonomies(id),
+    synced_snapshot: snapshot,
   };
 }
 
@@ -430,6 +446,52 @@ export function getDirtyResources(postType?: string): LocalResource[] {
 export function markResourceClean(id: number): void {
   const db = getDb();
   db.prepare('UPDATE posts SET is_dirty = 0 WHERE id = ?').run(id);
+}
+
+/**
+ * Returns the parsed synced snapshot for a resource, or null if none exists.
+ * @param id - The resource/post ID
+ */
+export function getSyncedSnapshot(id: number): SyncedSnapshot | null {
+  const db = getDb();
+  const row = db.prepare('SELECT synced_snapshot FROM posts WHERE id = ?').get(id) as { synced_snapshot: string | null } | undefined;
+  if (!row?.synced_snapshot) return null;
+  try {
+    return JSON.parse(row.synced_snapshot);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Restores all fields from the synced snapshot, clears `is_dirty`, and removes `_dirty_taxonomies`.
+ * @param id - The resource/post ID to reset
+ */
+export function discardAllChanges(id: number): void {
+  const db = getDb();
+  const snapshot = getSyncedSnapshot(id);
+  if (!snapshot) throw new Error(`No synced snapshot for post ${id}`);
+
+  // Restore core fields
+  db.prepare(`
+    UPDATE posts SET title = ?, slug = ?, status = ?, is_dirty = 0 WHERE id = ?
+  `).run(snapshot.title, snapshot.slug, snapshot.status, id);
+
+  // Restore meta fields
+  db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(id);
+  const metaStmt = db.prepare('INSERT INTO post_meta (post_id, field_id, value) VALUES (?, ?, ?)');
+  for (const [fieldId, value] of Object.entries(snapshot.meta_box)) {
+    metaStmt.run(id, fieldId, JSON.stringify(value));
+  }
+
+  // Restore taxonomy terms
+  db.prepare('DELETE FROM post_terms WHERE post_id = ?').run(id);
+  const termStmt = db.prepare('INSERT INTO post_terms (post_id, term_id, taxonomy) VALUES (?, ?, ?)');
+  for (const [taxonomy, termIds] of Object.entries(snapshot.taxonomies)) {
+    for (const termId of termIds) {
+      termStmt.run(id, termId, taxonomy);
+    }
+  }
 }
 
 /**

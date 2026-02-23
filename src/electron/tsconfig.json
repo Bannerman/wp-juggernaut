@@ -4,7 +4,7 @@
     "module": "commonjs",
     "lib": ["ES2020"],
     "outDir": "dist",
-    "rootDir": "..",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -14,6 +14,6 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["*.ts", "../lib/url-validation.ts"],
+  "include": ["*.ts"],
   "exclude": ["node_modules", "dist"]
 }

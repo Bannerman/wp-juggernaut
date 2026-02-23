@@ -7,7 +7,7 @@ const DB_PATH = process.env.DATABASE_PATH || './data/juggernaut.db';
 const LEGACY_DB_PATH = './data/plexkits.db';
 
 // Schema version - increment when making breaking changes
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 let db: Database.Database | null = null;
 
@@ -125,6 +125,11 @@ function migrateSchema(database: Database.Database, fromVersion: number, toVersi
   // Version 1 -> 2: Add post_type column, create plugin_data table, rename tables
   if (fromVersion < 2) {
     migrateV1toV2(database);
+  }
+
+  // Version 2 -> 3: Add synced_snapshot column to posts
+  if (fromVersion < 3) {
+    migrateV2toV3(database);
   }
 
   setSchemaVersion(database, toVersion);
@@ -363,6 +368,21 @@ function migrateV1toV2(database: Database.Database): void {
 }
 
 /**
+ * Migration from v2 to v3: Add synced_snapshot column to posts table.
+ * Stores a JSON snapshot of server values at sync time for dirty field detection.
+ */
+function migrateV2toV3(database: Database.Database): void {
+  console.log('[db] Running migration v2 -> v3...');
+
+  if (tableExists(database, 'posts') && !columnExists(database, 'posts', 'synced_snapshot')) {
+    database.exec('ALTER TABLE posts ADD COLUMN synced_snapshot TEXT');
+    console.log('[db] Added synced_snapshot column to posts');
+  }
+
+  console.log('[db] Migration v2 -> v3 complete');
+}
+
+/**
  * Initialize a fresh database with v2 schema
  */
 function initializeSchema(database: Database.Database) {
@@ -396,7 +416,8 @@ function initializeSchema(database: Database.Database) {
       date_gmt TEXT,
       modified_gmt TEXT,
       synced_at TEXT,
-      is_dirty INTEGER DEFAULT 0
+      is_dirty INTEGER DEFAULT 0,
+      synced_snapshot TEXT
     );
 
     -- Meta fields (stored as JSON)
