@@ -46,6 +46,14 @@ interface Term {
   parent_id: number;
 }
 
+interface SyncedSnapshot {
+  title: string;
+  slug: string;
+  status: string;
+  meta_box: Record<string, unknown>;
+  taxonomies: Record<string, number[]>;
+}
+
 interface Resource {
   id: number;
   title: string;
@@ -56,6 +64,7 @@ interface Resource {
   is_dirty: boolean;
   taxonomies: Record<string, number[]>;
   meta_box: Record<string, unknown>;
+  synced_snapshot?: SyncedSnapshot | null;
 }
 
 const pluralize = (word: string): string =>
@@ -454,6 +463,45 @@ export default function Home() {
       if (editingResource && editingResource.id === id) {
         setEditingResource(updated);
       }
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+
+  const handleEditResource = useCallback(async (resource: Resource) => {
+    if (resource.is_dirty) {
+      // Fetch full resource with synced_snapshot from API
+      try {
+        const res = await fetch(`/api/resources/${resource.id}`);
+        if (res.ok) {
+          const full = await res.json();
+          setEditingResource(full);
+          return;
+        }
+      } catch {
+        // Fall through to use list data
+      }
+    }
+    setEditingResource(resource);
+  }, []);
+
+  const handleDiscardAll = async () => {
+    if (!editingResource) return;
+    try {
+      const res = await fetch(`/api/resources/${editingResource.id}/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'all' }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Reset failed');
+      }
+
+      const updated = await res.json();
+      setEditingResource(updated);
+      await fetchData();
     } catch (err) {
       setError(String(err));
     }
@@ -900,7 +948,7 @@ export default function Home() {
             resources={filteredResources}
             terms={terms}
             onUpdate={handleUpdateResource}
-            onEdit={setEditingResource}
+            onEdit={handleEditResource}
           />
         ) : (
           <ResourceTable
@@ -909,7 +957,7 @@ export default function Home() {
             selectedIds={selectedResources}
             columns={activeView?.columns ?? []}
             onSelect={setSelectedResources}
-            onEdit={setEditingResource}
+            onEdit={handleEditResource}
             onUpdate={handleUpdateResource}
             siteUrl={siteUrl}
             postTypeSlug={postTypeSlug}
@@ -937,6 +985,8 @@ export default function Home() {
             setConvertingResource(editingResource);
             setEditingResource(null);
           } : undefined}
+          syncedSnapshot={editingResource.is_dirty ? editingResource.synced_snapshot : null}
+          onDiscardAll={editingResource.is_dirty && editingResource.synced_snapshot ? handleDiscardAll : undefined}
         />
       )}
 

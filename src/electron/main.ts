@@ -3,7 +3,15 @@ import type { UpdateInfo, ProgressInfo } from 'electron-updater';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
-import { isValidExternalUrl } from '../lib/url-validation';
+/** Validates that a URL uses http: or https: protocol (safe to open externally) */
+function isValidExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 // Lazy-load electron-updater to avoid crash if module is not bundled
 let autoUpdater: import('electron-updater').AppUpdater | null = null;

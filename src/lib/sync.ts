@@ -13,7 +13,7 @@ import {
 import { getProfileManager, ensureProfileLoaded, getProfileTaxonomyMetaFieldMapping } from './profiles';
 import { collectMetaBoxKeys, runFieldAudit, saveAuditResults } from './field-audit';
 import { decodeHtmlEntities, pMap } from './utils';
-import { saveResourceSeo, type LocalSeoData } from './queries';
+import { saveResourceSeo, type LocalSeoData, type SyncedSnapshot } from './queries';
 
 // Cache for media URLs to avoid duplicate requests during sync
 const mediaUrlCache = new Map<number, string>();
@@ -148,87 +148,21 @@ export function saveTerm(term: WPTerm): void {
 }
 
 /**
- * Saves a WordPress resource to the local database, including its meta fields
- * and taxonomy term assignments. Preserves the `is_dirty` flag if the resource
- * already exists with local edits. Also fetches and stores SEO data if available.
- * @param resource - The WordPress resource object from the REST API
- * @param featuredImageUrl - Optional pre-resolved featured image URL
- * @param postType - Optional post type slug override (defaults to 'resource')
+ * Resolves taxonomy term IDs from a WP resource (Meta Box fields preferred, REST fallback).
+ * Pure function returning { taxonomy_slug: number[] }.
  */
-export function saveResource(resource: WPResource, featuredImageUrl?: string, postType?: string): void {
-  const db = getDb();
-  const now = new Date().toISOString();
-  const type = postType || 'resource';
-
-  // Handle potentially missing rendered fields and decode HTML entities
-  const title = decodeHtmlEntities(resource.title?.rendered || '');
-  const content = resource.content?.rendered || '';
-  const excerpt = resource.excerpt?.rendered || '';
-
-  db.prepare(`
-    INSERT OR REPLACE INTO posts (id, post_type, title, slug, status, content, excerpt, featured_media, date_gmt, modified_gmt, synced_at, is_dirty)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT is_dirty FROM posts WHERE id = ?), 0))
-  `).run(
-    resource.id,
-    type,
-    title,
-    resource.slug,
-    resource.status,
-    content,
-    excerpt,
-    resource.featured_media || 0,
-    resource.date_gmt,
-    resource.modified_gmt,
-    now,
-    resource.id
-  );
-
-  // Save meta_box fields
-  const metaStmt = db.prepare(`
-    INSERT OR REPLACE INTO post_meta (post_id, field_id, value)
-    VALUES (?, ?, ?)
-  `);
-
-  // First, clear existing meta_box to handle removed fields
-  db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(resource.id);
-  
-  // Save the featured_image_url and featured_media_id if we have them
-  if (featuredImageUrl) {
-    metaStmt.run(resource.id, 'featured_image_url', JSON.stringify(featuredImageUrl));
-  }
-  if (resource.featured_media && resource.featured_media > 0) {
-    metaStmt.run(resource.id, 'featured_media_id', JSON.stringify(resource.featured_media));
-  }
-  
-  // Save other meta_box fields from WordPress
-  if (resource.meta_box) {
-    for (const [fieldId, value] of Object.entries(resource.meta_box)) {
-      // Skip featured_image_url if we already set it from media
-      if (fieldId === 'featured_image_url' && featuredImageUrl) continue;
-      metaStmt.run(resource.id, fieldId, JSON.stringify(value));
-    }
-  }
-
-  // Save taxonomy terms — prefer Meta Box fields (tax_*) which contain reliable
-  // term objects, over top-level REST fields which can include stale term_taxonomy_ids.
-  db.prepare('DELETE FROM post_terms WHERE post_id = ?').run(resource.id);
-
-  const termStmt = db.prepare(`
-    INSERT OR REPLACE INTO post_terms (post_id, term_id, taxonomy)
-    VALUES (?, ?, ?)
-  `);
-
+function computeTermsByTaxonomy(resource: WPResource): Record<string, number[]> {
+  const result: Record<string, number[]> = {};
   const taxonomies = getTaxonomies();
   const taxonomyMetaMapping = getProfileTaxonomyMetaFieldMapping();
+
   for (const taxonomy of taxonomies) {
     const metaField = taxonomyMetaMapping[taxonomy];
     let termIds: number[] = [];
 
-    // Try Meta Box field first (more reliable for this CPT)
     const metaValue = metaField && resource.meta_box ? resource.meta_box[metaField] : undefined;
     if (metaValue !== undefined) {
       if (Array.isArray(metaValue)) {
-        // Could be: array of term objects [{term_id, name, ...}, ...] OR plain number array [N, M]
         termIds = metaValue
           .map((t: unknown) => {
             if (typeof t === 'number') return t;
@@ -243,13 +177,10 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
           })
           .filter((id): id is number => typeof id === 'number');
       } else if (typeof metaValue === 'number') {
-        // Single number value
         termIds = [metaValue];
       } else if (typeof metaValue === 'string' && /^\d+$/.test(metaValue)) {
-        // Single string number
         termIds = [parseInt(metaValue, 10)];
       } else if (typeof metaValue === 'object' && metaValue !== null) {
-        // taxonomy (single-select): single term object {term_id, name, ...}
         const obj = metaValue as Record<string, unknown>;
         const termId = obj.term_id ?? obj.id;
         if (typeof termId === 'number') termIds = [termId];
@@ -257,7 +188,6 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
       }
     }
 
-    // Fall back to top-level REST field only if Meta Box field wasn't present at all
     if (metaValue === undefined) {
       const topLevel = resource[taxonomy as keyof WPResource] as number[] | undefined;
       if (Array.isArray(topLevel)) {
@@ -265,9 +195,217 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
       }
     }
 
+    result[taxonomy] = termIds;
+  }
+
+  return result;
+}
+
+/**
+ * Builds a snapshot of the server-side values for a resource.
+ * Used to detect which fields were changed locally.
+ */
+function buildSnapshot(
+  resource: WPResource,
+  featuredImageUrl: string | undefined,
+  termsByTaxonomy: Record<string, number[]>
+): SyncedSnapshot {
+  const title = decodeHtmlEntities(resource.title?.rendered || '');
+  const metaBox: Record<string, unknown> = {};
+
+  if (featuredImageUrl) {
+    metaBox.featured_image_url = featuredImageUrl;
+  }
+  if (resource.featured_media && resource.featured_media > 0) {
+    metaBox.featured_media_id = resource.featured_media;
+  }
+  if (resource.meta_box) {
+    for (const [fieldId, value] of Object.entries(resource.meta_box)) {
+      if (fieldId === 'featured_image_url' && featuredImageUrl) continue;
+      metaBox[fieldId] = value;
+    }
+  }
+
+  return {
+    title,
+    slug: resource.slug,
+    status: resource.status,
+    meta_box: metaBox,
+    taxonomies: termsByTaxonomy,
+  };
+}
+
+/**
+ * Saves a WordPress resource to the local database, including its meta fields
+ * and taxonomy term assignments. If the resource is dirty, only updates the
+ * synced_snapshot (preserving local edits). Also fetches and stores SEO data if available.
+ * @param resource - The WordPress resource object from the REST API
+ * @param featuredImageUrl - Optional pre-resolved featured image URL
+ * @param postType - Optional post type slug override (defaults to 'resource')
+ */
+export function saveResource(resource: WPResource, featuredImageUrl?: string, postType?: string): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const type = postType || 'resource';
+
+  const title = decodeHtmlEntities(resource.title?.rendered || '');
+  const content = resource.content?.rendered || '';
+  const excerpt = resource.excerpt?.rendered || '';
+
+  // Compute taxonomy terms from WP response
+  const termsByTaxonomy = computeTermsByTaxonomy(resource);
+
+  // Build snapshot of server values
+  const snapshot = buildSnapshot(resource, featuredImageUrl, termsByTaxonomy);
+  const snapshotJson = JSON.stringify(snapshot);
+
+  // Check if the post is currently dirty
+  const existing = db.prepare('SELECT is_dirty FROM posts WHERE id = ?').get(resource.id) as { is_dirty: number } | undefined;
+  const isDirty = existing?.is_dirty === 1;
+
+  if (isDirty) {
+    // Dirty post: only update the snapshot and sync metadata, preserving local edits
+    db.prepare(`
+      UPDATE posts SET synced_snapshot = ?, synced_at = ?, modified_gmt = ? WHERE id = ?
+    `).run(snapshotJson, now, resource.modified_gmt, resource.id);
+    return;
+  }
+
+  // Clean post: full INSERT OR REPLACE with snapshot
+  db.prepare(`
+    INSERT OR REPLACE INTO posts (id, post_type, title, slug, status, content, excerpt, featured_media, date_gmt, modified_gmt, synced_at, is_dirty, synced_snapshot)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+  `).run(
+    resource.id,
+    type,
+    title,
+    resource.slug,
+    resource.status,
+    content,
+    excerpt,
+    resource.featured_media || 0,
+    resource.date_gmt,
+    resource.modified_gmt,
+    now,
+    snapshotJson
+  );
+
+  // Save meta_box fields
+  const metaStmt = db.prepare(`
+    INSERT OR REPLACE INTO post_meta (post_id, field_id, value)
+    VALUES (?, ?, ?)
+  `);
+
+  db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(resource.id);
+
+  if (featuredImageUrl) {
+    metaStmt.run(resource.id, 'featured_image_url', JSON.stringify(featuredImageUrl));
+  }
+  if (resource.featured_media && resource.featured_media > 0) {
+    metaStmt.run(resource.id, 'featured_media_id', JSON.stringify(resource.featured_media));
+  }
+
+  if (resource.meta_box) {
+    for (const [fieldId, value] of Object.entries(resource.meta_box)) {
+      if (fieldId === 'featured_image_url' && featuredImageUrl) continue;
+      metaStmt.run(resource.id, fieldId, JSON.stringify(value));
+    }
+  }
+
+  // Save taxonomy terms
+  db.prepare('DELETE FROM post_terms WHERE post_id = ?').run(resource.id);
+
+  const termStmt = db.prepare(`
+    INSERT OR REPLACE INTO post_terms (post_id, term_id, taxonomy)
+    VALUES (?, ?, ?)
+  `);
+
+  for (const [taxonomy, termIds] of Object.entries(termsByTaxonomy)) {
     for (const termId of termIds) {
       termStmt.run(resource.id, termId, taxonomy);
     }
+  }
+}
+
+/**
+ * Clears orphaned dirty flags: posts marked dirty whose current values match
+ * the synced snapshot (i.e. no actual local changes remain).
+ */
+export function clearOrphanedDirtyFlags(): void {
+  const db = getDb();
+  const dirtyRows = db.prepare(
+    'SELECT id, title, slug, status, synced_snapshot FROM posts WHERE is_dirty = 1 AND synced_snapshot IS NOT NULL'
+  ).all() as Array<{ id: number; title: string; slug: string; status: string; synced_snapshot: string }>;
+
+  if (dirtyRows.length === 0) return;
+
+  let cleared = 0;
+  for (const row of dirtyRows) {
+    let snapshot: SyncedSnapshot;
+    try {
+      snapshot = JSON.parse(row.synced_snapshot);
+    } catch {
+      continue;
+    }
+
+    // Compare core fields
+    if (row.title !== snapshot.title || row.slug !== snapshot.slug || row.status !== snapshot.status) {
+      continue;
+    }
+
+    // Compare meta
+    const metaRows = db.prepare('SELECT field_id, value FROM post_meta WHERE post_id = ?').all(row.id) as Array<{ field_id: string; value: string }>;
+    const currentMeta: Record<string, unknown> = {};
+    for (const m of metaRows) {
+      if (m.field_id === '_dirty_taxonomies') continue;
+      try { currentMeta[m.field_id] = JSON.parse(m.value); } catch { currentMeta[m.field_id] = m.value; }
+    }
+
+    const snapshotMetaKeys = Object.keys(snapshot.meta_box);
+    const currentMetaKeys = Object.keys(currentMeta);
+    if (snapshotMetaKeys.length !== currentMetaKeys.length) continue;
+    let metaMatch = true;
+    for (const key of snapshotMetaKeys) {
+      if (JSON.stringify(currentMeta[key]) !== JSON.stringify(snapshot.meta_box[key])) {
+        metaMatch = false;
+        break;
+      }
+    }
+    if (!metaMatch) continue;
+
+    // Compare taxonomies
+    const termRows = db.prepare('SELECT term_id, taxonomy FROM post_terms WHERE post_id = ?').all(row.id) as Array<{ term_id: number; taxonomy: string }>;
+    const currentTax: Record<string, number[]> = {};
+    for (const t of termRows) {
+      if (!currentTax[t.taxonomy]) currentTax[t.taxonomy] = [];
+      currentTax[t.taxonomy].push(t.term_id);
+    }
+    let taxMatch = true;
+    for (const [tax, ids] of Object.entries(snapshot.taxonomies)) {
+      const currentIds = (currentTax[tax] || []).slice().sort((a, b) => a - b);
+      const snapshotIds = ids.slice().sort((a, b) => a - b);
+      if (currentIds.length !== snapshotIds.length || currentIds.some((v, i) => v !== snapshotIds[i])) {
+        taxMatch = false;
+        break;
+      }
+    }
+    // Also check if current has extra taxonomies not in snapshot
+    for (const tax of Object.keys(currentTax)) {
+      if (!snapshot.taxonomies[tax] && currentTax[tax].length > 0) {
+        taxMatch = false;
+        break;
+      }
+    }
+    if (!taxMatch) continue;
+
+    // All values match — clear dirty flag
+    db.prepare('UPDATE posts SET is_dirty = 0 WHERE id = ?').run(row.id);
+    db.prepare("DELETE FROM post_meta WHERE post_id = ? AND field_id = '_dirty_taxonomies'").run(row.id);
+    cleared++;
+  }
+
+  if (cleared > 0) {
+    console.log(`[sync] Cleared ${cleared} orphaned dirty flag(s)`);
   }
 }
 
@@ -505,6 +643,13 @@ export async function fullSync(onProgress?: SyncProgressCallback): Promise<SyncR
     }
   }
 
+  // Clear orphaned dirty flags (posts marked dirty but matching server values)
+  try {
+    clearOrphanedDirtyFlags();
+  } catch (error) {
+    console.error('[sync] Orphan detection failed (non-fatal):', error);
+  }
+
   if (errors.length === 0) {
     setLastSyncTime(new Date().toISOString());
   }
@@ -537,6 +682,13 @@ export async function incrementalSync(): Promise<SyncResult> {
     } catch (error) {
       errors.push(`Sync error for ${pt.slug}: ${error}`);
     }
+  }
+
+  // Clear orphaned dirty flags
+  try {
+    clearOrphanedDirtyFlags();
+  } catch (error) {
+    console.error('[sync] Orphan detection failed (non-fatal):', error);
   }
 
   if (errors.length === 0) {

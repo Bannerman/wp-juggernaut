@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { X, Save, AlertTriangle, Sparkles, Upload, Loader2, Repeat, ExternalLink, Pencil } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { X, Save, AlertTriangle, Sparkles, Upload, Loader2, Repeat, ExternalLink, Pencil, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
 import { DynamicTab, getPluginTab } from '@/components/fields';
@@ -39,6 +39,14 @@ interface TaxonomyConfig {
   conditional?: { show_when?: { taxonomy: string; has_term_id: number } };
 }
 
+interface SyncedSnapshot {
+  title: string;
+  slug: string;
+  status: string;
+  meta_box: Record<string, unknown>;
+  taxonomies: Record<string, number[]>;
+}
+
 interface EditModalProps {
   resource: Resource | null;
   terms: Record<string, Term[]>;
@@ -61,6 +69,10 @@ interface EditModalProps {
   tabConfig?: Array<{ id: string; label: string; source: string; icon?: string; position?: number; dynamic?: boolean; post_types?: string[] }>;
   /** Callback to open post type conversion (only shown when multiple post types exist) */
   onConvertPostType?: () => void;
+  /** Snapshot of server values (for dirty field detection) */
+  syncedSnapshot?: SyncedSnapshot | null;
+  /** Callback to discard all local changes */
+  onDiscardAll?: () => Promise<void>;
 }
 
 interface SEOData {
@@ -130,6 +142,8 @@ export function EditModal({
   fieldLayout,
   tabConfig = [],
   onConvertPostType,
+  syncedSnapshot,
+  onDiscardAll,
 }: EditModalProps) {
   const isCreateMode = resource === null;
 
@@ -254,6 +268,86 @@ export function EditModal({
     const { taxonomy, has_term_id } = taxConfig.conditional.show_when;
     const selectedTerms = taxonomies[taxonomy] || [];
     return selectedTerms.includes(has_term_id);
+  };
+
+  // Compute which fields differ from the snapshot (for dirty highlighting)
+  const changedFields = useMemo((): Set<string> => {
+    if (!syncedSnapshot || isCreateMode) return new Set();
+    const changed = new Set<string>();
+
+    if (title !== syncedSnapshot.title) changed.add('title');
+    if (slug !== syncedSnapshot.slug) changed.add('slug');
+    if (status !== syncedSnapshot.status) changed.add('status');
+
+    // Compare meta fields
+    const metaKeySet: Record<string, true> = {};
+    Object.keys(syncedSnapshot.meta_box).forEach(k => { metaKeySet[k] = true; });
+    Object.keys(metaBox).forEach(k => { metaKeySet[k] = true; });
+    for (const key of Object.keys(metaKeySet)) {
+      if (key === '_dirty_taxonomies') continue;
+      if (JSON.stringify(metaBox[key]) !== JSON.stringify(syncedSnapshot.meta_box[key])) {
+        changed.add(`meta:${key}`);
+      }
+    }
+
+    // Compare taxonomies
+    const taxKeySet: Record<string, true> = {};
+    Object.keys(syncedSnapshot.taxonomies).forEach(k => { taxKeySet[k] = true; });
+    Object.keys(taxonomies).forEach(k => { taxKeySet[k] = true; });
+    for (const tax of Object.keys(taxKeySet)) {
+      const current = (taxonomies[tax] || []).slice().sort((a, b) => a - b);
+      const snap = (syncedSnapshot.taxonomies[tax] || []).slice().sort((a, b) => a - b);
+      if (current.length !== snap.length || current.some((v, i) => v !== snap[i])) {
+        changed.add(`tax:${tax}`);
+      }
+    }
+
+    return changed;
+  }, [syncedSnapshot, isCreateMode, title, slug, status, metaBox, taxonomies]);
+
+  const changedFieldCount = changedFields.size;
+
+  // Per-field reset handler: sets local state back to snapshot value
+  const resetField = (fieldKey: string) => {
+    if (!syncedSnapshot) return;
+    if (fieldKey === 'title') setTitle(syncedSnapshot.title);
+    else if (fieldKey === 'slug') setSlug(syncedSnapshot.slug);
+    else if (fieldKey === 'status') setStatus(syncedSnapshot.status);
+    else if (fieldKey.startsWith('meta:')) {
+      const metaKey = fieldKey.slice(5);
+      setMetaBox(prev => {
+        const next = { ...prev };
+        if (metaKey in syncedSnapshot.meta_box) {
+          next[metaKey] = syncedSnapshot.meta_box[metaKey];
+        } else {
+          delete next[metaKey];
+        }
+        return next;
+      });
+    } else if (fieldKey.startsWith('tax:')) {
+      const taxSlug = fieldKey.slice(4);
+      setTaxonomies(prev => ({
+        ...prev,
+        [taxSlug]: [...(syncedSnapshot.taxonomies[taxSlug] || [])],
+      }));
+    }
+  };
+
+  // Reset a DynamicTab meta field
+  const handleResetMetaField = (key: string) => {
+    resetField(`meta:${key}`);
+  };
+
+  // Discard all changes handler
+  const [isDiscarding, setIsDiscarding] = useState(false);
+  const handleDiscardAll = async () => {
+    if (!onDiscardAll) return;
+    setIsDiscarding(true);
+    try {
+      await onDiscardAll();
+    } finally {
+      setIsDiscarding(false);
+    }
   };
 
   // Get taxonomies sorted by filter_position for classification tab
@@ -750,13 +844,40 @@ export function EditModal({
             </nav>
           </div>
 
+          {/* Dirty field banner */}
+          {!isCreateMode && syncedSnapshot && changedFieldCount > 0 && (
+            <div className="flex items-center justify-between px-6 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
+              <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                {changedFieldCount} field{changedFieldCount !== 1 ? 's' : ''} changed locally
+              </span>
+              {onDiscardAll && (
+                <button
+                  type="button"
+                  onClick={handleDiscardAll}
+                  disabled={isDiscarding}
+                  className="flex items-center gap-1.5 text-sm font-medium text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 disabled:opacity-50"
+                >
+                  <RotateCcw className={cn('w-3.5 h-3.5', isDiscarding && 'animate-spin')} />
+                  {isDiscarding ? 'Discarding...' : 'Discard All Changes'}
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Content */}
           <div className="px-6 py-4 overflow-y-auto flex-1">
             {/* Basic Tab */}
             {activeTab === 'basic' && (
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                <div className={cn(changedFields.has('title') && 'border-l-4 border-amber-400 pl-3')}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
+                    {changedFields.has('title') && (
+                      <button type="button" onClick={() => resetField('title')} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300" title="Reset to server value">
+                        <RotateCcw className="w-3 h-3" />Reset
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={title}
@@ -764,12 +885,19 @@ export function EditModal({
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    URL Slug
-                    {isCreateMode && !slugManuallyEdited && <span className="text-green-600 font-normal ml-1">(auto-synced from title)</span>}
-                    {isCreateMode && slugManuallyEdited && <span className="text-gray-400 font-normal ml-1">(manually edited)</span>}
-                  </label>
+                <div className={cn(changedFields.has('slug') && 'border-l-4 border-amber-400 pl-3')}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      URL Slug
+                      {isCreateMode && !slugManuallyEdited && <span className="text-green-600 font-normal ml-1">(auto-synced from title)</span>}
+                      {isCreateMode && slugManuallyEdited && <span className="text-gray-400 font-normal ml-1">(manually edited)</span>}
+                    </label>
+                    {changedFields.has('slug') && (
+                      <button type="button" onClick={() => resetField('slug')} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300" title="Reset to server value">
+                        <RotateCcw className="w-3 h-3" />Reset
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={slug}
@@ -899,15 +1027,24 @@ export function EditModal({
             {/* Classification Tab */}
             {activeTab === 'classification' && (
               <div className="space-y-4">
-                {classificationTaxonomies.map((taxConfig) => {
-                  // Check conditional visibility
-                  if (!isTaxonomyVisible(taxConfig.slug)) return null;
+                {classificationTaxonomies.map((taxCfg) => {
+                  if (!isTaxonomyVisible(taxCfg.slug)) return null;
+                  const isTaxChanged = changedFields.has(`tax:${taxCfg.slug}`);
 
                   return (
-                    <div key={taxConfig.slug}>
-                      {renderTaxonomy(taxConfig.slug)}
-                      {/* Render subtopics for hierarchical taxonomies */}
-                      {taxConfig.hierarchical && renderHierarchicalSubtopics(taxConfig.slug)}
+                    <div
+                      key={taxCfg.slug}
+                      className={cn(isTaxChanged && 'border-l-4 border-amber-400 pl-3')}
+                    >
+                      {isTaxChanged && (
+                        <div className="flex justify-end mb-1">
+                          <button type="button" onClick={() => resetField(`tax:${taxCfg.slug}`)} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300" title="Reset to server value">
+                            <RotateCcw className="w-3 h-3" />Reset
+                          </button>
+                        </div>
+                      )}
+                      {renderTaxonomy(taxCfg.slug)}
+                      {taxCfg.hierarchical && renderHierarchicalSubtopics(taxCfg.slug)}
                     </div>
                   );
                 })}
@@ -923,6 +1060,8 @@ export function EditModal({
                 onChange={updateMetaField}
                 terms={terms}
                 resourceTitle={title}
+                changedFields={changedFields}
+                onResetField={handleResetMetaField}
               />
             )}
 
@@ -983,7 +1122,7 @@ export function EditModal({
             isCreateMode ? "bg-green-50 dark:bg-green-900/20" : "bg-gray-50 dark:bg-gray-800/80"
           )}>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+              <div className={cn('flex items-center gap-2', changedFields.has('status') && 'border-l-4 border-amber-400 pl-2')}>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
                 <select
                   value={status}
@@ -994,6 +1133,11 @@ export function EditModal({
                     <option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>
                   ))}
                 </select>
+                {changedFields.has('status') && (
+                  <button type="button" onClick={() => resetField('status')} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300" title="Reset to server value">
+                    <RotateCcw className="w-3 h-3" />
+                  </button>
+                )}
               </div>
               {hasChanges && !isCreateMode && (
                 <div className="flex items-center gap-1.5 text-yellow-700 dark:text-yellow-400">

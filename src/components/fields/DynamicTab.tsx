@@ -1,5 +1,6 @@
 'use client';
 
+import { RotateCcw } from 'lucide-react';
 import type { FieldDefinition } from '@/lib/plugins/types';
 import { FieldRenderer } from './FieldRenderer';
 import { cn } from '@/lib/utils';
@@ -10,6 +11,10 @@ interface DynamicTabProps {
   onChange: (key: string, value: unknown) => void;
   terms?: Record<string, Array<{ id: number; name: string }>>;
   resourceTitle?: string;
+  /** Set of changed field keys (e.g. 'meta:field_key') for dirty highlighting */
+  changedFields?: Set<string>;
+  /** Callback to reset a single field to its snapshot value */
+  onResetField?: (key: string) => void;
 }
 
 function evaluateConditional(
@@ -40,7 +45,7 @@ const widthClasses: Record<string, string> = {
   quarter: 'w-1/4',
 };
 
-export function DynamicTab({ fields, values, onChange, terms, resourceTitle }: DynamicTabProps) {
+export function DynamicTab({ fields, values, onChange, terms, resourceTitle, changedFields, onResetField }: DynamicTabProps) {
   if (fields.length === 0) {
     return (
       <p className="text-sm text-gray-500 dark:text-gray-400 italic">No fields configured for this tab.</p>
@@ -53,15 +58,34 @@ export function DynamicTab({ fields, values, onChange, terms, resourceTitle }: D
         if (!evaluateConditional(field, values)) return null;
 
         const width = field.width ?? 'full';
-        // Checkbox and repeater render their own label
         const showLabel = field.type !== 'checkbox' && field.type !== 'repeater';
+        const isChanged = changedFields?.has(`meta:${field.key}`);
 
         return (
-          <div key={field.key} className={cn(widthClasses[width])}>
+          <div
+            key={field.key}
+            className={cn(
+              widthClasses[width],
+              isChanged && 'border-l-4 border-amber-400 pl-3'
+            )}
+          >
             {showLabel && (
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {field.label}
-              </label>
+              <div className="flex items-center gap-2 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {field.label}
+                </label>
+                {isChanged && onResetField && (
+                  <button
+                    type="button"
+                    onClick={() => onResetField(field.key)}
+                    className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
+                    title="Reset to server value"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Reset
+                  </button>
+                )}
+              </div>
             )}
             <FieldRenderer
               field={field}
