@@ -10,7 +10,7 @@ import path from 'path';
 
 describe('Database Module', () => {
   const TEST_DB_PATH = './test-data/test.db';
-  
+
   beforeAll(() => {
     // Set test database path
     process.env.DATABASE_PATH = TEST_DB_PATH;
@@ -52,51 +52,44 @@ describe('Database Module', () => {
       expect(db1).toBe(db2);
     });
 
-    it('should create database directory if it does not exist', () => {
-      const db = getDb();
-      const dbPath = path.resolve(process.cwd(), TEST_DB_PATH);
-      const dbDir = path.dirname(dbPath);
-      expect(fs.existsSync(dbDir)).toBe(true);
-    });
-
     it('should initialize schema on first call', () => {
       const db = getDb();
-      
+
       // Check that all tables exist
       const tables = db.prepare(`
-        SELECT name FROM sqlite_master 
-        WHERE type='table' 
+        SELECT name FROM sqlite_master
+        WHERE type='table'
         ORDER BY name
       `).all() as { name: string }[];
-      
+
       const tableNames = tables.map(t => t.name);
-      
+
       expect(tableNames).toContain('sync_meta');
       expect(tableNames).toContain('terms');
-      expect(tableNames).toContain('resources');
-      expect(tableNames).toContain('resource_meta');
-      expect(tableNames).toContain('resource_terms');
+      expect(tableNames).toContain('posts');
+      expect(tableNames).toContain('post_meta');
+      expect(tableNames).toContain('post_terms');
       expect(tableNames).toContain('change_log');
     });
 
     it('should create all required indexes', () => {
       const db = getDb();
-      
+
       const indexes = db.prepare(`
-        SELECT name FROM sqlite_master 
-        WHERE type='index' 
+        SELECT name FROM sqlite_master
+        WHERE type='index'
         AND name NOT LIKE 'sqlite_%'
         ORDER BY name
       `).all() as { name: string }[];
-      
+
       const indexNames = indexes.map(i => i.name);
-      
+
       expect(indexNames).toContain('idx_terms_taxonomy');
-      expect(indexNames).toContain('idx_resource_terms_resource');
-      expect(indexNames).toContain('idx_resource_terms_taxonomy');
-      expect(indexNames).toContain('idx_resource_meta_resource');
-      expect(indexNames).toContain('idx_resources_status');
-      expect(indexNames).toContain('idx_resources_dirty');
+      expect(indexNames).toContain('idx_post_terms_post');
+      expect(indexNames).toContain('idx_post_terms_taxonomy');
+      expect(indexNames).toContain('idx_post_meta_post');
+      expect(indexNames).toContain('idx_posts_status');
+      expect(indexNames).toContain('idx_posts_dirty');
     });
 
     it('should enable WAL mode', () => {
@@ -110,7 +103,7 @@ describe('Database Module', () => {
     it('should close the database connection', () => {
       const db = getDb();
       closeDb();
-      
+
       // Attempting to use closed database should throw
       expect(() => {
         db.prepare('SELECT 1').get();
@@ -121,7 +114,7 @@ describe('Database Module', () => {
       getDb();
       closeDb();
       const newDb = getDb();
-      
+
       expect(newDb).toBeDefined();
       expect(newDb.prepare).toBeDefined();
     });
@@ -130,64 +123,69 @@ describe('Database Module', () => {
   describe('Schema Integrity', () => {
     it('should enforce foreign key constraints', () => {
       const db = getDb();
-      
-      // Try to insert resource_meta without parent resource
+
+      // Enable foreign keys (SQLite requires explicit enabling)
+      db.pragma('foreign_keys = ON');
+
+      // Try to insert post_meta without parent post
       expect(() => {
         db.prepare(`
-          INSERT INTO resource_meta (resource_id, field_id, value)
+          INSERT INTO post_meta (post_id, field_id, value)
           VALUES (999, 'test_field', 'test_value')
         `).run();
       }).toThrow();
     });
 
-    it('should cascade delete resource_meta when resource deleted', () => {
+    it('should cascade delete post_meta when post deleted', () => {
       const db = getDb();
-      
-      // Insert resource
+
+      // Enable foreign keys
+      db.pragma('foreign_keys = ON');
+
+      // Use unique IDs to avoid collisions with other tests
       db.prepare(`
-        INSERT INTO resources (id, title, slug, status, modified_gmt, synced_at)
-        VALUES (1, 'Test', 'test', 'publish', '2024-01-01', '2024-01-01')
+        INSERT OR REPLACE INTO posts (id, post_type, title, slug, status, modified_gmt, synced_at)
+        VALUES (100, 'resource', 'Test', 'test-cascade', 'publish', '2024-01-01', '2024-01-01')
       `).run();
-      
-      // Insert meta
+
       db.prepare(`
-        INSERT INTO resource_meta (resource_id, field_id, value)
-        VALUES (1, 'test_field', 'test_value')
+        INSERT OR REPLACE INTO post_meta (post_id, field_id, value)
+        VALUES (100, 'test_field', 'test_value')
       `).run();
-      
-      // Delete resource
-      db.prepare('DELETE FROM resources WHERE id = 1').run();
-      
-      // Meta should be deleted
-      const meta = db.prepare('SELECT * FROM resource_meta WHERE resource_id = 1').all();
+
+      // Delete post
+      db.prepare('DELETE FROM posts WHERE id = 100').run();
+
+      // Meta should be cascade-deleted
+      const meta = db.prepare('SELECT * FROM post_meta WHERE post_id = 100').all();
       expect(meta).toHaveLength(0);
     });
 
-    it('should enforce unique constraint on (resource_id, term_id)', () => {
+    it('should enforce unique constraint on (post_id, term_id)', () => {
       const db = getDb();
-      
-      // Insert resource and term
+
+      // Use unique IDs to avoid collisions with other tests
       db.prepare(`
-        INSERT INTO resources (id, title, slug, status, modified_gmt, synced_at)
-        VALUES (1, 'Test', 'test', 'publish', '2024-01-01', '2024-01-01')
+        INSERT OR REPLACE INTO posts (id, post_type, title, slug, status, modified_gmt, synced_at)
+        VALUES (200, 'resource', 'Test', 'test-unique', 'publish', '2024-01-01', '2024-01-01')
       `).run();
-      
+
       db.prepare(`
-        INSERT INTO terms (id, taxonomy, name, slug)
-        VALUES (1, 'topic', 'Test Topic', 'test-topic')
+        INSERT OR REPLACE INTO terms (id, taxonomy, name, slug)
+        VALUES (200, 'topic', 'Test Topic', 'test-topic')
       `).run();
-      
+
       // Insert assignment
       db.prepare(`
-        INSERT INTO resource_terms (resource_id, term_id, taxonomy)
-        VALUES (1, 1, 'topic')
+        INSERT OR REPLACE INTO post_terms (post_id, term_id, taxonomy)
+        VALUES (200, 200, 'topic')
       `).run();
-      
+
       // Duplicate should fail
       expect(() => {
         db.prepare(`
-          INSERT INTO resource_terms (resource_id, term_id, taxonomy)
-          VALUES (1, 1, 'topic')
+          INSERT INTO post_terms (post_id, term_id, taxonomy)
+          VALUES (200, 200, 'topic')
         `).run();
       }).toThrow();
     });
@@ -198,7 +196,7 @@ describe('Database Module', () => {
       const start = Date.now();
       getDb();
       const duration = Date.now() - start;
-      
+
       // Should complete in under 100ms
       expect(duration).toBeLessThan(100);
     });

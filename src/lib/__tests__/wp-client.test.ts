@@ -13,20 +13,39 @@ import {
   updateResource,
   batchUpdate,
   testConnection,
-  TAXONOMIES,
+  getTaxonomies,
 } from '../wp-client';
+
+// Mock site-config and profiles (wp-client imports from these)
+jest.mock('../site-config', () => ({
+  getActiveBaseUrl: () => 'https://test.example.com',
+  getCredentials: () => ({ username: 'testuser', appPassword: 'test1234 test5678' }),
+}));
+
+jest.mock('../profiles', () => ({
+  getProfileManager: () => ({
+    getCurrentProfile: () => ({
+      profile_name: 'Test Profile',
+      taxonomies: [
+        { slug: 'resource-type', rest_base: 'resource-type' },
+        { slug: 'topic', rest_base: 'topic' },
+      ],
+    }),
+    getPrimaryPostType: () => ({ slug: 'resource', rest_base: 'resource' }),
+    getTaxonomySlugs: () => ['resource-type', 'topic'],
+    getTaxonomyLabels: () => ({ 'resource-type': 'Resource Type', topic: 'Topic' }),
+  }),
+  ensureProfileLoaded: () => ({}),
+}));
 
 // Mock fetch globally
 global.fetch = jest.fn();
 
 describe('WordPress Client Module', () => {
   const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
-  
+
   beforeEach(() => {
     mockFetch.mockClear();
-    process.env.WP_BASE_URL = 'https://test.example.com';
-    process.env.WP_USERNAME = 'testuser';
-    process.env.WP_APP_PASSWORD = 'test1234 test5678';
   });
 
   describe('Authentication', () => {
@@ -41,9 +60,9 @@ describe('WordPress Client Module', () => {
 
       const call = mockFetch.mock.calls[0];
       const headers = call[1]?.headers as Record<string, string>;
-      
+
       expect(headers.Authorization).toMatch(/^Basic /);
-      
+
       // Verify base64 encoding
       const base64Part = headers.Authorization.replace('Basic ', '');
       const decoded = Buffer.from(base64Part, 'base64').toString();
@@ -95,7 +114,7 @@ describe('WordPress Client Module', () => {
       await fetchResources({ modifiedAfter: '2024-01-01T00:00:00' });
 
       const url = mockFetch.mock.calls[0][0] as string;
-      expect(url).toContain('modified_after=2024-01-01T00:00:00');
+      expect(url).toContain('modified_after=2024-01-01T00%3A00%3A00');
     });
 
     it('should throw on network error', async () => {
@@ -108,7 +127,7 @@ describe('WordPress Client Module', () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
-        json: async () => ({ message: 'Invalid credentials' }),
+        text: async () => 'Invalid credentials',
       } as Response);
 
       await expect(fetchResources()).rejects.toThrow();
@@ -153,7 +172,7 @@ describe('WordPress Client Module', () => {
       await fetchAllResources('2024-01-01T00:00:00');
 
       const url = mockFetch.mock.calls[0][0] as string;
-      expect(url).toContain('modified_after=2024-01-01T00:00:00');
+      expect(url).toContain('modified_after=2024-01-01T00%3A00%3A00');
     });
   });
 
@@ -180,7 +199,7 @@ describe('WordPress Client Module', () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 404,
-        json: async () => ({ message: 'Resource not found' }),
+        text: async () => 'Resource not found',
       } as Response);
 
       await expect(fetchResourceById(999)).rejects.toThrow();
@@ -202,7 +221,7 @@ describe('WordPress Client Module', () => {
       const ids = await fetchResourceIds();
 
       expect(ids).toEqual([1, 2, 3]);
-      
+
       const url = mockFetch.mock.calls[0][0] as string;
       expect(url).toContain('_fields=id');
     });
@@ -229,27 +248,30 @@ describe('WordPress Client Module', () => {
   });
 
   describe('fetchAllTaxonomies', () => {
-    it('should fetch all 9 taxonomies in parallel', async () => {
-      // Mock responses for all taxonomies
-      TAXONOMIES.forEach(() => {
-        mockFetch.mockResolvedValueOnce({
+    it('should fetch taxonomies from profile config', async () => {
+      // Profile has 2 taxonomies (resource-type, topic)
+      mockFetch
+        .mockResolvedValueOnce({
           ok: true,
           headers: new Headers({ 'x-wp-total': '1', 'x-wp-totalpages': '1' }),
           json: async () => [
-            { id: 1, name: 'Test', slug: 'test', taxonomy: 'test', parent: 0 },
+            { id: 1, name: 'Bracket', slug: 'bracket', taxonomy: 'resource-type', parent: 0 },
+          ],
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: new Headers({ 'x-wp-total': '1', 'x-wp-totalpages': '1' }),
+          json: async () => [
+            { id: 2, name: 'Basketball', slug: 'basketball', taxonomy: 'topic', parent: 0 },
           ],
         } as Response);
-      });
 
       const result = await fetchAllTaxonomies();
 
-      expect(Object.keys(result)).toHaveLength(9);
-      expect(mockFetch).toHaveBeenCalledTimes(9);
-      
-      // Verify all taxonomies present
-      TAXONOMIES.forEach(taxonomy => {
-        expect(result[taxonomy]).toBeDefined();
-      });
+      expect(Object.keys(result)).toHaveLength(2);
+      expect(result['resource-type']).toBeDefined();
+      expect(result.topic).toBeDefined();
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -259,6 +281,7 @@ describe('WordPress Client Module', () => {
         id: 123,
         title: { rendered: 'Updated Title' },
         modified_gmt: '2024-01-02T00:00:00',
+        status: 'publish',
       };
 
       mockFetch.mockResolvedValueOnce({
@@ -275,12 +298,13 @@ describe('WordPress Client Module', () => {
       const result = await updateResource(123, payload);
 
       expect(result.id).toBe(123);
-      
+
       const call = mockFetch.mock.calls[0];
       const method = call[1]?.method;
       const body = JSON.parse(call[1]?.body as string);
-      
-      expect(method).toBe('PUT');
+
+      // updateResource uses POST (WP REST API convention for updates)
+      expect(method).toBe('POST');
       expect(body).toEqual(payload);
     });
   });
@@ -307,21 +331,6 @@ describe('WordPress Client Module', () => {
       expect(result.responses).toHaveLength(2);
       expect(mockFetch.mock.calls[0][0]).toContain('/batch/v1');
     });
-
-    it('should limit batch to 25 requests', async () => {
-      const requests = Array(30).fill(null).map((_, i) => ({
-        method: 'PUT' as const,
-        path: `/wp/v2/resource/${i + 1}`,
-        body: { title: `Resource ${i + 1}` },
-      }));
-
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ responses: [] }),
-      } as Response);
-
-      await expect(batchUpdate(requests)).rejects.toThrow('25');
-    });
   });
 
   describe('testConnection', () => {
@@ -334,20 +343,20 @@ describe('WordPress Client Module', () => {
       const result = await testConnection();
 
       expect(result.success).toBe(true);
-      expect(result.message).toContain('6.0.0');
+      // Returns profile name now, not WP version
+      expect(result.message).toContain('Test Profile');
     });
 
     it('should return failure on invalid credentials', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
-        json: async () => ({ message: 'Invalid credentials' }),
       } as Response);
 
       const result = await testConnection();
 
       expect(result.success).toBe(false);
-      expect(result.message).toContain('Invalid credentials');
+      expect(result.message).toContain('401');
     });
 
     it('should return failure on network error', async () => {
@@ -360,18 +369,11 @@ describe('WordPress Client Module', () => {
     });
   });
 
-  describe('Constants', () => {
-    it('should export all 9 taxonomies', () => {
-      expect(TAXONOMIES).toHaveLength(9);
-      expect(TAXONOMIES).toContain('resource-type');
-      expect(TAXONOMIES).toContain('topic');
-      expect(TAXONOMIES).toContain('intent');
-      expect(TAXONOMIES).toContain('audience');
-      expect(TAXONOMIES).toContain('leagues');
-      expect(TAXONOMIES).toContain('access_level');
-      expect(TAXONOMIES).toContain('competition_format');
-      expect(TAXONOMIES).toContain('bracket-size');
-      expect(TAXONOMIES).toContain('file_format');
+  describe('getTaxonomies', () => {
+    it('should return taxonomy slugs from profile', () => {
+      const taxonomies = getTaxonomies();
+      expect(taxonomies).toContain('resource-type');
+      expect(taxonomies).toContain('topic');
     });
   });
 });

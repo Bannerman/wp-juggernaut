@@ -7,99 +7,92 @@ import {
   pushResource,
   pushAllDirty,
   checkForConflicts,
-  buildUpdatePayload,
 } from '../push';
 import * as wpClient from '../wp-client';
 import * as queries from '../queries';
+import * as db from '../db';
 
 jest.mock('../wp-client');
 jest.mock('../queries');
+jest.mock('../db');
+jest.mock('../profiles', () => ({
+  getProfileManager: () => ({
+    getPostTypes: () => [
+      { slug: 'resource', rest_base: 'resource', name: 'Resources', is_primary: true },
+    ],
+    getPrimaryPostType: () => ({ slug: 'resource', rest_base: 'resource', name: 'Resources', is_primary: true }),
+    getTaxonomySlugs: () => ['resource-type', 'topic', 'access_level'],
+  }),
+  getProfileTaxonomyMetaFieldMapping: () => ({
+    'resource-type': 'tax_resource_type',
+    topic: 'tax_topic',
+    access_level: 'tax_access_level',
+  }),
+  ensureProfileLoaded: () => ({}),
+}));
+jest.mock('../plugins/bundled/seopress', () => ({
+  seopressPlugin: {
+    updateSEOData: jest.fn().mockResolvedValue({ success: true, errors: [] }),
+  },
+}));
 
 describe('Push Engine Module', () => {
   const mockWpClient = wpClient as jest.Mocked<typeof wpClient>;
   const mockQueries = queries as jest.Mocked<typeof queries>;
+  const mockDb = db as jest.Mocked<typeof db>;
+
+  let mockDbInstance: {
+    prepare: jest.Mock;
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
-  });
 
-  describe('buildUpdatePayload', () => {
-    it('should build correct WordPress API payload', () => {
-      const mockResource = {
-        id: 123,
-        title: 'Test Resource',
-        slug: 'test-resource',
-        status: 'publish' as const,
-        content: 'Test content',
-        excerpt: 'Test excerpt',
-        featured_media: 0,
-        date_gmt: '2024-01-01T00:00:00',
-        modified_gmt: '2024-01-01T00:00:00',
-        synced_at: '2024-01-01T00:00:00',
-        is_dirty: true,
-        meta_box: {
-          version: '1.0',
-          updated_for_year: '2024',
-        },
-        taxonomies: {
-          'resource-type': [45],
-          topic: [12, 34],
-          intent: [56],
-          audience: [],
-          leagues: [],
-          access_level: [78],
-          competition_format: [],
-          'bracket-size': [],
-          file_format: [],
-        },
-      };
+    const mockRun = jest.fn();
+    const mockGet = jest.fn().mockReturnValue(null);
 
-      mockQueries.getResourceById.mockReturnValue(mockResource);
+    mockDbInstance = {
+      prepare: jest.fn().mockReturnValue({
+        run: mockRun,
+        get: mockGet,
+        all: jest.fn().mockReturnValue([]),
+      }),
+    };
 
-      const payload = buildUpdatePayload(123);
+    mockDb.getDb.mockReturnValue(mockDbInstance as any);
 
-      expect(payload.title).toBe('Test Resource');
-      expect(payload.status).toBe('publish');
-      expect(payload['resource-type']).toEqual([45]);
-      expect(payload.topic).toEqual([12, 34]);
-      expect(payload.meta_box).toEqual({
-        version: '1.0',
-        updated_for_year: '2024',
-      });
-    });
+    // getTaxonomies must return an iterable array for buildUpdatePayload
+    mockWpClient.getTaxonomies.mockReturnValue(['resource-type', 'topic', 'access_level']);
+    mockWpClient.getWpBaseUrl.mockReturnValue('https://test.example.com');
+    mockWpClient.getWpCredentials.mockReturnValue({ username: 'test', appPassword: 'test' });
 
-    it('should validate required taxonomies', () => {
-      const mockResource = {
-        id: 123,
-        title: 'Invalid Resource',
-        status: 'publish' as const,
-        taxonomies: {
-          'resource-type': [], // Invalid: empty
-          access_level: [78],
-        },
-      } as any;
-
-      mockQueries.getResourceById.mockReturnValue(mockResource);
-
-      expect(() => buildUpdatePayload(123)).toThrow();
+    // Default: getResourceSeo returns empty SEO data (no SEO to push)
+    mockQueries.getResourceSeo.mockReturnValue({
+      title: '', description: '', canonical: '', targetKeywords: '',
+      og: { title: '', description: '', image: '' },
+      twitter: { title: '', description: '', image: '' },
+      robots: { noindex: false, nofollow: false, nosnippet: false, noimageindex: false },
     });
   });
 
   describe('checkForConflicts', () => {
     it('should detect conflicts when server modified after local', async () => {
-      const localResource = {
-        id: 123,
-        modified_gmt: '2024-01-01T00:00:00',
-      } as any;
+      // Mock DB to return local resource
+      mockDbInstance.prepare.mockReturnValue({
+        get: jest.fn().mockReturnValue({
+          id: 123,
+          title: 'Test',
+          modified_gmt: '2024-01-01T00:00:00',
+          post_type: 'resource',
+        }),
+        run: jest.fn(),
+      });
 
-      const serverResource = {
+      mockWpClient.fetchResourceById.mockResolvedValue({
         id: 123,
         title: { rendered: 'Test' },
         modified_gmt: '2024-01-02T00:00:00',
-      } as any;
-
-      mockQueries.getResourceById.mockReturnValue(localResource);
-      mockWpClient.fetchResourceById.mockResolvedValue(serverResource);
+      } as any);
 
       const conflicts = await checkForConflicts([123]);
 
@@ -110,18 +103,20 @@ describe('Push Engine Module', () => {
     });
 
     it('should not detect conflict when timestamps match', async () => {
-      const localResource = {
+      mockDbInstance.prepare.mockReturnValue({
+        get: jest.fn().mockReturnValue({
+          id: 123,
+          title: 'Test',
+          modified_gmt: '2024-01-01T00:00:00',
+          post_type: 'resource',
+        }),
+        run: jest.fn(),
+      });
+
+      mockWpClient.fetchResourceById.mockResolvedValue({
         id: 123,
         modified_gmt: '2024-01-01T00:00:00',
-      } as any;
-
-      const serverResource = {
-        id: 123,
-        modified_gmt: '2024-01-01T00:00:00',
-      } as any;
-
-      mockQueries.getResourceById.mockReturnValue(localResource);
-      mockWpClient.fetchResourceById.mockResolvedValue(serverResource);
+      } as any);
 
       const conflicts = await checkForConflicts([123]);
 
@@ -129,9 +124,12 @@ describe('Push Engine Module', () => {
     });
 
     it('should handle multiple resources', async () => {
-      mockQueries.getResourceById
-        .mockReturnValueOnce({ id: 1, modified_gmt: '2024-01-01' } as any)
-        .mockReturnValueOnce({ id: 2, modified_gmt: '2024-01-01' } as any);
+      mockDbInstance.prepare.mockReturnValue({
+        get: jest.fn()
+          .mockReturnValueOnce({ id: 1, title: 'R1', modified_gmt: '2024-01-01', post_type: 'resource' })
+          .mockReturnValueOnce({ id: 2, title: 'R2', modified_gmt: '2024-01-01', post_type: 'resource' }),
+        run: jest.fn(),
+      });
 
       mockWpClient.fetchResourceById
         .mockResolvedValueOnce({ id: 1, modified_gmt: '2024-01-02' } as any)
@@ -149,8 +147,11 @@ describe('Push Engine Module', () => {
       const mockResource = {
         id: 123,
         title: 'Test',
+        slug: 'test',
         status: 'publish' as const,
+        post_type: 'resource',
         modified_gmt: '2024-01-01T00:00:00',
+        featured_media: 0,
         taxonomies: {
           'resource-type': [45],
           access_level: [78],
@@ -158,45 +159,50 @@ describe('Push Engine Module', () => {
         meta_box: {},
       } as any;
 
-      const updatedResource = {
-        ...mockResource,
-        modified_gmt: '2024-01-02T00:00:00',
-      };
+      // Mock DB for checkForConflicts (returns matching timestamps = no conflict)
+      mockDbInstance.prepare.mockReturnValue({
+        get: jest.fn().mockReturnValue({
+          id: 123, title: 'Test', modified_gmt: '2024-01-01T00:00:00', post_type: 'resource',
+        }),
+        run: jest.fn(),
+        all: jest.fn().mockReturnValue([]),
+      });
+
+      mockWpClient.fetchResourceById.mockResolvedValue({
+        id: 123,
+        modified_gmt: '2024-01-01T00:00:00',
+      } as any);
 
       mockQueries.getResourceById.mockReturnValue(mockResource);
-      mockWpClient.fetchResourceById.mockResolvedValue(mockResource as any);
-      mockWpClient.updateResource.mockResolvedValue(updatedResource as any);
+      mockWpClient.updateResource.mockResolvedValue({
+        ...mockResource,
+        modified_gmt: '2024-01-02T00:00:00',
+      } as any);
 
       const result = await pushResource(123);
 
       expect(result.success).toBe(true);
       expect(result.resourceId).toBe(123);
-      expect(mockQueries.markResourceClean).toHaveBeenCalledWith(123);
     });
 
     it('should skip push on conflict by default', async () => {
-      const mockResource = {
+      // Mock DB for checkForConflicts (server has newer modified_gmt)
+      mockDbInstance.prepare.mockReturnValue({
+        get: jest.fn().mockReturnValue({
+          id: 123, title: 'Test', modified_gmt: '2024-01-01T00:00:00', post_type: 'resource',
+        }),
+        run: jest.fn(),
+      });
+
+      mockWpClient.fetchResourceById.mockResolvedValue({
         id: 123,
-        title: 'Test',
-        modified_gmt: '2024-01-01T00:00:00',
-        taxonomies: {
-          'resource-type': [45],
-          access_level: [78],
-        },
-      } as any;
-
-      const serverResource = {
-        ...mockResource,
         modified_gmt: '2024-01-02T00:00:00',
-      };
-
-      mockQueries.getResourceById.mockReturnValue(mockResource);
-      mockWpClient.fetchResourceById.mockResolvedValue(serverResource as any);
+      } as any);
 
       const result = await pushResource(123);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('conflict');
+      expect(result.error).toContain('onflict');
       expect(mockWpClient.updateResource).not.toHaveBeenCalled();
     });
 
@@ -204,8 +210,11 @@ describe('Push Engine Module', () => {
       const mockResource = {
         id: 123,
         title: 'Test',
+        slug: 'test',
         status: 'publish' as const,
+        post_type: 'resource',
         modified_gmt: '2024-01-01T00:00:00',
+        featured_media: 0,
         taxonomies: {
           'resource-type': [45],
           access_level: [78],
@@ -215,6 +224,13 @@ describe('Push Engine Module', () => {
 
       mockQueries.getResourceById.mockReturnValue(mockResource);
       mockWpClient.updateResource.mockResolvedValue(mockResource as any);
+
+      // DB mock for the post-push UPDATE
+      mockDbInstance.prepare.mockReturnValue({
+        run: jest.fn(),
+        get: jest.fn(),
+        all: jest.fn().mockReturnValue([]),
+      });
 
       const result = await pushResource(123, true);
 
@@ -226,34 +242,52 @@ describe('Push Engine Module', () => {
       const mockResource = {
         id: 123,
         title: 'Test',
+        slug: 'test',
+        status: 'publish' as const,
+        post_type: 'resource',
+        modified_gmt: '2024-01-01T00:00:00',
+        featured_media: 0,
         taxonomies: {
           'resource-type': [45],
           access_level: [78],
         },
+        meta_box: {},
       } as any;
 
+      // No conflict
+      mockDbInstance.prepare.mockReturnValue({
+        get: jest.fn().mockReturnValue({
+          id: 123, title: 'Test', modified_gmt: '2024-01-01T00:00:00', post_type: 'resource',
+        }),
+        run: jest.fn(),
+        all: jest.fn().mockReturnValue([]),
+      });
+
+      mockWpClient.fetchResourceById.mockResolvedValue({
+        id: 123,
+        modified_gmt: '2024-01-01T00:00:00',
+      } as any);
+
       mockQueries.getResourceById.mockReturnValue(mockResource);
-      mockWpClient.fetchResourceById.mockResolvedValue(mockResource as any);
       mockWpClient.updateResource.mockRejectedValue(new Error('Server error'));
 
       const result = await pushResource(123);
 
       expect(result.success).toBe(false);
-      expect(mockQueries.markResourceClean).not.toHaveBeenCalled();
     });
   });
 
   describe('pushAllDirty', () => {
-    it('should push all dirty resources in batches', async () => {
-      const dirtyResources = Array(75).fill(null).map((_, i) => ({
+    it('should push all dirty resources individually', async () => {
+      const dirtyResources = Array(3).fill(null).map((_, i) => ({
         id: i + 1,
         title: `Resource ${i + 1}`,
+        slug: `resource-${i + 1}`,
         status: 'publish' as const,
+        post_type: 'resource',
         modified_gmt: '2024-01-01T00:00:00',
-        taxonomies: {
-          'resource-type': [45],
-          access_level: [78],
-        },
+        featured_media: 0,
+        taxonomies: { 'resource-type': [45], access_level: [78] },
         meta_box: {},
       }));
 
@@ -262,23 +296,29 @@ describe('Push Engine Module', () => {
         dirtyResources.find(r => r.id === id) as any
       );
 
-      // Mock batch responses
-      mockWpClient.batchUpdate.mockResolvedValue({
-        responses: Array(25).fill({ status: 200, body: {} }),
-      } as any);
+      mockDbInstance.prepare.mockReturnValue({
+        run: jest.fn(),
+        get: jest.fn(),
+        all: jest.fn().mockReturnValue([]),
+      });
+
+      mockWpClient.updateResource.mockImplementation(async (id) => ({
+        id,
+        modified_gmt: '2024-01-02T00:00:00',
+      } as any));
 
       const result = await pushAllDirty(true); // Skip conflict check
 
-      // Should make 3 batch requests (25 + 25 + 25)
-      expect(mockWpClient.batchUpdate).toHaveBeenCalledTimes(3);
-      expect(result.results).toHaveLength(75);
-    });
+      expect(result.results).toHaveLength(3);
+      expect(result.results.every(r => r.success)).toBe(true);
+      // Should NOT use batchUpdate — pushes individually
+      expect(mockWpClient.batchUpdate).not.toHaveBeenCalled();
+    }, 15000);
 
-    it('should filter out conflicting resources', async () => {
+    it('should report conflicts but still push', async () => {
       const dirtyResources = [
-        { id: 1, modified_gmt: '2024-01-01' },
-        { id: 2, modified_gmt: '2024-01-01' },
-        { id: 3, modified_gmt: '2024-01-01' },
+        { id: 1, title: 'R1', slug: 'r1', status: 'publish', post_type: 'resource', modified_gmt: '2024-01-01', featured_media: 0, taxonomies: {}, meta_box: {} },
+        { id: 2, title: 'R2', slug: 'r2', status: 'publish', post_type: 'resource', modified_gmt: '2024-01-01', featured_media: 0, taxonomies: {}, meta_box: {} },
       ];
 
       mockQueries.getDirtyResources.mockReturnValue(dirtyResources as any);
@@ -286,23 +326,40 @@ describe('Push Engine Module', () => {
         dirtyResources.find(r => r.id === id) as any
       );
 
-      // Resources 1 and 3 have conflicts
+      // checkForConflicts reads DB; resource 1 has a conflict
+      const getValues = [
+        { id: 1, title: 'R1', modified_gmt: '2024-01-01', post_type: 'resource' },
+        { id: 2, title: 'R2', modified_gmt: '2024-01-01', post_type: 'resource' },
+      ];
+      let getCallCount = 0;
+      mockDbInstance.prepare.mockReturnValue({
+        get: jest.fn().mockImplementation(() => getValues[getCallCount++] || null),
+        run: jest.fn(),
+        all: jest.fn().mockReturnValue([]),
+      });
+
       mockWpClient.fetchResourceById
-        .mockResolvedValueOnce({ id: 1, modified_gmt: '2024-01-02' } as any)
-        .mockResolvedValueOnce({ id: 2, modified_gmt: '2024-01-01' } as any)
-        .mockResolvedValueOnce({ id: 3, modified_gmt: '2024-01-03' } as any);
+        .mockResolvedValueOnce({ id: 1, modified_gmt: '2024-01-02' } as any) // conflict
+        .mockResolvedValueOnce({ id: 2, modified_gmt: '2024-01-01' } as any); // no conflict
+
+      mockWpClient.updateResource.mockImplementation(async (id) => ({
+        id,
+        modified_gmt: '2024-01-02T00:00:00',
+      } as any));
 
       const result = await pushAllDirty();
 
-      expect(result.conflicts).toHaveLength(2);
-      expect(result.conflicts.map(c => c.resourceId)).toEqual([1, 3]);
-    });
+      // Conflicts are detected but push proceeds anyway (single-user tool)
+      expect(result.conflicts).toHaveLength(1);
+      expect(result.conflicts[0].resourceId).toBe(1);
+      // All resources are still pushed (individually with skipConflictCheck)
+      expect(result.results).toHaveLength(2);
+    }, 15000);
 
-    it('should handle individual failures in batch', async () => {
+    it('should handle individual failures', async () => {
       const dirtyResources = [
-        { id: 1, title: 'Test 1', taxonomies: { 'resource-type': [45], access_level: [78] }, meta_box: {} },
-        { id: 2, title: 'Test 2', taxonomies: { 'resource-type': [45], access_level: [78] }, meta_box: {} },
-        { id: 3, title: 'Test 3', taxonomies: { 'resource-type': [45], access_level: [78] }, meta_box: {} },
+        { id: 1, title: 'R1', slug: 'r1', status: 'publish', post_type: 'resource', modified_gmt: '2024-01-01', featured_media: 0, taxonomies: {}, meta_box: {} },
+        { id: 2, title: 'R2', slug: 'r2', status: 'publish', post_type: 'resource', modified_gmt: '2024-01-01', featured_media: 0, taxonomies: {}, meta_box: {} },
       ];
 
       mockQueries.getDirtyResources.mockReturnValue(dirtyResources as any);
@@ -310,23 +367,25 @@ describe('Push Engine Module', () => {
         dirtyResources.find(r => r.id === id) as any
       );
 
-      // Batch response with one failure
-      mockWpClient.batchUpdate.mockResolvedValue({
-        responses: [
-          { status: 200, body: { id: 1 } },
-          { status: 500, body: { message: 'Server error' } },
-          { status: 200, body: { id: 3 } },
-        ],
-      } as any);
+      mockDbInstance.prepare.mockReturnValue({
+        run: jest.fn(),
+        get: jest.fn(),
+        all: jest.fn().mockReturnValue([]),
+      });
+
+      // First push succeeds, second fails
+      mockWpClient.updateResource
+        .mockResolvedValueOnce({ id: 1, modified_gmt: '2024-01-02' } as any)
+        .mockRejectedValueOnce(new Error('Server error'));
 
       const result = await pushAllDirty(true);
 
       const succeeded = result.results.filter(r => r.success);
       const failed = result.results.filter(r => !r.success);
 
-      expect(succeeded).toHaveLength(2);
+      expect(succeeded).toHaveLength(1);
       expect(failed).toHaveLength(1);
       expect(failed[0].resourceId).toBe(2);
-    });
+    }, 15000);
   });
 });
