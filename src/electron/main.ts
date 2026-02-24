@@ -42,9 +42,22 @@ function getSecureCredentials(): StoredCredentials | null {
 
     const encryptedData = fs.readFileSync(CREDENTIALS_FILE);
     const decrypted = safeStorage.decryptString(encryptedData);
-    return JSON.parse(decrypted);
+    const parsed = JSON.parse(decrypted);
+
+    // Validate that decryption produced sensible data (not garbage from a
+    // changed code-signing identity after an app rebuild)
+    if (!parsed || typeof parsed.username !== 'string' || typeof parsed.appPassword !== 'string'
+        || parsed.username.length === 0 || parsed.appPassword.length === 0) {
+      console.warn('Credentials file decrypted but contains invalid data — deleting stale file');
+      try { fs.unlinkSync(CREDENTIALS_FILE); } catch { /* ignore */ }
+      return null;
+    }
+
+    return parsed;
   } catch (error) {
-    console.error('Failed to read secure credentials:', error);
+    console.error('Failed to read secure credentials — deleting stale file:', error);
+    // Remove the corrupted/stale credentials file so the app doesn't keep failing
+    try { fs.unlinkSync(CREDENTIALS_FILE); } catch { /* ignore */ }
     return null;
   }
 }
