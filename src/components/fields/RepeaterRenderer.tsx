@@ -358,6 +358,7 @@ function SubFieldWrapper({
 
   const showLabel = subField.type !== 'checkbox' && subField.type !== 'repeater';
   const width = subField.width ?? 'full';
+  const isInlineCheckbox = subField.type === 'checkbox' && width !== 'full';
 
   // For nested repeaters with snapshot data, let the inner repeater handle its own highlighting
   const isNestedRepeaterWithSnapshot = subField.type === 'repeater' && isChanged && snapshotItem;
@@ -366,6 +367,7 @@ function SubFieldWrapper({
   return (
     <div className={cn(
       subFieldWidthClasses[width] ?? 'w-full',
+      isInlineCheckbox && 'pt-6',
       showBorder && 'border-l-4 border-amber-400 pl-2'
     )}>
       {showLabel && (
