@@ -5,6 +5,7 @@ import { X, Save, AlertTriangle, Sparkles, Upload, Loader2, Repeat, ExternalLink
 import { cn } from '@/lib/utils';
 import { createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
 import { DynamicTab, getPluginTab } from '@/components/fields';
+import { DirtyFieldIndicator } from '@/components/fields/DirtyFieldIndicator';
 // Side-effect imports: register plugin tabs via registerPluginTab()
 import '@/lib/plugins/bundled/seopress/SEOTab';
 import '@/lib/plugins/bundled/ai-fill/AIFillTab';
@@ -872,10 +873,13 @@ export function EditModal({
                 <div className={cn(changedFields.has('title') && 'border-l-4 border-amber-400 pl-3')}>
                   <div className="flex items-center gap-2 mb-1">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
-                    {changedFields.has('title') && (
-                      <button type="button" onClick={() => resetField('title')} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300" title="Reset to server value">
-                        <RotateCcw className="w-3 h-3" />Reset
-                      </button>
+                    {changedFields.has('title') && syncedSnapshot && (
+                      <DirtyFieldIndicator
+                        fieldLabel="Title"
+                        originalValue={syncedSnapshot.title}
+                        currentValue={title}
+                        onReset={() => resetField('title')}
+                      />
                     )}
                   </div>
                   <input
@@ -892,10 +896,13 @@ export function EditModal({
                       {isCreateMode && !slugManuallyEdited && <span className="text-green-600 font-normal ml-1">(auto-synced from title)</span>}
                       {isCreateMode && slugManuallyEdited && <span className="text-gray-400 font-normal ml-1">(manually edited)</span>}
                     </label>
-                    {changedFields.has('slug') && (
-                      <button type="button" onClick={() => resetField('slug')} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300" title="Reset to server value">
-                        <RotateCcw className="w-3 h-3" />Reset
-                      </button>
+                    {changedFields.has('slug') && syncedSnapshot && (
+                      <DirtyFieldIndicator
+                        fieldLabel="URL Slug"
+                        originalValue={syncedSnapshot.slug}
+                        currentValue={slug}
+                        onReset={() => resetField('slug')}
+                      />
                     )}
                   </div>
                   <input
@@ -1036,11 +1043,22 @@ export function EditModal({
                       key={taxCfg.slug}
                       className={cn(isTaxChanged && 'border-l-4 border-amber-400 pl-3')}
                     >
-                      {isTaxChanged && (
-                        <div className="flex justify-end mb-1">
-                          <button type="button" onClick={() => resetField(`tax:${taxCfg.slug}`)} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300" title="Reset to server value">
-                            <RotateCcw className="w-3 h-3" />Reset
-                          </button>
+                      {isTaxChanged && syncedSnapshot && (
+                        <div className="flex items-center gap-2 mb-1">
+                          <DirtyFieldIndicator
+                            fieldLabel={taxCfg.name || taxCfg.slug}
+                            originalValue={(syncedSnapshot.taxonomies[taxCfg.slug] || []).map((id: number) => {
+                              const taxTerms = terms[taxCfg.slug] || [];
+                              const match = taxTerms.find(t => t.id === id);
+                              return match ? match.name : `#${id}`;
+                            })}
+                            currentValue={(taxonomies[taxCfg.slug] || []).map((id: number) => {
+                              const taxTerms = terms[taxCfg.slug] || [];
+                              const match = taxTerms.find(t => t.id === id);
+                              return match ? match.name : `#${id}`;
+                            })}
+                            onReset={() => resetField(`tax:${taxCfg.slug}`)}
+                          />
                         </div>
                       )}
                       {renderTaxonomy(taxCfg.slug)}
@@ -1062,6 +1080,7 @@ export function EditModal({
                 resourceTitle={title}
                 changedFields={changedFields}
                 onResetField={handleResetMetaField}
+                snapshotValues={syncedSnapshot?.meta_box}
               />
             )}
 
@@ -1133,10 +1152,13 @@ export function EditModal({
                     <option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>
                   ))}
                 </select>
-                {changedFields.has('status') && (
-                  <button type="button" onClick={() => resetField('status')} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300" title="Reset to server value">
-                    <RotateCcw className="w-3 h-3" />
-                  </button>
+                {changedFields.has('status') && syncedSnapshot && (
+                  <DirtyFieldIndicator
+                    fieldLabel="Status"
+                    originalValue={syncedSnapshot.status}
+                    currentValue={status}
+                    onReset={() => resetField('status')}
+                  />
                 )}
               </div>
               {hasChanges && !isCreateMode && (
