@@ -207,7 +207,8 @@
       "name": "File Format",
       "rest_base": "file_format",
       "post_types": [
-        "resource"
+        "resource",
+        "product"
       ],
       "hierarchical": false,
       "show_in_filter": false,
