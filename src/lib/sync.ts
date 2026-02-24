@@ -148,6 +148,25 @@ export function saveTerm(term: WPTerm): void {
 }
 
 /**
+ * Normalize a MetaBox field value for local storage.
+ * MetaBox image/file fields return expanded objects (with width, height, sizes, ID, etc.)
+ * via the REST API, but expect a simple attachment ID when saving. Detect these objects
+ * and extract just the numeric ID to prevent data corruption on push.
+ */
+function normalizeMetaBoxValue(value: unknown): unknown {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    // MetaBox image/file single: object with ID + image_meta or sizes
+    if (('ID' in obj || 'id' in obj) && ('image_meta' in obj || 'sizes' in obj || 'full_url' in obj)) {
+      const id = obj.ID ?? obj.id;
+      if (typeof id === 'number') return id;
+      if (typeof id === 'string' && /^\d+$/.test(id)) return parseInt(id, 10);
+    }
+  }
+  return value;
+}
+
+/**
  * Resolves taxonomy term IDs from a WP resource (Meta Box fields preferred, REST fallback).
  * Pure function returning { taxonomy_slug: number[] }.
  */
@@ -222,7 +241,7 @@ function buildSnapshot(
   if (resource.meta_box) {
     for (const [fieldId, value] of Object.entries(resource.meta_box)) {
       if (fieldId === 'featured_image_url' && featuredImageUrl) continue;
-      metaBox[fieldId] = value;
+      metaBox[fieldId] = normalizeMetaBoxValue(value);
     }
   }
 
@@ -308,7 +327,10 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
   if (resource.meta_box) {
     for (const [fieldId, value] of Object.entries(resource.meta_box)) {
       if (fieldId === 'featured_image_url' && featuredImageUrl) continue;
-      metaStmt.run(resource.id, fieldId, JSON.stringify(value));
+      // MetaBox image/file fields return expanded objects with an ID property.
+      // Store just the numeric ID so pushes send the correct value back.
+      const normalized = normalizeMetaBoxValue(value);
+      metaStmt.run(resource.id, fieldId, JSON.stringify(normalized));
     }
   }
 
