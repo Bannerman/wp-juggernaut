@@ -1,0 +1,18 @@
+{
+  "id": "mcp-server",
+  "name": "MCP Server",
+  "version": "1.0.0",
+  "description": "Enables the Model Context Protocol (MCP) server, allowing AI coding assistants like Claude Code to read and edit WordPress content through Juggernaut's local database.",
+  "author": {
+    "name": "Juggernaut",
+    "url": "https://github.com/Bannerman/wp-juggernaut"
+  },
+  "license": "MIT",
+  "requires_core": ">=1.0.0",
+  "tier": "bundled",
+  "provides": {
+    "tabs": [],
+    "field_types": [],
+    "api_extensions": ["mcp"]
+  }
+}
