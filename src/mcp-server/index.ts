@@ -20,6 +20,7 @@
 
 import Database from 'better-sqlite3';
 import path from 'path';
+import fs from 'fs';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -218,6 +219,26 @@ export function closeDb(): void {
   if (dbInstance) {
     dbInstance.close();
     dbInstance = null;
+  }
+}
+
+// ─── Plugin Registry Check ────────────────────────────────────────────────────
+
+/**
+ * Check if the mcp-server plugin is enabled in plugin-registry.json.
+ * Returns true only if explicitly enabled; false for disabled, missing, or unreadable.
+ */
+function isMcpPluginEnabled(): boolean {
+  const registryPath = process.env.JUGGERNAUT_DATA_DIR
+    ? path.join(process.env.JUGGERNAUT_DATA_DIR, 'data', 'plugin-registry.json')
+    : path.resolve(__dirname, '..', '..', 'data', 'plugin-registry.json');
+
+  try {
+    const content = fs.readFileSync(registryPath, 'utf-8');
+    const registry = JSON.parse(content) as { plugins: Record<string, { enabled: boolean }> };
+    return registry.plugins?.['mcp-server']?.enabled === true;
+  } catch {
+    return false;
   }
 }
 
@@ -815,14 +836,14 @@ export function getPostHistory(database: Database.Database, args: GetPostHistory
 type ToolHandler = (database: Database.Database, args: Record<string, unknown>) => Record<string, unknown>;
 
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
-  list_posts: listPosts as ToolHandler,
-  get_post: getPost as ToolHandler,
-  update_post: updatePost as ToolHandler,
-  update_seo: updateSeo as ToolHandler,
-  list_terms: listTerms as ToolHandler,
-  update_post_terms: updatePostTerms as ToolHandler,
-  get_stats: getStats as ToolHandler,
-  get_post_history: getPostHistory as ToolHandler,
+  list_posts: listPosts as unknown as ToolHandler,
+  get_post: getPost as unknown as ToolHandler,
+  update_post: updatePost as unknown as ToolHandler,
+  update_seo: updateSeo as unknown as ToolHandler,
+  list_terms: listTerms as unknown as ToolHandler,
+  update_post_terms: updatePostTerms as unknown as ToolHandler,
+  get_stats: getStats as unknown as ToolHandler,
+  get_post_history: getPostHistory as unknown as ToolHandler,
 };
 
 // ─── MCP Protocol (JSON-RPC 2.0 + Content-Length framing) ──────────────────────
@@ -901,6 +922,14 @@ function handleMessage(msg: JsonRpcRequest): void {
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 function main(): void {
+  if (!isMcpPluginEnabled()) {
+    process.stderr.write(
+      '[juggernaut-mcp] MCP Server plugin is disabled. '
+      + 'Enable it in Juggernaut Settings > Plugins, then restart your MCP client.\n'
+    );
+    process.exit(1);
+  }
+
   process.stderr.write(`[juggernaut-mcp] Server starting (db: ${DB_PATH})\n`);
 
   let buffer = Buffer.alloc(0);
