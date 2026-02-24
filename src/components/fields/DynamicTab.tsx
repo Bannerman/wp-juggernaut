@@ -1,8 +1,8 @@
 'use client';
 
-import { RotateCcw } from 'lucide-react';
 import type { FieldDefinition } from '@/lib/plugins/types';
 import { FieldRenderer } from './FieldRenderer';
+import { DirtyFieldIndicator } from './DirtyFieldIndicator';
 import { cn } from '@/lib/utils';
 
 interface DynamicTabProps {
@@ -15,6 +15,8 @@ interface DynamicTabProps {
   changedFields?: Set<string>;
   /** Callback to reset a single field to its snapshot value */
   onResetField?: (key: string) => void;
+  /** Snapshot meta_box values for tooltip comparison */
+  snapshotValues?: Record<string, unknown>;
 }
 
 function evaluateConditional(
@@ -45,7 +47,7 @@ const widthClasses: Record<string, string> = {
   quarter: 'w-1/4',
 };
 
-export function DynamicTab({ fields, values, onChange, terms, resourceTitle, changedFields, onResetField }: DynamicTabProps) {
+export function DynamicTab({ fields, values, onChange, terms, resourceTitle, changedFields, onResetField, snapshotValues }: DynamicTabProps) {
   if (fields.length === 0) {
     return (
       <p className="text-sm text-gray-500 dark:text-gray-400 italic">No fields configured for this tab.</p>
@@ -74,17 +76,26 @@ export function DynamicTab({ fields, values, onChange, terms, resourceTitle, cha
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   {field.label}
                 </label>
-                {isChanged && onResetField && (
-                  <button
-                    type="button"
-                    onClick={() => onResetField(field.key)}
-                    className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
-                    title="Reset to server value"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    Reset
-                  </button>
+                {isChanged && snapshotValues && (
+                  <DirtyFieldIndicator
+                    fieldLabel={field.label}
+                    originalValue={snapshotValues[field.key]}
+                    currentValue={values[field.key]}
+                    onReset={onResetField ? () => onResetField(field.key) : undefined}
+                  />
                 )}
+              </div>
+            )}
+            {/* For checkbox/repeater fields that don't show labels, render indicator after the field */}
+            {!showLabel && isChanged && snapshotValues && (
+              <div className="flex items-center gap-2 mb-1">
+                <DirtyFieldIndicator
+                  fieldLabel={field.label}
+                  originalValue={snapshotValues[field.key]}
+                  currentValue={values[field.key]}
+                  onReset={onResetField ? () => onResetField(field.key) : undefined}
+                />
+                <span className="text-xs text-amber-600 dark:text-amber-400">Changed</span>
               </div>
             )}
             <FieldRenderer

@@ -1,5 +1,6 @@
 export { FieldRenderer, registerFieldRenderer, unregisterFieldRenderer, getRenderers } from './FieldRenderer';
 export { DynamicTab } from './DynamicTab';
+export { DirtyFieldIndicator } from './DirtyFieldIndicator';
 export { registerPluginTab, unregisterPluginTab, getPluginTab, getRegisteredPluginTabIds } from './pluginTabs';
 export type { PluginTabProps } from './pluginTabs';
 export { TextRenderer } from './TextRenderer';
