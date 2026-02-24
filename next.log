@@ -1,0 +1,14 @@
+
+> juggernaut@0.9.9 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+ ✓ Ready in 2s
+ ○ Compiling / ...
+ ✓ Compiled / in 6.3s (674 modules)
+ ✓ Compiled in 649ms (344 modules)
+ GET / 200 in 6977ms
+[?25h
