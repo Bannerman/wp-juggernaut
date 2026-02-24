@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Server, Sparkles, Puzzle, Activity, Repeat, LayoutGrid, Columns3 } from 'lucide-react';
+import { ArrowLeft, Server, Sparkles, Puzzle, Activity, Repeat, LayoutGrid, Columns3, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SettingsNavProps {
@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { id: 'prompts', label: 'Prompts', icon: Sparkles, href: '/settings?tab=prompts', inPage: true },
   { id: 'plugins', label: 'Plugins', icon: Puzzle, href: '/settings?tab=plugins', inPage: true },
   { id: 'diagnostics', label: 'Diagnostics', icon: Activity, href: '/settings?tab=diagnostics', inPage: true },
+  { id: 'updates', label: 'Updates', icon: Download, href: '/settings?tab=updates', inPage: true },
   { id: 'field-mappings', label: 'Field Mapping', icon: Repeat, href: '/settings/field-mappings', inPage: false, pluginId: 'convert-post-type' },
   { id: 'tab-layout', label: 'Tab Layout', icon: LayoutGrid, href: '/settings/tab-layout', inPage: false },
   { id: 'views', label: 'Views', icon: Columns3, href: '/settings/views', inPage: false, pluginId: 'custom-views' },
