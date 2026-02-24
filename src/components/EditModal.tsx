@@ -308,6 +308,41 @@ export function EditModal({
 
   const changedFieldCount = changedFields.size;
 
+  // Compute which tabs have changed fields (for tab dot indicators)
+  const dirtyTabs = useMemo((): Set<string> => {
+    if (changedFieldCount === 0) return new Set();
+    const tabs = new Set<string>();
+
+    // Basic tab: title, slug, status
+    if (changedFields.has('title') || changedFields.has('slug') || changedFields.has('status')) {
+      tabs.add('basic');
+    }
+
+    // Classification tab: any tax: key
+    for (const key of Array.from(changedFields)) {
+      if (key.startsWith('tax:')) {
+        tabs.add('classification');
+        break;
+      }
+    }
+
+    // Dynamic tabs: check if any meta: field belongs to a tab's field_layout
+    if (fieldLayout) {
+      for (const tabId of Object.keys(fieldLayout)) {
+        const fields = fieldLayout[tabId] as Array<{ key: string }> | undefined;
+        if (!fields) continue;
+        for (const f of fields) {
+          if (changedFields.has(`meta:${f.key}`)) {
+            tabs.add(tabId);
+            break;
+          }
+        }
+      }
+    }
+
+    return tabs;
+  }, [changedFields, changedFieldCount, fieldLayout]);
+
   // Per-field reset handler: sets local state back to snapshot value
   const resetField = (fieldKey: string) => {
     if (!syncedSnapshot) return;
@@ -342,10 +377,17 @@ export function EditModal({
   // Discard all changes handler
   const [isDiscarding, setIsDiscarding] = useState(false);
   const handleDiscardAll = async () => {
-    if (!onDiscardAll) return;
+    if (!onDiscardAll || !syncedSnapshot) return;
     setIsDiscarding(true);
     try {
       await onDiscardAll();
+      // Re-sync local state to match the restored snapshot values so that
+      // resourceHasChanges becomes false and Save won't re-dirty the post
+      setTitle(syncedSnapshot.title);
+      setSlug(syncedSnapshot.slug);
+      setStatus(syncedSnapshot.status);
+      setMetaBox(JSON.parse(JSON.stringify(syncedSnapshot.meta_box)));
+      setTaxonomies(JSON.parse(JSON.stringify(syncedSnapshot.taxonomies)));
     } finally {
       setIsDiscarding(false);
     }
@@ -840,6 +882,9 @@ export function EditModal({
                 >
                   {tab.id === 'ai' && <Sparkles className="w-4 h-4" />}
                   {tab.label}
+                  {dirtyTabs.has(tab.id) && activeTab !== tab.id && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                  )}
                 </button>
               ))}
             </nav>

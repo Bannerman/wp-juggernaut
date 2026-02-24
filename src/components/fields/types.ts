@@ -10,4 +10,6 @@ export interface FieldRendererProps {
   depth?: number;
   /** Resource title for dynamic default_value templates (e.g. {{title}}) */
   resourceTitle?: string;
+  /** Snapshot (server) value for this field, used by repeaters to highlight changed sub-fields */
+  snapshotValue?: unknown;
 }
