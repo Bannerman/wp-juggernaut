@@ -394,8 +394,8 @@ export function EditModal({
   };
 
   // Get taxonomies sorted by filter_position for classification tab
+  // Show ALL taxonomies here — show_in_filter only controls the sidebar filter bar
   const classificationTaxonomies = taxonomyConfig
-    .filter(t => t.show_in_filter !== false) // Show all taxonomies in classification, not just filter ones
     .sort((a, b) => (a.filter_position || 99) - (b.filter_position || 99));
 
   const resourceHasChanges = isCreateMode
