@@ -379,6 +379,12 @@
             "taxonomy_slug": "resource-type"
           },
           {
+            "key": "file_format",
+            "label": "File Format",
+            "source": "taxonomy",
+            "taxonomy_slug": "file_format"
+          },
+          {
             "key": "topic",
             "label": "Topic",
             "source": "taxonomy",
