@@ -544,12 +544,14 @@
             "download_section_color": {
               "key": "download_section_color",
               "type": "color",
-              "label": "Section Color"
+              "label": "Section Color",
+              "width": "quarter"
             },
             "download_archive": {
               "key": "download_archive",
               "type": "checkbox",
-              "label": "Archive Section"
+              "label": "Archive",
+              "width": "quarter"
             },
             "download_links": {
               "key": "download_links",
