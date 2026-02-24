@@ -304,8 +304,9 @@ async function buildUpdatePayload(resourceId: number): Promise<UpdateResourcePay
   const taxonomies = getTaxonomies();
   const taxonomyMetaMapping = getProfileTaxonomyMetaFieldMapping();
   for (const taxonomy of taxonomies) {
-    // Skip file_format - WP auto-syncs it from download_file_format in download links
-    if (taxonomy === 'file_format') continue;
+    // Skip file_format for resources — WP auto-syncs it from download_file_format in download links.
+    // For other post types (e.g. product), file_format is a standalone taxonomy that must be pushed.
+    if (taxonomy === 'file_format' && resource.post_type === 'resource') continue;
     // Only include taxonomies the user actually edited
     if (!dirtyTaxonomies.has(taxonomy)) continue;
 
