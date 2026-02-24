@@ -242,11 +242,12 @@ describe('update_post', () => {
     const result = updatePost(db, { id: 100, meta: { version: '3.0', new_field: 'hello' } });
     expect(result.success).toBe(true);
 
+    // All meta values are JSON.stringify'd (matching src/lib/queries.ts)
     const meta = db.prepare("SELECT value FROM post_meta WHERE post_id = 100 AND field_id = 'version'").get() as { value: string };
-    expect(meta.value).toBe('3.0');
+    expect(JSON.parse(meta.value)).toBe('3.0');
 
     const newMeta = db.prepare("SELECT value FROM post_meta WHERE post_id = 100 AND field_id = 'new_field'").get() as { value: string };
-    expect(newMeta.value).toBe('hello');
+    expect(JSON.parse(newMeta.value)).toBe('hello');
 
     const changes = db.prepare('SELECT COUNT(*) as count FROM change_log WHERE post_id = 100').get() as { count: number };
     expect(changes.count).toBeGreaterThanOrEqual(2);
@@ -266,14 +267,19 @@ describe('update_post', () => {
     expect(result.error).toBeDefined();
   });
 
-  it('stores non-string meta values as JSON', () => {
-    updatePost(db, { id: 100, meta: { tags: ['a', 'b'], count: 42 } });
+  it('JSON.stringify all meta values consistently with main app', () => {
+    updatePost(db, { id: 100, meta: { tags: ['a', 'b'], count: 42, label: 'text' } });
 
     const tags = db.prepare("SELECT value FROM post_meta WHERE post_id = 100 AND field_id = 'tags'").get() as { value: string };
     expect(JSON.parse(tags.value)).toEqual(['a', 'b']);
 
     const count = db.prepare("SELECT value FROM post_meta WHERE post_id = 100 AND field_id = 'count'").get() as { value: string };
-    expect(count.value).toBe('42');
+    expect(JSON.parse(count.value)).toBe(42);
+
+    // Strings are also JSON.stringify'd (stored with quotes), matching queries.ts
+    const label = db.prepare("SELECT value FROM post_meta WHERE post_id = 100 AND field_id = 'label'").get() as { value: string };
+    expect(label.value).toBe('"text"');
+    expect(JSON.parse(label.value)).toBe('text');
   });
 });
 

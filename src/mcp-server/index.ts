@@ -194,8 +194,9 @@ const DEFAULT_SEO: SeoData = {
 
 // ─── Database ──────────────────────────────────────────────────────────────────
 
+// After compilation, __dirname is src/mcp-server/dist/, so go up two levels to src/
 const DB_PATH = process.env.DATABASE_PATH
-  || path.resolve(__dirname, '..', 'data', 'juggernaut.db');
+  || path.resolve(__dirname, '..', '..', 'data', 'juggernaut.db');
 
 let dbInstance: Database.Database | null = null;
 
@@ -550,7 +551,8 @@ export function updatePost(database: Database.Database, args: UpdatePostArgs): R
           .prepare('SELECT value FROM post_meta WHERE post_id = ? AND field_id = ?')
           .get(args.id, fieldId) as { value: string } | undefined;
 
-        const newValue = typeof value === 'string' ? value : JSON.stringify(value);
+        // Always JSON.stringify — matches src/lib/queries.ts updateLocalResource() encoding
+        const newValue = JSON.stringify(value);
         metaStmt.run(args.id, fieldId, newValue);
 
         changes.push({
