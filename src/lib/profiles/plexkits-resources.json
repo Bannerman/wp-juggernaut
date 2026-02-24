@@ -556,12 +556,6 @@
               "type": "repeater",
               "label": "Download Links",
               "fields": {
-                "link_text": {
-                  "key": "link_text",
-                  "type": "text",
-                  "label": "Link Text",
-                  "placeholder": "Link text..."
-                },
                 "download_file_format": {
                   "key": "download_file_format",
                   "type": "select",
@@ -600,6 +594,13 @@
                     "field": "download_link_type",
                     "value": "link"
                   }
+                },
+                "link_text": {
+                  "key": "link_text",
+                  "type": "text",
+                  "label": "Link Text Override (Optional)",
+                  "placeholder": "Link text...",
+                  "width": "full"
                 }
               }
             }
