@@ -62,13 +62,17 @@ export function DynamicTab({ fields, values, onChange, terms, resourceTitle, cha
         const width = field.width ?? 'full';
         const showLabel = field.type !== 'checkbox' && field.type !== 'repeater';
         const isChanged = changedFields?.has(`meta:${field.key}`);
+        // For repeaters with snapshot data, sub-field highlighting is handled inside the repeater
+        const hasSnapshotForField = snapshotValues && field.key in snapshotValues;
+        const isRepeaterWithSnapshot = field.type === 'repeater' && isChanged && hasSnapshotForField;
+        const showOuterBorder = isChanged && !isRepeaterWithSnapshot;
 
         return (
           <div
             key={field.key}
             className={cn(
               widthClasses[width],
-              isChanged && 'border-l-4 border-amber-400 pl-3'
+              showOuterBorder && 'border-l-4 border-amber-400 pl-3'
             )}
           >
             {showLabel && (
@@ -76,7 +80,7 @@ export function DynamicTab({ fields, values, onChange, terms, resourceTitle, cha
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   {field.label}
                 </label>
-                {isChanged && snapshotValues && (
+                {isChanged && !isRepeaterWithSnapshot && snapshotValues && (
                   <DirtyFieldIndicator
                     fieldLabel={field.label}
                     originalValue={snapshotValues[field.key]}
@@ -86,8 +90,8 @@ export function DynamicTab({ fields, values, onChange, terms, resourceTitle, cha
                 )}
               </div>
             )}
-            {/* For checkbox/repeater fields that don't show labels, render indicator after the field */}
-            {!showLabel && isChanged && snapshotValues && (
+            {/* For checkbox fields (non-repeater) that don't show labels, render indicator */}
+            {!showLabel && isChanged && !isRepeaterWithSnapshot && snapshotValues && (
               <div className="flex items-center gap-2 mb-1">
                 <DirtyFieldIndicator
                   fieldLabel={field.label}
@@ -105,6 +109,7 @@ export function DynamicTab({ fields, values, onChange, terms, resourceTitle, cha
               terms={terms}
               depth={0}
               resourceTitle={resourceTitle}
+              snapshotValue={isChanged && snapshotValues ? snapshotValues[field.key] : undefined}
             />
           </div>
         );
