@@ -45,6 +45,9 @@ data/
 # Electron
 dist-electron/
 electron/dist/
+
+# MCP Server compiled output
+mcp-server/dist/
 *.dmg
 *.zip
 *.AppImage
