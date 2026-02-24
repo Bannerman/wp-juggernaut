@@ -10,7 +10,6 @@ import {
   Filter,
   AlertCircle,
   CheckCircle,
-  Clock,
   Database,
   Plus,
   ChevronDown,
@@ -22,7 +21,6 @@ import { DownloadsTable } from '@/components/DownloadsTable';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { FilterPanel } from '@/components/FilterPanel';
 import { EditModal } from '@/components/EditModal';
-import { UpdateNotifier } from '@/components/UpdateNotifier';
 import { PostTypeSwitcher } from '@/components/PostTypeSwitcher';
 import { ConvertPostTypeModal } from '@/components/ConvertPostTypeModal';
 import { EnvironmentIndicator } from '@/components/EnvironmentIndicator';
@@ -637,37 +635,27 @@ export default function Home() {
             />
           </div>
         )}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pl-20">
-          <div className="flex items-center justify-between h-16">
+        <div className="w-full px-4 sm:px-6 pl-20">
+          <div className="flex items-center justify-between h-12">
             <div className="flex items-center gap-3">
-              <img src="/icon.png" alt="Juggernaut" className="w-8 h-8" />
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Juggernaut</h1>
-              <Link
-                href="/settings"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors electron-no-drag"
-              >
-                <Settings className="w-4 h-4" />
-                Settings
-              </Link>
+              <img src="/icon.png" alt="Juggernaut" className="w-6 h-6" />
+              <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Juggernaut</h1>
               <EnvironmentIndicator workspaceName={workspaceName} environment={activeEnvironment} />
             </div>
 
-            <div className="flex items-center gap-4 electron-no-drag">
-              <ThemeToggle />
-              <UpdateNotifier />
+            <div className="flex items-center gap-2 electron-no-drag">
               {stats?.lastSync && (
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                  <Clock className="w-4 h-4" />
-                  <span>Last sync: {formatRelativeTime(stats.lastSync)}</span>
-                </div>
+                <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">
+                  {formatRelativeTime(stats.lastSync)}
+                </span>
               )}
 
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors min-w-[120px]"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
-                <Plus className="w-4 h-4" />
-                New {postTypeLabel}
+                <Plus className="w-3.5 h-3.5" />
+                New
               </button>
 
               <div className="relative flex items-center sync-dropdown">
@@ -675,24 +663,24 @@ export default function Home() {
                   onClick={() => handleSync(true)}
                   disabled={isSyncing}
                   className={cn(
-                    'flex items-center justify-center gap-2 px-4 py-2 rounded-l-lg text-sm font-medium transition-colors min-w-[100px]',
-                    'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600',
+                    'flex items-center gap-1.5 px-2.5 py-1 rounded-l-md text-xs font-medium transition-colors',
+                    'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700',
                     'disabled:opacity-50 disabled:cursor-not-allowed'
                   )}
                 >
-                  <RefreshCw className={cn('w-4 h-4', isSyncing && 'animate-spin')} />
+                  <RefreshCw className={cn('w-3.5 h-3.5', isSyncing && 'animate-spin')} />
                   Sync
                 </button>
                 <button
                   onClick={() => setShowSyncDropdown(!showSyncDropdown)}
                   disabled={isSyncing}
                   className={cn(
-                    'flex items-center px-2 py-2 rounded-r-lg text-sm font-medium transition-colors border-l border-gray-300 dark:border-gray-600',
-                    'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600',
+                    'flex items-center px-1 py-1 rounded-r-md text-xs font-medium transition-colors border-l border-gray-200 dark:border-gray-600',
+                    'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700',
                     'disabled:opacity-50 disabled:cursor-not-allowed'
                   )}
                 >
-                  <ChevronDown className="w-4 h-4" />
+                  <ChevronDown className="w-3 h-3" />
                 </button>
                 {showSyncDropdown && (
                   <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
@@ -715,14 +703,28 @@ export default function Home() {
                 onClick={handlePush}
                 disabled={isPushing || (stats?.dirtyResources === 0)}
                 className={cn(
-                  'flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors min-w-[140px]',
-                  'bg-brand-600 text-white hover:bg-brand-700',
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                  stats?.dirtyResources
+                    ? 'bg-brand-600 text-white hover:bg-brand-700'
+                    : 'text-gray-400 dark:text-gray-500',
                   'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
               >
-                <Upload className={cn('w-4 h-4', isPushing && 'animate-pulse')} />
+                <Upload className={cn('w-3.5 h-3.5', isPushing && 'animate-pulse')} />
                 {isPushing ? 'Pushing...' : `Push${stats?.dirtyResources ? ` (${stats.dirtyResources})` : ''}`}
               </button>
+
+              <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+              <ThemeToggle />
+
+              <Link
+                href="/settings"
+                className="flex items-center p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </Link>
             </div>
           </div>
         </div>
@@ -755,7 +757,7 @@ export default function Home() {
       {/* Stats Bar */}
       {stats && (
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="w-full px-4 sm:px-6 py-2">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-6">
                 {postTypes.length > 1 && (

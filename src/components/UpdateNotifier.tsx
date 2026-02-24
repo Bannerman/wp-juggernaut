@@ -5,8 +5,8 @@ import { Download, RefreshCw, CheckCircle, XCircle, Loader2 } from 'lucide-react
 import type { UpdateStatus } from '@/types/electron';
 
 /**
- * Update notifier component that shows when running in Electron
- * Displays update status and provides controls for checking/installing updates
+ * Update notifier component that shows when running in Electron.
+ * Designed for the Settings > Updates tab — full-width card layout.
  */
 export function UpdateNotifier() {
   const [isElectron, setIsElectron] = useState(false);
@@ -50,90 +50,88 @@ export function UpdateNotifier() {
     window.electronAPI.installUpdate();
   };
 
-  // Don't render if not in Electron
   if (!isElectron) {
-    return null;
+    return (
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Updates are only available when running the desktop app.
+      </p>
+    );
   }
 
-  const getStatusIcon = () => {
-    switch (updateStatus?.status) {
-      case 'checking':
-        return <Loader2 className="w-4 h-4 animate-spin text-blue-500" />;
-      case 'available':
-        return <Download className="w-4 h-4 text-green-500" />;
-      case 'downloading':
-        return <Loader2 className="w-4 h-4 animate-spin text-blue-500" />;
-      case 'downloaded':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'error':
-        return <XCircle className="w-4 h-4 text-red-500" />;
-      default:
-        return null;
-    }
-  };
-
-  const getStatusText = () => {
-    switch (updateStatus?.status) {
-      case 'checking':
-        return 'Checking for updates...';
-      case 'available':
-        return `Update available: v${updateStatus.version}`;
-      case 'not-available':
-        return 'App is up to date';
-      case 'downloading':
-        return `Downloading... ${updateStatus.percent?.toFixed(0)}%`;
-      case 'downloaded':
-        return `v${updateStatus.version} ready to install`;
-      case 'error':
-        return `Update error: ${updateStatus.message}`;
-      default:
-        return null;
-    }
-  };
-
   return (
-    <div className="flex items-center gap-3 text-sm">
-      {/* Version badge */}
-      <span className="text-gray-500 dark:text-gray-400">v{appVersion}</span>
-
-      {/* Status indicator */}
-      {updateStatus && (
-        <div className="flex items-center gap-2">
-          {getStatusIcon()}
-          <span className="text-gray-600 dark:text-gray-400">{getStatusText()}</span>
+    <div className="space-y-4">
+      {/* Current version */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-900 dark:text-white">Current Version</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">v{appVersion}</p>
         </div>
-      )}
-
-      {/* Action buttons */}
-      {!updateStatus && !isChecking && (
         <button
           onClick={checkForUpdates}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-          title="Check for updates"
+          disabled={isChecking}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
         >
-          <RefreshCw className="w-3 h-3" />
-          Check for updates
+          {isChecking ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4" />
+          )}
+          {isChecking ? 'Checking...' : 'Check for Updates'}
         </button>
-      )}
+      </div>
 
-      {updateStatus?.status === 'available' && (
-        <button
-          onClick={downloadUpdate}
-          className="flex items-center gap-1 px-3 py-1 text-xs text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
-        >
-          <Download className="w-3 h-3" />
-          Download
-        </button>
-      )}
+      {/* Status */}
+      {updateStatus && (
+        <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-gray-50 dark:bg-gray-900/50">
+          <div className="flex items-center gap-3">
+            {updateStatus.status === 'checking' && <Loader2 className="w-5 h-5 animate-spin text-blue-500" />}
+            {updateStatus.status === 'available' && <Download className="w-5 h-5 text-green-500" />}
+            {updateStatus.status === 'downloading' && <Loader2 className="w-5 h-5 animate-spin text-blue-500" />}
+            {updateStatus.status === 'downloaded' && <CheckCircle className="w-5 h-5 text-green-500" />}
+            {updateStatus.status === 'not-available' && <CheckCircle className="w-5 h-5 text-gray-400" />}
+            {updateStatus.status === 'error' && <XCircle className="w-5 h-5 text-red-500" />}
+            <div>
+              {updateStatus.status === 'checking' && (
+                <p className="text-sm text-gray-600 dark:text-gray-400">Checking for updates...</p>
+              )}
+              {updateStatus.status === 'available' && (
+                <p className="text-sm text-gray-900 dark:text-white">Version {updateStatus.version} is available</p>
+              )}
+              {updateStatus.status === 'not-available' && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">You&apos;re on the latest version</p>
+              )}
+              {updateStatus.status === 'downloading' && (
+                <p className="text-sm text-gray-600 dark:text-gray-400">Downloading... {updateStatus.percent?.toFixed(0)}%</p>
+              )}
+              {updateStatus.status === 'downloaded' && (
+                <p className="text-sm text-gray-900 dark:text-white">Version {updateStatus.version} ready to install</p>
+              )}
+              {updateStatus.status === 'error' && (
+                <p className="text-sm text-red-600 dark:text-red-400">{updateStatus.message}</p>
+              )}
+            </div>
+          </div>
 
-      {updateStatus?.status === 'downloaded' && (
-        <button
-          onClick={installUpdate}
-          className="flex items-center gap-1 px-3 py-1 text-xs text-white bg-brand-600 hover:bg-brand-700 rounded transition-colors"
-        >
-          <RefreshCw className="w-3 h-3" />
-          Restart to update
-        </button>
+          {updateStatus.status === 'available' && (
+            <button
+              onClick={downloadUpdate}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Download
+            </button>
+          )}
+
+          {updateStatus.status === 'downloaded' && (
+            <button
+              onClick={installUpdate}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Restart to Update
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

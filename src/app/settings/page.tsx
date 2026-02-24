@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Save, RotateCcw, Check, AlertCircle, History, FileText, Globe, Loader2, RefreshCw, Puzzle, Activity, ArrowLeft, ToggleLeft, ToggleRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SettingsNav } from '@/components/SettingsNav';
+import { UpdateNotifier } from '@/components/UpdateNotifier';
 
 interface PromptTemplate {
   id: string;
@@ -71,7 +72,7 @@ interface PluginStats {
   community: number;
 }
 
-type SettingsTab = 'target' | 'prompts' | 'plugins' | 'diagnostics';
+type SettingsTab = 'target' | 'prompts' | 'plugins' | 'diagnostics' | 'updates';
 type PromptsView = 'edit' | 'history';
 
 export default function SettingsPage() {
@@ -1100,6 +1101,23 @@ function SettingsPageContent() {
                 <FileText className="w-4 h-4" />
                 Open Field Audit
               </Link>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* Updates Tab */}
+      {activeTab === 'updates' && (
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">App Updates</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Check for and install application updates
+              </p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+              <UpdateNotifier />
             </div>
           </div>
         </main>
