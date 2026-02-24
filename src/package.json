@@ -31,7 +31,8 @@
     "build:electron": "tsc -p electron/tsconfig.json",
     "rebuild:electron": "electron-builder install-app-deps",
     "postinstall": "",
-    "mcp-server": "node mcp-server/index.js"
+    "build:mcp": "tsc -p mcp-server/tsconfig.json",
+    "mcp-server": "npm run build:mcp && node mcp-server/dist/index.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

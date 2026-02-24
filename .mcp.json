@@ -2,8 +2,7 @@
   "mcpServers": {
     "juggernaut": {
       "command": "node",
-      "args": ["src/mcp-server/index.js"],
-      "env": {}
+      "args": ["src/mcp-server/dist/index.js"]
     }
   }
 }
