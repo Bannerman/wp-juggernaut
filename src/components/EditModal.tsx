@@ -422,7 +422,7 @@ export function EditModal({
     setSeoLoading(true);
     setSeoError(null);
 
-    fetch(`/api/seo/${effectiveResource.id}`)
+    fetch(`/api/seo/${effectiveResource.id}?source=local`)
       .then(res => res.json())
       .then(data => {
         if (data.seo) {
