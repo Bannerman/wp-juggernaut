@@ -37,7 +37,9 @@ async function fetchSeoData(resourceId: number): Promise<LocalSeoData | null> {
       return null;
     }
 
-    const data = await response.json();
+    const raw = await response.json();
+    // SEOPress REST API wraps response in { success, data: { ... } }
+    const data = raw.data ?? raw;
 
     return {
       title: data.title || '',

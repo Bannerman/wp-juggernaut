@@ -38,7 +38,7 @@ export async function GET(
     }
 
     // Check for source param - 'local' reads from DB, 'remote' fetches from WP
-    const source = request.nextUrl.searchParams.get('source') || 'remote';
+    const source = request.nextUrl.searchParams.get('source') || 'local';
 
     if (source === 'local') {
       // Return locally cached SEO data

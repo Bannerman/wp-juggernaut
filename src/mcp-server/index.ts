@@ -18,7 +18,7 @@
  * _dirty_taxonomies) match src/lib/queries.ts exactly.
  */
 
-import Database from 'better-sqlite3';
+import type DatabaseType from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
@@ -168,6 +168,11 @@ interface GetPostHistoryArgs {
   limit?: number;
 }
 
+interface GetSiteIndexArgs {
+  post_type?: string;
+  status?: string;
+}
+
 interface SeoData {
   title: string;
   description: string;
@@ -196,17 +201,24 @@ const DEFAULT_SEO: SeoData = {
 // ─── Database ──────────────────────────────────────────────────────────────────
 
 // After compilation, __dirname is src/mcp-server/dist/, so go up two levels to src/
+// Mirrors src/lib/db.ts legacy support: prefer plexkits.db (active production DB),
+// fall back to juggernaut.db
+const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
 const DB_PATH = process.env.DATABASE_PATH
-  || path.resolve(__dirname, '..', '..', 'data', 'juggernaut.db');
+  || (fs.existsSync(path.join(DATA_DIR, 'plexkits.db'))
+    ? path.join(DATA_DIR, 'plexkits.db')
+    : path.join(DATA_DIR, 'juggernaut.db'));
 
-let dbInstance: Database.Database | null = null;
+let dbInstance: DatabaseType.Database | null = null;
 
 /**
  * Returns the singleton database connection. Mirrors src/lib/db.ts settings
  * (WAL mode) with added busy_timeout for multi-process safety.
  */
-export function getDb(): Database.Database {
+export function getDb(): DatabaseType.Database {
   if (!dbInstance) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Database = require('better-sqlite3') as typeof DatabaseType;
     dbInstance = new Database(DB_PATH);
     dbInstance.pragma('journal_mode = WAL');
     dbInstance.pragma('busy_timeout = 5000');
@@ -287,6 +299,88 @@ function escapeLike(str: string): string {
   return str.replace(/[%_\\]/g, '\\$&');
 }
 
+// ─── HTML Analysis Helpers ──────────────────────────────────────────────────────
+
+/** Strip HTML tags and decode common entities for plain text / word counting. */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#8217;/g, "'")
+    .replace(/&#8220;/g, '"')
+    .replace(/&#8221;/g, '"')
+    .replace(/&#8211;/g, '–')
+    .replace(/&#8212;/g, '—')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#\d+;/g, ' ')
+    .replace(/&\w+;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function countWords(text: string): number {
+  const plain = stripHtml(text);
+  if (!plain) return 0;
+  return plain.split(/\s+/).filter(Boolean).length;
+}
+
+function extractHeadings(html: string): string[] {
+  const headings: string[] = [];
+  const re = /<(h[1-6])[^>]*>([\s\S]*?)<\/\1>/gi;
+  let match;
+  while ((match = re.exec(html)) !== null) {
+    const tag = match[1].toUpperCase();
+    const text = stripHtml(match[2]);
+    if (text) headings.push(`${tag}: ${text}`);
+  }
+  return headings;
+}
+
+interface ExtractedLinks {
+  internal: string[];
+  external: string[];
+}
+
+function extractLinks(html: string, siteSlug?: string): ExtractedLinks {
+  const internal: string[] = [];
+  const external: string[] = [];
+  const re = /<a[^>]+href=["']([^"']+)["'][^>]*>/gi;
+  let match;
+  while ((match = re.exec(html)) !== null) {
+    const href = match[1].trim();
+    if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) continue;
+
+    // Relative links or links to the same site are internal
+    if (href.startsWith('/') || (siteSlug && href.includes(siteSlug))) {
+      if (!internal.includes(href)) internal.push(href);
+    } else if (href.startsWith('http')) {
+      if (!external.includes(href)) external.push(href);
+    }
+  }
+  return { internal, external };
+}
+
+function countImages(html: string): number {
+  const matches = html.match(/<img\s/gi);
+  return matches ? matches.length : 0;
+}
+
+function extractImagesMissingAlt(html: string): number {
+  const re = /<img\s([^>]*)>/gi;
+  let count = 0;
+  let match;
+  while ((match = re.exec(html)) !== null) {
+    const attrs = match[1];
+    if (!attrs.includes('alt=') || /alt=["']\s*["']/i.test(attrs)) {
+      count++;
+    }
+  }
+  return count;
+}
+
 // ─── Validation ────────────────────────────────────────────────────────────────
 
 function validateStatus(status: string): string | null {
@@ -297,7 +391,7 @@ function validateStatus(status: string): string | null {
 }
 
 function validateTermIds(
-  database: Database.Database,
+  database: DatabaseType.Database,
   termIds: number[],
   taxonomy: string
 ): { valid: number[]; invalid: number[] } {
@@ -312,7 +406,7 @@ function validateTermIds(
   return { valid, invalid };
 }
 
-function validateTaxonomyHasTerms(database: Database.Database, taxonomy: string): boolean {
+function validateTaxonomyHasTerms(database: DatabaseType.Database, taxonomy: string): boolean {
   const row = database.prepare(
     'SELECT COUNT(*) as count FROM terms WHERE taxonomy = ?'
   ).get(taxonomy) as CountRow;
@@ -451,12 +545,28 @@ const TOOLS: McpToolDef[] = [
       required: ['post_id'],
     },
   },
+  {
+    name: 'get_site_index',
+    description:
+      'Get a lightweight, analysis-ready snapshot of every post. Returns structured metadata per post: word count, headings, internal/external links, image count, SEO data, taxonomy terms. Designed for bulk content auditing — no full HTML content, so the response fits all posts in one call.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        post_type: { type: 'string', description: "Filter by post type (e.g., 'resource', 'post', 'product'). Omit for all types." },
+        status: {
+          type: 'string',
+          enum: ['publish', 'draft', 'pending', 'private', 'trash', 'future'],
+          description: "Filter by status. Defaults to 'publish' if omitted.",
+        },
+      },
+    },
+  },
 ];
 
 // ─── Tool Handlers ─────────────────────────────────────────────────────────────
 // Each handler accepts a Database instance for testability.
 
-export function listPosts(database: Database.Database, args: ListPostsArgs): Record<string, unknown> {
+export function listPosts(database: DatabaseType.Database, args: ListPostsArgs): Record<string, unknown> {
   const conditions: string[] = [];
   const values: unknown[] = [];
 
@@ -495,7 +605,7 @@ export function listPosts(database: Database.Database, args: ListPostsArgs): Rec
   return { total, count: posts.length, limit, offset, posts };
 }
 
-export function getPost(database: Database.Database, args: GetPostArgs): Record<string, unknown> {
+export function getPost(database: DatabaseType.Database, args: GetPostArgs): Record<string, unknown> {
   const post = database.prepare('SELECT * FROM posts WHERE id = ?').get(args.id) as PostRow | undefined;
   if (!post) return { error: `Post ${args.id} not found` };
 
@@ -525,7 +635,7 @@ export function getPost(database: Database.Database, args: GetPostArgs): Record<
   };
 }
 
-export function updatePost(database: Database.Database, args: UpdatePostArgs): Record<string, unknown> {
+export function updatePost(database: DatabaseType.Database, args: UpdatePostArgs): Record<string, unknown> {
   const post = database.prepare('SELECT * FROM posts WHERE id = ?').get(args.id) as PostRow | undefined;
   if (!post) return { error: `Post ${args.id} not found` };
 
@@ -612,7 +722,7 @@ export function updatePost(database: Database.Database, args: UpdatePostArgs): R
   };
 }
 
-export function updateSeo(database: Database.Database, args: UpdateSeoArgs): Record<string, unknown> {
+export function updateSeo(database: DatabaseType.Database, args: UpdateSeoArgs): Record<string, unknown> {
   const post = database.prepare('SELECT id FROM posts WHERE id = ?').get(args.post_id) as PostRow | undefined;
   if (!post) return { error: `Post ${args.post_id} not found` };
 
@@ -680,7 +790,7 @@ export function updateSeo(database: Database.Database, args: UpdateSeoArgs): Rec
   };
 }
 
-export function listTerms(database: Database.Database, args: ListTermsArgs): Record<string, unknown> {
+export function listTerms(database: DatabaseType.Database, args: ListTermsArgs): Record<string, unknown> {
   if (args.taxonomy) {
     const terms = database
       .prepare('SELECT * FROM terms WHERE taxonomy = ? ORDER BY name')
@@ -698,7 +808,7 @@ export function listTerms(database: Database.Database, args: ListTermsArgs): Rec
   return { total: terms.length, taxonomies: grouped };
 }
 
-export function updatePostTerms(database: Database.Database, args: UpdatePostTermsArgs): Record<string, unknown> {
+export function updatePostTerms(database: DatabaseType.Database, args: UpdatePostTermsArgs): Record<string, unknown> {
   const post = database.prepare('SELECT id FROM posts WHERE id = ?').get(args.post_id) as PostRow | undefined;
   if (!post) return { error: `Post ${args.post_id} not found` };
 
@@ -779,7 +889,7 @@ export function updatePostTerms(database: Database.Database, args: UpdatePostTer
   };
 }
 
-export function getStats(database: Database.Database, args: GetStatsArgs): Record<string, unknown> {
+export function getStats(database: DatabaseType.Database, args: GetStatsArgs): Record<string, unknown> {
   const typeFilter = args.post_type ? 'WHERE post_type = ?' : '';
   const dirtyFilter = args.post_type
     ? 'WHERE post_type = ? AND is_dirty = 1'
@@ -821,7 +931,7 @@ export function getStats(database: Database.Database, args: GetStatsArgs): Recor
   };
 }
 
-export function getPostHistory(database: Database.Database, args: GetPostHistoryArgs): Record<string, unknown> {
+export function getPostHistory(database: DatabaseType.Database, args: GetPostHistoryArgs): Record<string, unknown> {
   const limit = Math.min(Math.max(args.limit || 20, 1), 100);
 
   const entries = database
@@ -831,9 +941,103 @@ export function getPostHistory(database: Database.Database, args: GetPostHistory
   return { post_id: args.post_id, count: entries.length, entries };
 }
 
+export function getSiteIndex(database: DatabaseType.Database, args: GetSiteIndexArgs): Record<string, unknown> {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+
+  if (args.post_type) {
+    conditions.push('post_type = ?');
+    values.push(args.post_type);
+  }
+
+  // Default to published posts only
+  const status = args.status || 'publish';
+  const err = validateStatus(status);
+  if (err) return { error: err };
+  conditions.push('status = ?');
+  values.push(status);
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const posts = database
+    .prepare(
+      `SELECT id, post_type, title, slug, status, content, excerpt, featured_media, date_gmt, modified_gmt, is_dirty
+       FROM posts ${where} ORDER BY modified_gmt DESC`
+    )
+    .all(...values) as PostRow[];
+
+  // Batch-load all SEO data
+  const seoMap = new Map<number, SeoData>();
+  const seoRows = database
+    .prepare("SELECT post_id, data_value FROM plugin_data WHERE plugin_id = 'seopress' AND data_key = 'seo'")
+    .all() as Array<{ post_id: number; data_value: string }>;
+  for (const row of seoRows) {
+    try {
+      seoMap.set(row.post_id, JSON.parse(row.data_value) as SeoData);
+    } catch { /* skip malformed */ }
+  }
+
+  // Batch-load all taxonomy terms
+  const termRows = database
+    .prepare(
+      `SELECT pt.post_id, pt.taxonomy, t.name
+       FROM post_terms pt
+       JOIN terms t ON pt.term_id = t.id AND pt.taxonomy = t.taxonomy`
+    )
+    .all() as Array<{ post_id: number; taxonomy: string; name: string }>;
+
+  const termsMap = new Map<number, Record<string, string[]>>();
+  for (const row of termRows) {
+    if (!termsMap.has(row.post_id)) termsMap.set(row.post_id, {});
+    const postTerms = termsMap.get(row.post_id)!;
+    if (!postTerms[row.taxonomy]) postTerms[row.taxonomy] = [];
+    postTerms[row.taxonomy].push(row.name);
+  }
+
+  // Build index entries
+  const index = posts.map((post) => {
+    const content = post.content || '';
+    const links = extractLinks(content);
+    const seo = seoMap.get(post.id);
+    const terms = termsMap.get(post.id) || {};
+    const imgCount = countImages(content);
+    const imgsMissingAlt = extractImagesMissingAlt(content);
+
+    return {
+      id: post.id,
+      post_type: post.post_type,
+      title: post.title,
+      slug: post.slug,
+      status: post.status,
+      is_dirty: post.is_dirty === 1,
+      excerpt: truncate(post.excerpt || '', 150),
+      featured_media: post.featured_media > 0,
+      date_gmt: post.date_gmt,
+      modified_gmt: post.modified_gmt,
+      word_count: countWords(content),
+      headings: extractHeadings(content),
+      internal_links: links.internal,
+      external_links: links.external,
+      image_count: imgCount,
+      images_missing_alt: imgsMissingAlt,
+      seo: seo
+        ? {
+            title: seo.title || null,
+            description: seo.description || null,
+            noindex: seo.robots?.noindex || false,
+            nofollow: seo.robots?.nofollow || false,
+          }
+        : null,
+      terms,
+    };
+  });
+
+  return { total: index.length, posts: index };
+}
+
 // ─── Tool Dispatch ─────────────────────────────────────────────────────────────
 
-type ToolHandler = (database: Database.Database, args: Record<string, unknown>) => Record<string, unknown>;
+type ToolHandler = (database: DatabaseType.Database, args: Record<string, unknown>) => Record<string, unknown>;
 
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
   list_posts: listPosts as unknown as ToolHandler,
@@ -844,14 +1048,13 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   update_post_terms: updatePostTerms as unknown as ToolHandler,
   get_stats: getStats as unknown as ToolHandler,
   get_post_history: getPostHistory as unknown as ToolHandler,
+  get_site_index: getSiteIndex as unknown as ToolHandler,
 };
 
-// ─── MCP Protocol (JSON-RPC 2.0 + Content-Length framing) ──────────────────────
+// ─── MCP Protocol (JSON-RPC 2.0 + newline-delimited JSON over stdio) ───────────
 
 function send(message: JsonRpcResponse): void {
-  const body = JSON.stringify(message);
-  const byteLength = Buffer.byteLength(body, 'utf-8');
-  process.stdout.write(`Content-Length: ${byteLength}\r\n\r\n${body}`);
+  process.stdout.write(JSON.stringify(message) + '\n');
 }
 
 function sendResult(id: number | string, result: unknown): void {
@@ -871,7 +1074,7 @@ function handleMessage(msg: JsonRpcRequest): void {
   switch (msg.method) {
     case 'initialize':
       sendResult(msg.id, {
-        protocolVersion: '2024-11-05',
+        protocolVersion: '2025-03-26',
         capabilities: { tools: {} },
         serverInfo: { name: 'juggernaut', version: '1.0.0' },
       });
@@ -915,56 +1118,49 @@ function handleMessage(msg: JsonRpcRequest): void {
     }
 
     default:
-      sendError(msg.id, -32601, `Method not found: ${msg.method}`);
+      // Notifications (no id) should be silently ignored, not answered
+      if (msg.id !== undefined) {
+        sendError(msg.id, -32601, `Method not found: ${msg.method}`);
+      }
   }
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 function main(): void {
-  if (!isMcpPluginEnabled()) {
-    process.stderr.write(
-      '[juggernaut-mcp] MCP Server plugin is disabled. '
-      + 'Enable it in Juggernaut Settings > Plugins, then restart your MCP client.\n'
-    );
-    process.exit(1);
+  try {
+    const enabled = isMcpPluginEnabled();
+    process.stderr.write(`[juggernaut-mcp] Plugin enabled: ${enabled}\n`);
+    if (!enabled) {
+      process.stderr.write(
+        '[juggernaut-mcp] MCP Server plugin is disabled. '
+        + 'Enable it in Juggernaut Settings > Plugins, then restart your MCP client.\n'
+      );
+      process.exit(1);
+    }
+  } catch (err) {
+    process.stderr.write(`[juggernaut-mcp] Plugin check error: ${err}\n`);
+    // Continue anyway — don't let the gate crash the server
   }
 
   process.stderr.write(`[juggernaut-mcp] Server starting (db: ${DB_PATH})\n`);
 
-  let buffer = Buffer.alloc(0);
+  let buffer: Buffer = Buffer.alloc(0);
 
   process.stdin.on('data', (chunk: Buffer) => {
-    buffer = Buffer.concat([buffer, chunk]);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    buffer = buffer.length ? (Buffer.concat([buffer, chunk]) as typeof buffer) : chunk;
 
-    // Process all complete messages in buffer
-    while (buffer.length > 0) {
-      // Find header/body separator
-      const headerEnd = buffer.indexOf('\r\n\r\n');
-      if (headerEnd === -1) break;
+    // Process all complete newline-delimited JSON messages
+    let newlineIndex: number;
+    while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+      const line = buffer.subarray(0, newlineIndex).toString('utf-8').replace(/\r$/, '');
+      buffer = buffer.subarray(newlineIndex + 1);
 
-      // Parse Content-Length header
-      const headerStr = buffer.subarray(0, headerEnd).toString('ascii');
-      const match = headerStr.match(/Content-Length:\s*(\d+)/i);
-      if (!match) {
-        // Skip malformed header
-        buffer = buffer.subarray(headerEnd + 4);
-        continue;
-      }
-
-      const contentLength = parseInt(match[1], 10);
-      const bodyStart = headerEnd + 4;
-      const bodyEnd = bodyStart + contentLength;
-
-      // Wait for complete body
-      if (buffer.length < bodyEnd) break;
-
-      // Extract and process message
-      const body = buffer.subarray(bodyStart, bodyEnd).toString('utf-8');
-      buffer = buffer.subarray(bodyEnd);
+      if (!line) continue; // skip empty lines
 
       try {
-        const message = JSON.parse(body) as JsonRpcRequest;
+        const message = JSON.parse(line) as JsonRpcRequest;
         handleMessage(message);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
