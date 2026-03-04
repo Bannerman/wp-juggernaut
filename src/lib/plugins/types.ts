@@ -660,7 +660,7 @@ export interface ViewColumn {
   /** Column header text */
   label: string;
   /** Where the column data comes from */
-  source: 'core' | 'taxonomy' | 'meta';
+  source: 'core' | 'taxonomy' | 'meta' | 'plugin';
   /** Render type for meta columns */
   type?: 'text' | 'count' | 'download_stats';
   /** Required when source === 'taxonomy' */
@@ -669,6 +669,10 @@ export interface ViewColumn {
   max_display?: number;
   /** Whether this column is sortable */
   sortable?: boolean;
+  /** Required when source === 'plugin'. The plugin_id in plugin_data table. */
+  plugin_id?: string;
+  /** Required when source === 'plugin'. Dot-path into the plugin JSON, e.g., 'seo.title'. */
+  data_path?: string;
 }
 
 /**

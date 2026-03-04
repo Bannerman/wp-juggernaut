@@ -22,16 +22,19 @@ interface Resource {
   is_dirty: boolean;
   taxonomies: Record<string, number[]>;
   meta_box: Record<string, unknown>;
+  plugin_data?: Record<string, Record<string, unknown>>;
 }
 
 interface ViewColumn {
   key: string;
   label: string;
-  source: 'core' | 'taxonomy' | 'meta';
+  source: 'core' | 'taxonomy' | 'meta' | 'plugin';
   type?: 'text' | 'count' | 'download_stats';
   taxonomy_slug?: string;
   max_display?: number;
   sortable?: boolean;
+  plugin_id?: string;
+  data_path?: string;
 }
 
 interface ResourceTableProps {
@@ -291,6 +294,52 @@ export function ResourceTable({
     );
   };
 
+  const renderPluginCell = (col: ViewColumn, resource: Resource): React.ReactElement => {
+    let raw: unknown;
+    if (col.plugin_id && col.data_path) {
+      const pluginObj = resource.plugin_data?.[col.plugin_id];
+      if (pluginObj) {
+        // Traverse dot-path (e.g., 'seo.title' → pluginObj['seo']['title'])
+        const parts = col.data_path.split('.');
+        let current: unknown = pluginObj;
+        for (const part of parts) {
+          if (current && typeof current === 'object') {
+            current = (current as Record<string, unknown>)[part];
+          } else {
+            current = undefined;
+            break;
+          }
+        }
+        raw = current;
+      }
+    }
+
+    // Boolean fields (noindex, nofollow) render as Yes/— badge
+    if (typeof raw === 'boolean') {
+      return (
+        <td key={col.key} className="px-4 py-3">
+          {raw ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+              Yes
+            </span>
+          ) : (
+            <span className="text-sm text-gray-400 dark:text-gray-500">—</span>
+          )}
+        </td>
+      );
+    }
+
+    const value = raw !== undefined && raw !== null ? String(raw) : '';
+
+    return (
+      <td key={col.key} className="px-4 py-3">
+        <span className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs block" title={value}>
+          {value.length > 60 ? value.substring(0, 60) + '...' : value}
+        </span>
+      </td>
+    );
+  };
+
   const renderCell = (col: ViewColumn, resource: Resource): React.ReactElement => {
     switch (col.source) {
       case 'core':
@@ -299,6 +348,8 @@ export function ResourceTable({
         return renderTaxonomyCell(col, resource);
       case 'meta':
         return renderMetaCell(col, resource);
+      case 'plugin':
+        return renderPluginCell(col, resource);
       default:
         return <td key={col.key} className="px-4 py-3" />;
     }

@@ -16,11 +16,13 @@ interface PostTypeConfig {
 interface ViewColumn {
   key: string;
   label: string;
-  source: 'core' | 'taxonomy' | 'meta';
+  source: 'core' | 'taxonomy' | 'meta' | 'plugin';
   type?: 'text' | 'count' | 'download_stats';
   taxonomy_slug?: string;
   max_display?: number;
   sortable?: boolean;
+  plugin_id?: string;
+  data_path?: string;
 }
 
 interface ViewConfig {
