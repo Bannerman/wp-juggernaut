@@ -92,6 +92,106 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.warn('[views] Field discovery failed, returning partial availableColumns:', err);
     }
 
+    // SEO columns from plugin_data (seopress)
+    availableColumns.push(
+      {
+        key: 'seo_title',
+        label: 'SEO Title',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.title',
+      },
+      {
+        key: 'seo_description',
+        label: 'SEO Description',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.description',
+      },
+      {
+        key: 'seo_target_keywords',
+        label: 'Target Keywords',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.targetKeywords',
+      },
+      {
+        key: 'seo_canonical',
+        label: 'Canonical URL',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.canonical',
+      },
+      {
+        key: 'seo_og_title',
+        label: 'OG Title',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.og.title',
+      },
+      {
+        key: 'seo_og_description',
+        label: 'OG Description',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.og.description',
+      },
+      {
+        key: 'seo_og_image',
+        label: 'OG Image',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.og.image',
+      },
+      {
+        key: 'seo_twitter_title',
+        label: 'Twitter Title',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.twitter.title',
+      },
+      {
+        key: 'seo_twitter_description',
+        label: 'Twitter Description',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.twitter.description',
+      },
+      {
+        key: 'seo_twitter_image',
+        label: 'Twitter Image',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.twitter.image',
+      },
+      {
+        key: 'seo_noindex',
+        label: 'Noindex',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.robots.noindex',
+      },
+      {
+        key: 'seo_nofollow',
+        label: 'Nofollow',
+        source: 'plugin',
+        type: 'text',
+        plugin_id: 'seopress',
+        data_path: 'seo.robots.nofollow',
+      },
+    );
+
     return NextResponse.json({ postTypes, views, availableColumns });
   } catch (error) {
     return NextResponse.json(

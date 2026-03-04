@@ -24,6 +24,7 @@ export interface LocalResource {
   is_dirty: boolean;
   meta_box: Record<string, unknown>;
   taxonomies: Record<string, number[]>;
+  plugin_data?: Record<string, Record<string, unknown>>;
   synced_snapshot?: SyncedSnapshot | null;
 }
 
@@ -182,6 +183,22 @@ export function getResources(filters: ResourceFilters = {}, postType?: string): 
     termsByPost[row.post_id][row.taxonomy].push(row.term_id);
   }
 
+  // Fetch all plugin_data (for view columns that reference plugin data, e.g., SEO)
+  const pluginRows = db
+    .prepare(`SELECT post_id, plugin_id, data_key, data_value FROM plugin_data WHERE post_id IN (${placeholders})`)
+    .all(...postIds) as Array<{ post_id: number; plugin_id: string; data_key: string; data_value: string }>;
+
+  const pluginDataByPost: Record<number, Record<string, Record<string, unknown>>> = {};
+  for (const pRow of pluginRows) {
+    if (!pluginDataByPost[pRow.post_id]) pluginDataByPost[pRow.post_id] = {};
+    if (!pluginDataByPost[pRow.post_id][pRow.plugin_id]) pluginDataByPost[pRow.post_id][pRow.plugin_id] = {};
+    try {
+      pluginDataByPost[pRow.post_id][pRow.plugin_id][pRow.data_key] = JSON.parse(pRow.data_value);
+    } catch {
+      pluginDataByPost[pRow.post_id][pRow.plugin_id][pRow.data_key] = pRow.data_value;
+    }
+  }
+
   return rows.map((row) => {
     // Ensure we have empty objects if no meta/terms found for this post
     const meta = metaByPost[row.id] || {};
@@ -201,6 +218,7 @@ export function getResources(filters: ResourceFilters = {}, postType?: string): 
       is_dirty: row.is_dirty === 1,
       meta_box: meta,
       taxonomies: taxonomies,
+      plugin_data: pluginDataByPost[row.id] || {},
     };
 
     // Apply taxonomy filters

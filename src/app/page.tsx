@@ -62,6 +62,7 @@ interface Resource {
   is_dirty: boolean;
   taxonomies: Record<string, number[]>;
   meta_box: Record<string, unknown>;
+  plugin_data?: Record<string, Record<string, unknown>>;
   synced_snapshot?: SyncedSnapshot | null;
 }
 
