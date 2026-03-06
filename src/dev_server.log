@@ -1,0 +1,10 @@
+
+> juggernaut@0.9.9 dev /app/src
+> next dev
+
+ ⚠ Port 3000 is in use, trying 3001 instead.
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3001
+
+ ✓ Starting...
+ ✓ Ready in 3.1s
