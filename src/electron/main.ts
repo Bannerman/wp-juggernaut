@@ -97,6 +97,35 @@ let nextServer: UtilityProcess | null = null;
 const isDev = process.env.NODE_ENV === 'development';
 const PORT = 4853; // Unique port to avoid conflicts with dev servers
 
+// Enforce single instance to prevent SQLite database corruption (WAL mode)
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    // Focus the existing window when a second instance is attempted
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
+// Global crash handlers to prevent silent crashes
+process.on('uncaughtException', (error: Error) => {
+  console.error('Uncaught exception in main process:', error);
+  dialog.showErrorBox(
+    'Unexpected Error',
+    `Juggernaut encountered an unexpected error:\n\n${error.message}\n\nThe app will now quit.`
+  );
+  app.quit();
+});
+
+process.on('unhandledRejection', (reason: unknown) => {
+  console.error('Unhandled rejection in main process:', reason);
+  // Log but don't crash — unhandled rejections are often non-fatal
+});
+
 // Configure auto-updater for GitHub releases
 if (autoUpdater) {
   autoUpdater.autoDownload = false;
@@ -213,7 +242,8 @@ async function startNextServer(): Promise<void> {
   nextServer.on('exit', (code: number) => {
     if (code !== 0) {
       console.error(`Next.js server exited with code ${code}`);
-      dialog.showErrorBox('Server Error', 'The application server stopped unexpectedly.');
+      dialog.showErrorBox('Server Error', 'The application server stopped unexpectedly. The app will now quit.');
+      app.quit();
     }
   });
 }
@@ -241,7 +271,9 @@ if (autoUpdater) {
       releaseNotes: info.releaseNotes,
     });
 
-    dialog.showMessageBox(mainWindow!, {
+    const win = mainWindow;
+    if (!win) return;
+    dialog.showMessageBox(win, {
       type: 'info',
       title: 'Update Available',
       message: `A new version (${info.version}) is available. Would you like to download it now?`,
@@ -274,7 +306,9 @@ if (autoUpdater) {
       version: info.version,
     });
 
-    dialog.showMessageBox(mainWindow!, {
+    const updateWin = mainWindow;
+    if (!updateWin) return;
+    dialog.showMessageBox(updateWin, {
       type: 'info',
       title: 'Update Ready',
       message: `Version ${info.version} has been downloaded. Restart now to install the update?`,
