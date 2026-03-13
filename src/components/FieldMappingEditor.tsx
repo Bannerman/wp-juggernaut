@@ -279,6 +279,7 @@ function DroppableField({
             e.stopPropagation();
             onRemove();
           }}
+          aria-label="Remove mapping"
           className="p-0.5 text-gray-400 hover:text-red-500 transition-colors"
         >
           <X className="w-3.5 h-3.5" />
