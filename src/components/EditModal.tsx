@@ -861,7 +861,11 @@ export function EditModal({
               )}
               {isCreateMode && <p className="text-sm text-green-600">Creating new {postTypeLabel.toLowerCase()}</p>}
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              aria-label="Close modal"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
