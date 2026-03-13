@@ -155,6 +155,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0, res
               <button
                 type="button"
                 onClick={() => removeItem(index)}
+                aria-label={`Remove ${field.label} item`}
                 className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded flex-shrink-0"
               >
                 <Trash2 className="w-4 h-4" />
@@ -188,6 +189,7 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0, res
                 <button
                   type="button"
                   onClick={() => removeItem(index)}
+                  aria-label={`Remove ${field.label} item`}
                   className={`absolute ${isNested ? 'top-2 right-2 p-1' : 'top-3 right-3 p-2'} text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded`}
                 >
                   <Trash2 className={isNested ? 'w-3 h-3' : 'w-4 h-4'} />
@@ -281,6 +283,7 @@ function SubFieldDiff({ label, original, current, onReset }: {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onReset(); }}
+                aria-label={`Reset ${label} item`}
                 className="inline-flex items-center gap-1 text-[10px] text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
               >
                 <RotateCcw className="w-2.5 h-2.5" />
