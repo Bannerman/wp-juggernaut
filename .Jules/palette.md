@@ -1,0 +1,1 @@
+## 2024-03-17 - Add aria-label to icon-only buttons in TabLayoutEditor\n**Learning:** Icon-only buttons relying purely on `title` attributes are insufficient for screen readers; they must use explicit `aria-label`s.\n**Action:** Add `aria-label`s to the rename, move up, move down, delete tab, and remove field buttons in `TabLayoutEditor.tsx`.
