@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Edit2, ExternalLink, Eye, ChevronUp, ChevronDown, Inbox } from 'lucide-react';
+import { Edit2, Eye, ChevronUp, ChevronDown, Inbox } from 'lucide-react';
 import { cn, formatRelativeTime, STATUS_COLORS, truncate } from '@/lib/utils';
 
 interface Term {
@@ -153,9 +153,8 @@ export function ResourceTable({
     );
   };
 
-  // Check if the "modified_gmt" column is already in the columns array
-  // (to avoid rendering it twice — once as a view column and once as the implicit Modified column)
-  const hasModifiedColumn = columns.some((c) => c.key === 'modified_gmt');
+  // Check if Actions is explicitly in the view config (skip implicit actions if so)
+  const hasActionsColumn = columns.some((c) => c.key === 'actions');
 
   const renderColumnHeader = (col: ViewColumn): React.ReactElement => {
     const isSortable = col.sortable && SORTABLE_CORE_KEYS.has(col.key);
@@ -186,7 +185,10 @@ export function ResourceTable({
     }
 
     return (
-      <th key={col.key} scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+      <th key={col.key} scope="col" className={cn(
+        "px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider",
+        col.key === 'actions' ? 'text-right' : 'text-left'
+      )}>
         {col.label}
       </th>
     );
@@ -217,6 +219,37 @@ export function ResourceTable({
         return (
           <td key={col.key} className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
             {formatRelativeTime(resource.modified_gmt)}
+          </td>
+        );
+      case 'actions':
+        return (
+          <td key={col.key} className="px-4 py-3">
+            <div className="flex items-center justify-end gap-2">
+              {siteUrl && (
+                <a
+                  href={`${siteUrl}/wp-admin/post.php?post=${resource.id}&action=edit`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+                  title="Edit in WordPress"
+                  aria-label={`Edit ${resource.title} in WordPress`}
+                >
+                  <Edit2 className="w-4 h-4" />
+                </a>
+              )}
+              {siteUrl && resource.slug && (
+                <a
+                  href={`${siteUrl}/${postTypeSlug}/${resource.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+                  title="View on site"
+                  aria-label={`View ${resource.title} on site`}
+                >
+                  <Eye className="w-4 h-4" />
+                </a>
+              )}
+            </div>
           </td>
         );
       default:
@@ -409,31 +442,12 @@ export function ResourceTable({
 
               {columns.map((col) => renderColumnHeader(col))}
 
-              {/* Implicit Modified column (always shown unless already in columns) */}
-              {!hasModifiedColumn && (
-                <th
-                  scope="col"
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
-                  onClick={() => handleSort('modified_gmt')}
-                  tabIndex={0}
-                  aria-sort={sortField === 'modified_gmt' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handleSort('modified_gmt');
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-1">
-                    Modified
-                    <SortIcon field="modified_gmt" />
-                  </div>
+
+              {!hasActionsColumn && (
+                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Actions
                 </th>
               )}
-
-              <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Actions
-              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -471,49 +485,37 @@ export function ResourceTable({
 
                 {columns.map((col) => renderCell(col, resource))}
 
-                {/* Implicit Modified column */}
-                {!hasModifiedColumn && (
-                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                    {formatRelativeTime(resource.modified_gmt)}
+
+                {!hasActionsColumn && (
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      {siteUrl && (
+                        <a
+                          href={`${siteUrl}/wp-admin/post.php?post=${resource.id}&action=edit`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+                          title="Edit in WordPress"
+                          aria-label={`Edit ${resource.title} in WordPress`}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </a>
+                      )}
+                      {siteUrl && resource.slug && (
+                        <a
+                          href={`${siteUrl}/${postTypeSlug}/${resource.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
+                          title="View on site"
+                          aria-label={`View ${resource.title} on site`}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </a>
+                      )}
+                    </div>
                   </td>
                 )}
-
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => onEdit(resource)}
-                      className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
-                      title="Edit"
-                      aria-label={`Edit ${resource.title}`}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    {siteUrl && (
-                      <a
-                        href={`${siteUrl}/wp-admin/post.php?post=${resource.id}&action=edit`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
-                        title="Edit in WordPress"
-                        aria-label={`Edit ${resource.title} in WordPress`}
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    )}
-                    {siteUrl && resource.slug && (
-                      <a
-                        href={`${siteUrl}/${postTypeSlug}/${resource.slug}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors"
-                        title="View on site"
-                        aria-label={`View ${resource.title} on site`}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </a>
-                    )}
-                  </div>
-                </td>
               </tr>
             ))}
           </tbody>

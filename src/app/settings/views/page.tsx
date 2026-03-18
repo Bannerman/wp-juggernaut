@@ -467,8 +467,8 @@ export default function ViewsPage(): React.ReactElement {
                                   />
                                 )}
 
-                                {/* Sortable toggle */}
-                                {col.source === 'core' && (
+                                {/* Sortable toggle (not for actions) */}
+                                {col.source === 'core' && col.key !== 'actions' && (
                                   <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                                     <input
                                       type="checkbox"

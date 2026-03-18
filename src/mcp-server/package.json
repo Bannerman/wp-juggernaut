@@ -1,0 +1,7 @@
+{
+  "name": "juggernaut-mcp",
+  "version": "1.0.0",
+  "bin": {
+    "juggernaut-mcp": "./dist/index.js"
+  }
+}

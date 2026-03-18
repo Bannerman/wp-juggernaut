@@ -184,19 +184,23 @@ export function getResources(filters: ResourceFilters = {}, postType?: string): 
   }
 
   // Fetch all plugin_data (for view columns that reference plugin data, e.g., SEO)
-  const pluginRows = db
-    .prepare(`SELECT post_id, plugin_id, data_key, data_value FROM plugin_data WHERE post_id IN (${placeholders})`)
-    .all(...postIds) as Array<{ post_id: number; plugin_id: string; data_key: string; data_value: string }>;
-
   const pluginDataByPost: Record<number, Record<string, Record<string, unknown>>> = {};
-  for (const pRow of pluginRows) {
-    if (!pluginDataByPost[pRow.post_id]) pluginDataByPost[pRow.post_id] = {};
-    if (!pluginDataByPost[pRow.post_id][pRow.plugin_id]) pluginDataByPost[pRow.post_id][pRow.plugin_id] = {};
-    try {
-      pluginDataByPost[pRow.post_id][pRow.plugin_id][pRow.data_key] = JSON.parse(pRow.data_value);
-    } catch {
-      pluginDataByPost[pRow.post_id][pRow.plugin_id][pRow.data_key] = pRow.data_value;
+  try {
+    const pluginRows = db
+      .prepare(`SELECT post_id, plugin_id, data_key, data_value FROM plugin_data WHERE post_id IN (${placeholders})`)
+      .all(...postIds) as Array<{ post_id: number; plugin_id: string; data_key: string; data_value: string }>;
+
+    for (const pRow of pluginRows) {
+      if (!pluginDataByPost[pRow.post_id]) pluginDataByPost[pRow.post_id] = {};
+      if (!pluginDataByPost[pRow.post_id][pRow.plugin_id]) pluginDataByPost[pRow.post_id][pRow.plugin_id] = {};
+      try {
+        pluginDataByPost[pRow.post_id][pRow.plugin_id][pRow.data_key] = JSON.parse(pRow.data_value);
+      } catch {
+        pluginDataByPost[pRow.post_id][pRow.plugin_id][pRow.data_key] = pRow.data_value;
+      }
     }
+  } catch {
+    // plugin_data table may not exist in older databases — degrade gracefully
   }
 
   return rows.map((row) => {

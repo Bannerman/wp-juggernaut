@@ -244,12 +244,18 @@ function SettingsPageContent() {
 
     try {
       if (window.electronAPI) {
-        // Use secure storage (macOS Keychain) in Electron
+        // Save to macOS Keychain (secure storage) as fallback
         const result = await window.electronAPI.setCredentials(username, appPassword);
         if (!result.success) {
           throw new Error('Failed to save credentials to secure storage');
         }
-        setMessage({ type: 'success', text: 'Credentials saved securely to macOS Keychain' });
+        // Also save to per-site config so each environment has its own credentials
+        await fetch('/api/site-config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credentials: { username, appPassword } }),
+        });
+        setMessage({ type: 'success', text: 'Credentials saved for this environment' });
       } else {
         // Fallback for browser dev mode (less secure)
         const res = await fetch('/api/site-config', {
