@@ -675,6 +675,8 @@ export default function Home() {
                 <button
                   onClick={() => setShowSyncDropdown(!showSyncDropdown)}
                   disabled={isSyncing}
+                  aria-label="Toggle sync options"
+                  aria-expanded={showSyncDropdown}
                   className={cn(
                     'flex items-center px-1 py-1 rounded-r-md text-xs font-medium transition-colors border-l border-gray-200 dark:border-gray-600',
                     'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700',
@@ -738,7 +740,7 @@ export default function Home() {
             <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 shadow-lg border border-red-200 dark:border-red-800 animate-in slide-in-from-right fade-in">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
-              <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200">
+              <button onClick={() => setError(null)} aria-label="Dismiss error notification" className="ml-auto text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200">
                 ×
               </button>
             </div>
@@ -747,7 +749,7 @@ export default function Home() {
             <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 shadow-lg border border-green-200 dark:border-green-800 animate-in slide-in-from-right fade-in">
               <CheckCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{success}</span>
-              <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-200">
+              <button onClick={() => setSuccess(null)} aria-label="Dismiss success notification" className="ml-auto text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-200">
                 ×
               </button>
             </div>
@@ -814,6 +816,7 @@ export default function Home() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   <X className="w-4 h-4" />
@@ -824,6 +827,7 @@ export default function Home() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="Filter by status"
               className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             >
               <option value="">All Statuses</option>
@@ -845,6 +849,8 @@ export default function Home() {
 
             <button
               onClick={() => setShowFilters(!showFilters)}
+              aria-expanded={showFilters}
+              aria-controls="filter-panel"
               className={cn(
                 'flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors',
                 showFilters
