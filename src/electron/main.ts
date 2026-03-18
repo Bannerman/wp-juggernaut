@@ -180,12 +180,16 @@ async function startNextServer(): Promise<void> {
 
   // Get credentials from secure storage to pass to the server
   const credentials = getSecureCredentials();
+  // Store database in userData so it persists across app updates
+  // (the standalone server cwd is inside the app bundle, which gets replaced on each install)
+  const dbPath = path.join(app.getPath('userData'), 'data', 'juggernaut.db');
   const serverEnv: Record<string, string> = {
     ...process.env as Record<string, string>,
     PORT: String(PORT),
     NODE_ENV: 'production',
     HOSTNAME: 'localhost',
     JUGGERNAUT_ELECTRON: '1',
+    DATABASE_PATH: dbPath,
   };
 
   // Pass decrypted credentials to the server process

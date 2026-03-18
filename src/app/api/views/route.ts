@@ -46,6 +46,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { key: 'status', label: 'Status', source: 'core', sortable: true },
       { key: 'date_gmt', label: 'Created', source: 'core', sortable: true },
       { key: 'modified_gmt', label: 'Modified', source: 'core', sortable: true },
+      { key: 'actions', label: 'Actions', source: 'core' },
     );
 
     // Taxonomy columns from profile

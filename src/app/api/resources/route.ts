@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching resources:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch resources' },
+      { error: `Failed to fetch resources: ${error}` },
       { status: 500 }
     );
   }

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "juggernaut": {
+      "command": "node",
+      "args": ["mcp-server/dist/index.js"],
+      "env": {
+        "DATABASE_PATH": "/Users/mini2/Documents/GitHub/wp-juggernaut/src/data/plexkits.db"
+      }
+    }
+  }
+}

@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching stats:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch stats' },
+      { error: `Failed to fetch stats: ${error}` },
       { status: 500 }
     );
   }

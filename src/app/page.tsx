@@ -636,7 +636,7 @@ export default function Home() {
             />
           </div>
         )}
-        <div className="w-full px-4 sm:px-6 pl-20">
+        <div className="w-full pr-4 sm:pr-6 pl-20">
           <div className="flex items-center justify-between h-12">
             <div className="flex items-center gap-3">
               <img src="/icon.png" alt="Juggernaut" className="w-6 h-6" />
