@@ -3,6 +3,7 @@ import type { UpdateInfo, ProgressInfo } from 'electron-updater';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
+import net from 'net';
 /** Validates that a URL uses http: or https: protocol (safe to open externally) */
 function isValidExternalUrl(url: string): boolean {
   try {
@@ -94,8 +95,38 @@ function deleteSecureCredentials(): boolean {
 
 let mainWindow: BrowserWindow | null = null;
 let nextServer: UtilityProcess | null = null;
+let isQuitting = false; // Tracks intentional shutdown to suppress spurious error dialogs
 const isDev = process.env.NODE_ENV === 'development';
 const PORT = 4853; // Unique port to avoid conflicts with dev servers
+
+// Enforce single instance to prevent SQLite database corruption (WAL mode)
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    // Focus the existing window when a second instance is attempted
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
+// Global crash handlers to prevent silent crashes
+process.on('uncaughtException', (error: Error) => {
+  console.error('Uncaught exception in main process:', error);
+  dialog.showErrorBox(
+    'Unexpected Error',
+    `Juggernaut encountered an unexpected error:\n\n${error.message}\n\nThe app will now quit.`
+  );
+  app.quit();
+});
+
+process.on('unhandledRejection', (reason: unknown) => {
+  console.error('Unhandled rejection in main process:', reason);
+  // Log but don't crash — unhandled rejections are often non-fatal
+});
 
 // Configure auto-updater for GitHub releases
 if (autoUpdater) {
@@ -162,6 +193,18 @@ async function waitForServer(url: string, maxAttempts = 30): Promise<boolean> {
   return false;
 }
 
+/** Returns true if the given port is already in use */
+function isPortInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once('error', () => resolve(true));
+    server.once('listening', () => {
+      server.close(() => resolve(false));
+    });
+    server.listen(port, '127.0.0.1');
+  });
+}
+
 async function startNextServer(): Promise<void> {
   if (isDev) {
     // In development, assume Next.js dev server is running separately
@@ -215,9 +258,10 @@ async function startNextServer(): Promise<void> {
   });
 
   nextServer.on('exit', (code: number) => {
-    if (code !== 0) {
+    if (code !== 0 && !isQuitting) {
       console.error(`Next.js server exited with code ${code}`);
-      dialog.showErrorBox('Server Error', 'The application server stopped unexpectedly.');
+      dialog.showErrorBox('Server Error', 'The application server stopped unexpectedly. The app will now quit.');
+      app.quit();
     }
   });
 }
@@ -245,7 +289,9 @@ if (autoUpdater) {
       releaseNotes: info.releaseNotes,
     });
 
-    dialog.showMessageBox(mainWindow!, {
+    const win = mainWindow;
+    if (!win) return;
+    dialog.showMessageBox(win, {
       type: 'info',
       title: 'Update Available',
       message: `A new version (${info.version}) is available. Would you like to download it now?`,
@@ -278,7 +324,9 @@ if (autoUpdater) {
       version: info.version,
     });
 
-    dialog.showMessageBox(mainWindow!, {
+    const updateWin = mainWindow;
+    if (!updateWin) return;
+    dialog.showMessageBox(updateWin, {
       type: 'info',
       title: 'Update Ready',
       message: `Version ${info.version} has been downloaded. Restart now to install the update?`,
@@ -380,6 +428,16 @@ ipcMain.handle('delete-credentials', () => {
 
 // App lifecycle
 app.whenReady().then(async () => {
+  // Check for port conflict before starting the server
+  if (!isDev && await isPortInUse(PORT)) {
+    dialog.showErrorBox(
+      'Port Conflict',
+      `Port ${PORT} is already in use. Another instance of Juggernaut or another application may be using it.\n\nPlease close the other application and try again.`
+    );
+    app.quit();
+    return;
+  }
+
   await startNextServer();
 
   const serverReady = await waitForServer(`http://localhost:${PORT}`);
@@ -400,9 +458,15 @@ app.whenReady().then(async () => {
     }, 3000);
   }
 
-  app.on('activate', () => {
+  app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()?.loadURL(`http://localhost:${PORT}`);
+      const serverAlive = await waitForServer(`http://localhost:${PORT}`, 5);
+      if (serverAlive) {
+        createWindow()?.loadURL(`http://localhost:${PORT}`);
+      } else {
+        dialog.showErrorBox('Server Unavailable', 'The application server is not running. Please restart Juggernaut.');
+        app.quit();
+      }
     }
   });
 });
@@ -414,5 +478,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  isQuitting = true;
   stopNextServer();
 });
