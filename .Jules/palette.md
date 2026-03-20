@@ -1,0 +1,3 @@
+## 2026-03-05 - Missing ARIA Labels on Icon-Only Buttons
+**Learning:** Found multiple instances of icon-only buttons (like `<X className="w-5 h-5" />`) used for closing modals or removing items across `EditModal`, `ConvertPostTypeModal`, and `FieldMappingEditor` that lacked `aria-label` attributes. This is a common accessibility gap in modern React UI components.
+**Action:** Always ensure that icon-only buttons include an `aria-label` attribute describing the action (e.g., "Close modal", "Remove mapping for {field}"). When adding new interactive components, specifically check for screen-reader accessibility on elements without visible text.

@@ -280,6 +280,7 @@ function DroppableField({
             onRemove();
           }}
           className="p-0.5 text-gray-400 hover:text-red-500 transition-colors"
+          aria-label={`Remove mapping for ${localField.label}`}
         >
           <X className="w-3.5 h-3.5" />
         </button>
