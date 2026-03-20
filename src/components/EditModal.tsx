@@ -861,7 +861,11 @@ export function EditModal({
               )}
               {isCreateMode && <p className="text-sm text-green-600">Creating new {postTypeLabel.toLowerCase()}</p>}
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <button
+              onClick={onClose}
+              aria-label="Close modal"
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -917,7 +921,7 @@ export function EditModal({
               <div className="space-y-4">
                 <div className={cn(changedFields.has('title') && 'border-l-4 border-amber-400 pl-3')}>
                   <div className="flex items-center gap-2 mb-1">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
+                    <label htmlFor="resource-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
                     {changedFields.has('title') && syncedSnapshot && (
                       <DirtyFieldIndicator
                         fieldLabel="Title"
@@ -928,6 +932,7 @@ export function EditModal({
                     )}
                   </div>
                   <input
+                    id="resource-title"
                     type="text"
                     value={title}
                     onChange={(e) => handleTitleChange(e.target.value)}
@@ -936,7 +941,7 @@ export function EditModal({
                 </div>
                 <div className={cn(changedFields.has('slug') && 'border-l-4 border-amber-400 pl-3')}>
                   <div className="flex items-center gap-2 mb-1">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label htmlFor="resource-slug" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       URL Slug
                       {isCreateMode && !slugManuallyEdited && <span className="text-green-600 font-normal ml-1">(auto-synced from title)</span>}
                       {isCreateMode && slugManuallyEdited && <span className="text-gray-400 font-normal ml-1">(manually edited)</span>}
@@ -951,6 +956,7 @@ export function EditModal({
                     )}
                   </div>
                   <input
+                    id="resource-slug"
                     type="text"
                     value={slug}
                     onChange={(e) => handleSlugChange(e.target.value)}
@@ -961,10 +967,11 @@ export function EditModal({
 
                 {/* Featured Image */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Featured Image</label>
+                  <label htmlFor="featured-image-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Featured Image</label>
                   
                   {/* URL Input */}
                   <input
+                    id="featured-image-url"
                     type="url"
                     value={rewriteMediaUrl(metaBox.featured_image_url)}
                     onChange={(e) => updateMetaField('featured_image_url', e.target.value)}
@@ -1187,8 +1194,9 @@ export function EditModal({
           )}>
             <div className="flex items-center gap-4">
               <div className={cn('flex items-center gap-2', changedFields.has('status') && 'border-l-4 border-amber-400 pl-2')}>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
+                <label htmlFor="resource-status" className="text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
                 <select
+                  id="resource-status"
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
                   className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white dark:bg-gray-700 dark:text-gray-100"
