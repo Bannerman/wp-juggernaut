@@ -1,0 +1,3 @@
+## 2024-05-17 - Missing ARIA Labels on Icon-Only Buttons
+**Learning:** Many icon-only buttons (like 'X' for close, 'Chevron' for expand/move) in this application's UI components (e.g., EditModal, ConvertPostTypeModal, TabLayoutEditor) lack `aria-label` or `sr-only` text, making them completely inaccessible to screen readers. Relying solely on the `title` attribute or visual context is a recurring anti-pattern here.
+**Action:** When implementing or modifying UI components with icon-only buttons, I must proactively check for and add explicit `aria-label` attributes to ensure keyboard and screen reader accessibility, even if the button visually implies its function.
