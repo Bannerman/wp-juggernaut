@@ -313,7 +313,7 @@ export function TabLayoutEditor({
                         setRenameValue(tab.label);
                       }}
                       className="p-0.5 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30"
-                      title="Rename"
+                      aria-label="Rename tab" title="Rename"
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
@@ -321,7 +321,7 @@ export function TabLayoutEditor({
                       onClick={(e) => { e.stopPropagation(); handleMoveTab(tab.id, 'up'); }}
                       disabled={idx === 0}
                       className="p-0.5 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30 disabled:opacity-30"
-                      title="Move up"
+                      aria-label="Move tab up" title="Move up"
                     >
                       <ChevronUp className="w-3 h-3" />
                     </button>
@@ -329,14 +329,14 @@ export function TabLayoutEditor({
                       onClick={(e) => { e.stopPropagation(); handleMoveTab(tab.id, 'down'); }}
                       disabled={idx === sortedTabs.length - 1}
                       className="p-0.5 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30 disabled:opacity-30"
-                      title="Move down"
+                      aria-label="Move tab down" title="Move down"
                     >
                       <ChevronDown className="w-3 h-3" />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteTab(tab.id); }}
                       className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600"
-                      title="Delete tab"
+                      aria-label="Delete tab" title="Delete tab"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -485,6 +485,7 @@ export function TabLayoutEditor({
                     {/* Reorder buttons */}
                     <div className="flex flex-col gap-0.5">
                       <button
+                        aria-label="Move field up"
                         onClick={() => handleMoveField(idx, 'up')}
                         disabled={idx === 0}
                         className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30"
@@ -492,6 +493,7 @@ export function TabLayoutEditor({
                         <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
                       </button>
                       <button
+                        aria-label="Move field down"
                         onClick={() => handleMoveField(idx, 'down')}
                         disabled={idx === selectedFields.length - 1}
                         className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30"
@@ -538,7 +540,7 @@ export function TabLayoutEditor({
                     <button
                       onClick={() => handleRemoveField(idx)}
                       className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Remove field"
+                      aria-label="Remove field" title="Remove field"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>

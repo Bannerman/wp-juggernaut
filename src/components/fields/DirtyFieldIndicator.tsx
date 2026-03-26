@@ -123,6 +123,7 @@ export function DirtyFieldIndicator({ fieldLabel, originalValue, currentValue, o
           {onReset && (
             <button
               type="button"
+              aria-label="Reset to server value"
               onClick={(e) => {
                 e.stopPropagation();
                 onReset();
