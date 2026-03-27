@@ -413,6 +413,7 @@ export function ResourceTable({
               <th scope="col" className="px-4 py-3 text-left">
                 <input
                   type="checkbox"
+                  aria-label="Select all resources"
                   checked={allSelected}
                   ref={(el) => {
                     if (el) el.indeterminate = someSelected;
@@ -463,6 +464,7 @@ export function ResourceTable({
                 <td className="px-4 py-3">
                   <input
                     type="checkbox"
+                    aria-label={`Select ${resource.title}`}
                     checked={selectedIds.includes(resource.id)}
                     onChange={() => handleSelectOne(resource.id)}
                     className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
