@@ -267,7 +267,7 @@ export function ConvertPostTypeModal({
               Converting &ldquo;{resource.title}&rdquo;
             </p>
           </div>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg">
+          <button aria-label="Close modal" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -401,6 +401,7 @@ export function ConvertPostTypeModal({
                 <div className="border border-amber-200 dark:border-amber-800 rounded-lg overflow-hidden">
                   <button
                     onClick={() => setShowUnmapped(!showUnmapped)}
+                    aria-expanded={showUnmapped}
                     className="w-full flex items-center justify-between px-4 py-3 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
                   >
                     <div className="flex items-center gap-2">

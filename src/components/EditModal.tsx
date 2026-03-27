@@ -861,7 +861,7 @@ export function EditModal({
               )}
               {isCreateMode && <p className="text-sm text-green-600">Creating new {postTypeLabel.toLowerCase()}</p>}
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <button aria-label="Close modal" onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -1232,6 +1232,7 @@ export function EditModal({
               <button
                 onClick={handleSave}
                 disabled={!hasChanges || isSaving || isCreating}
+                title={(!hasChanges && !isCreateMode) ? "No changes to save" : ""}
                 className={cn(
                   'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
                   hasChanges
