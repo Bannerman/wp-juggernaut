@@ -33,6 +33,7 @@ export function SettingsNav({ activeTab, actions, onTabClick, enabledPlugins }: 
           <div className="flex items-center gap-4 electron-no-drag">
             <Link
               href="/"
+              aria-label="Go back to dashboard"
               className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
