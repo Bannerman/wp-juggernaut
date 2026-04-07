@@ -275,6 +275,7 @@ function DroppableField({
       </span>
       {isMapped && onRemove && (
         <button
+          aria-label="Remove mapped field"
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
