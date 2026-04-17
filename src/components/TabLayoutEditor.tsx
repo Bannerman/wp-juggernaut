@@ -314,6 +314,7 @@ export function TabLayoutEditor({
                       }}
                       className="p-0.5 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30"
                       title="Rename"
+                      aria-label="Rename tab"
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
@@ -322,6 +323,7 @@ export function TabLayoutEditor({
                       disabled={idx === 0}
                       className="p-0.5 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30 disabled:opacity-30"
                       title="Move up"
+                      aria-label="Move tab up"
                     >
                       <ChevronUp className="w-3 h-3" />
                     </button>
@@ -330,6 +332,7 @@ export function TabLayoutEditor({
                       disabled={idx === sortedTabs.length - 1}
                       className="p-0.5 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30 disabled:opacity-30"
                       title="Move down"
+                      aria-label="Move tab down"
                     >
                       <ChevronDown className="w-3 h-3" />
                     </button>
@@ -337,6 +340,7 @@ export function TabLayoutEditor({
                       onClick={(e) => { e.stopPropagation(); handleDeleteTab(tab.id); }}
                       className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600"
                       title="Delete tab"
+                      aria-label="Delete tab"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -364,6 +368,7 @@ export function TabLayoutEditor({
             <button
               onClick={handleAddTab}
               disabled={!newTabName.trim()}
+              aria-label="Confirm add tab"
               className="p-1.5 rounded bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
             >
               <Check className="w-3.5 h-3.5" />
@@ -487,6 +492,7 @@ export function TabLayoutEditor({
                       <button
                         onClick={() => handleMoveField(idx, 'up')}
                         disabled={idx === 0}
+                        aria-label="Move field up"
                         className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30"
                       >
                         <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
@@ -494,6 +500,7 @@ export function TabLayoutEditor({
                       <button
                         onClick={() => handleMoveField(idx, 'down')}
                         disabled={idx === selectedFields.length - 1}
+                        aria-label="Move field down"
                         className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30"
                       >
                         <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
@@ -539,6 +546,7 @@ export function TabLayoutEditor({
                       onClick={() => handleRemoveField(idx)}
                       className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Remove field"
+                      aria-label="Remove field"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
