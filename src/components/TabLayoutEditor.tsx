@@ -485,6 +485,7 @@ export function TabLayoutEditor({
                     {/* Reorder buttons */}
                     <div className="flex flex-col gap-0.5">
                       <button
+                        aria-label="Move field up"
                         onClick={() => handleMoveField(idx, 'up')}
                         disabled={idx === 0}
                         className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30"
@@ -492,6 +493,7 @@ export function TabLayoutEditor({
                         <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
                       </button>
                       <button
+                        aria-label="Move field down"
                         onClick={() => handleMoveField(idx, 'down')}
                         disabled={idx === selectedFields.length - 1}
                         className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30"
@@ -536,6 +538,7 @@ export function TabLayoutEditor({
 
                     {/* Remove */}
                     <button
+                      aria-label="Remove field"
                       onClick={() => handleRemoveField(idx)}
                       className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Remove field"
