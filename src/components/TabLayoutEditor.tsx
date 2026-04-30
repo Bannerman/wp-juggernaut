@@ -307,6 +307,7 @@ export function TabLayoutEditor({
                 {!isCore && !isRenaming && (
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
+                      aria-label="Rename tab"
                       onClick={(e) => {
                         e.stopPropagation();
                         setRenamingTabId(tab.id);
@@ -318,6 +319,7 @@ export function TabLayoutEditor({
                       <Pencil className="w-3 h-3" />
                     </button>
                     <button
+                      aria-label="Move tab up"
                       onClick={(e) => { e.stopPropagation(); handleMoveTab(tab.id, 'up'); }}
                       disabled={idx === 0}
                       className="p-0.5 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30 disabled:opacity-30"
@@ -326,6 +328,7 @@ export function TabLayoutEditor({
                       <ChevronUp className="w-3 h-3" />
                     </button>
                     <button
+                      aria-label="Move tab down"
                       onClick={(e) => { e.stopPropagation(); handleMoveTab(tab.id, 'down'); }}
                       disabled={idx === sortedTabs.length - 1}
                       className="p-0.5 rounded hover:bg-brand-100 dark:hover:bg-brand-900/30 disabled:opacity-30"
@@ -334,6 +337,7 @@ export function TabLayoutEditor({
                       <ChevronDown className="w-3 h-3" />
                     </button>
                     <button
+                      aria-label="Delete tab"
                       onClick={(e) => { e.stopPropagation(); handleDeleteTab(tab.id); }}
                       className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600"
                       title="Delete tab"
