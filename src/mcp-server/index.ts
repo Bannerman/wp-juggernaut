@@ -677,10 +677,22 @@ export function updatePost(database: DatabaseType.Database, args: UpdatePostArgs
         'INSERT OR REPLACE INTO post_meta (post_id, field_id, value) VALUES (?, ?, ?)'
       );
 
+      const fieldIds = Object.keys(args.meta);
+      const existingMeta = new Map<string, string>();
+      if (fieldIds.length > 0) {
+        const placeholders = fieldIds.map(() => '?').join(', ');
+        const rows = database
+          .prepare(
+            `SELECT field_id, value FROM post_meta WHERE post_id = ? AND field_id IN (${placeholders})`
+          )
+          .all(args.id, ...fieldIds) as { field_id: string; value: string }[];
+        for (const row of rows) {
+          existingMeta.set(row.field_id, row.value);
+        }
+      }
+
       for (const [fieldId, value] of Object.entries(args.meta)) {
-        const existing = database
-          .prepare('SELECT value FROM post_meta WHERE post_id = ? AND field_id = ?')
-          .get(args.id, fieldId) as { value: string } | undefined;
+        const existingValue = existingMeta.get(fieldId);
 
         // Always JSON.stringify — matches src/lib/queries.ts updateLocalResource() encoding
         const newValue = JSON.stringify(value);
@@ -688,7 +700,7 @@ export function updatePost(database: DatabaseType.Database, args: UpdatePostArgs
 
         changes.push({
           field: `meta.${fieldId}`,
-          old_value: existing ? existing.value : '(not set)',
+          old_value: existingValue !== undefined ? existingValue : '(not set)',
           new_value: newValue,
         });
       }
