@@ -15,6 +15,7 @@ import type {
 import { getPluginRegistry } from './registry';
 import { getHookSystem, HOOKS } from './hooks';
 import { getProfileManager } from '../profiles';
+import { satisfies } from '../utils';
 
 /**
  * Plugin loader state
@@ -301,10 +302,20 @@ export class PluginLoader {
 
       // Check version compatibility if specified
       if (requirement.version) {
-        // TODO: Implement semver comparison
-        // For now, just log the requirement
+        const isCompatible = satisfies(plugin.manifest.version, requirement.version);
+
+        if (!isCompatible) {
+          console.warn(
+            `[PluginLoader] Plugin ${requirement.id} version incompatible: ` +
+            `found ${plugin.manifest.version}, requires ${requirement.version}`
+          );
+          failed.push(requirement.id);
+          continue;
+        }
+
         console.log(
-          `[PluginLoader] Plugin ${requirement.id} requires version ${requirement.version}`
+          `[PluginLoader] Plugin ${requirement.id} version ${plugin.manifest.version} ` +
+          `satisfies requirement ${requirement.version}`
         );
       }
 

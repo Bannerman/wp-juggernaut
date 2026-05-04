@@ -162,4 +162,55 @@ describe('PluginLoader', () => {
       expect(mockHooks.trigger).not.toHaveBeenCalled();
     });
   });
+
+  describe('activateProfilePlugins', () => {
+    it('should fail if required plugin version is incompatible', async () => {
+      // Initialize loader
+      await loader.initialize(mockCoreAPI);
+
+      // Register plugin with version 1.0.0
+      loader.registerPlugin(mockPlugin);
+
+      const profile = {
+        profile_id: 'test-profile',
+        required_plugins: [
+          {
+            id: 'test-plugin',
+            version: '>=2.0.0' // Incompatible requirement
+          }
+        ]
+      } as any;
+
+      const result = await loader.activateProfilePlugins(profile);
+
+      expect(result.success).not.toContain('test-plugin');
+      expect(result.failed).toContain('test-plugin');
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('version incompatible')
+      );
+    });
+
+    it('should succeed if required plugin version is compatible', async () => {
+      // Initialize loader
+      await loader.initialize(mockCoreAPI);
+
+      // Register plugin with version 1.0.0
+      loader.registerPlugin(mockPlugin);
+
+      const profile = {
+        profile_id: 'test-profile',
+        required_plugins: [
+          {
+            id: 'test-plugin',
+            version: '^1.0.0' // Compatible requirement
+          }
+        ]
+      } as any;
+
+      const result = await loader.activateProfilePlugins(profile);
+
+      expect(result.success).toContain('test-plugin');
+      expect(result.failed).not.toContain('test-plugin');
+    });
+  });
 });
