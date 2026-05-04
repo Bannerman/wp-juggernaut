@@ -31,6 +31,10 @@ describe('isValidExternalUrl', () => {
     expect(isValidExternalUrl(null)).toBe(false);
   });
 
+  it('should return false when the URL constructor throws', () => {
+    expect(isValidExternalUrl('://')).toBe(false);
+  });
+
   it('should return false for other protocols', () => {
     expect(isValidExternalUrl('ftp://example.com')).toBe(false);
     expect(isValidExternalUrl('ssh://example.com')).toBe(false);
