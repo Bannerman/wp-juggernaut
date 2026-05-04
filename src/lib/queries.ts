@@ -370,6 +370,12 @@ export function updateLocalResource(
       params.push(updates.status);
     }
 
+    // Security: Validate fields to prevent SQL injection
+    const ALLOWED_FIELDS = new Set(['is_dirty = 1', 'title = ?', 'slug = ?', 'status = ?']);
+    if (!fields.every((f) => ALLOWED_FIELDS.has(f))) {
+      throw new Error('Invalid fields in update query');
+    }
+
     params.push(id);
     db.prepare(`UPDATE posts SET ${fields.join(', ')} WHERE id = ?`).run(...params);
   }
