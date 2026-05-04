@@ -13,9 +13,7 @@ export async function POST(request: NextRequest) {
   // Non-streaming path (backwards compatible)
   if (!stream) {
     try {
-      console.log(`Starting ${incremental ? 'incremental' : 'full'} sync...`);
       const result = incremental ? await incrementalSync() : await fullSync();
-      console.log('Sync result:', JSON.stringify(result));
 
       if (result.errors.length > 0) {
         console.error('Sync errors:', result.errors);
@@ -41,8 +39,6 @@ export async function POST(request: NextRequest) {
       };
 
       try {
-        console.log(`Starting ${incremental ? 'incremental' : 'full'} sync (streaming)...`);
-
         const onProgress = (phase: string, progress: number, detail?: string): void => {
           // Taxonomy phase is 0-5%, resource phases are 5-100%
           const overall = phase === 'taxonomies'
@@ -55,7 +51,6 @@ export async function POST(request: NextRequest) {
           ? await incrementalSync()
           : await fullSync(onProgress);
 
-        console.log('Sync result:', JSON.stringify(result));
         send('complete', result);
       } catch (error) {
         console.error('Sync error:', error);
