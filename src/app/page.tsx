@@ -738,7 +738,7 @@ export default function Home() {
             <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 shadow-lg border border-red-200 dark:border-red-800 animate-in slide-in-from-right fade-in">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{error}</span>
-              <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200">
+              <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200" aria-label="Dismiss error">
                 ×
               </button>
             </div>
@@ -747,7 +747,7 @@ export default function Home() {
             <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 shadow-lg border border-green-200 dark:border-green-800 animate-in slide-in-from-right fade-in">
               <CheckCircle className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm">{success}</span>
-              <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-200">
+              <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-200" aria-label="Dismiss success message">
                 ×
               </button>
             </div>
@@ -815,6 +815,7 @@ export default function Home() {
                 <button
                   onClick={() => setSearchQuery('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  aria-label="Clear search"
                 >
                   <X className="w-4 h-4" />
                 </button>
