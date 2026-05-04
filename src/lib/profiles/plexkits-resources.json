@@ -7,7 +7,7 @@
     {
       "id": "local",
       "name": "Local Development",
-      "url": "http://plexkits-v4.local",
+      "url": "http://localhost:10031",
       "description": "Local WordPress development environment",
       "environment": "development"
     },
