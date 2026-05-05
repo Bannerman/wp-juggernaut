@@ -5,6 +5,7 @@
  * Manages plugin lifecycle and provides access to loaded plugins.
  */
 
+import { satisfies } from 'semver';
 import type {
   JuggernautPlugin,
   PluginManifest,
@@ -301,11 +302,13 @@ export class PluginLoader {
 
       // Check version compatibility if specified
       if (requirement.version) {
-        // TODO: Implement semver comparison
-        // For now, just log the requirement
-        console.log(
-          `[PluginLoader] Plugin ${requirement.id} requires version ${requirement.version}`
-        );
+        if (!satisfies(plugin.manifest.version, requirement.version)) {
+          console.warn(
+            `[PluginLoader] Plugin ${requirement.id} version ${plugin.manifest.version} does not satisfy requirement ${requirement.version}`
+          );
+          failed.push(requirement.id);
+          continue;
+        }
       }
 
       const activated = await this.activatePluginForProfile(requirement.id, profile);
