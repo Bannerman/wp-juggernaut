@@ -390,7 +390,7 @@ export function getTemplateVersions(templateId: string): TemplateVersion[] {
  */
 export function getTemplateVersion(templateId: string, filename: string): string | null {
   const templateDir = path.join(TEMPLATES_DIR, templateId);
-  const filePath = path.join(templateDir, filename);
+  const filePath = path.join(templateDir, path.basename(filename));
 
   if (!fs.existsSync(filePath)) {
     return null;
