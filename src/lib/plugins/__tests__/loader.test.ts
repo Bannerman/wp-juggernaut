@@ -162,4 +162,41 @@ describe('PluginLoader', () => {
       expect(mockHooks.trigger).not.toHaveBeenCalled();
     });
   });
+
+  describe('activateProfilePlugins', () => {
+    it('should successfully activate if version satisfies requirement', async () => {
+      // Initialize loader so activatePluginForProfile works correctly
+      await loader.initialize(mockCoreAPI);
+      loader.registerPlugin(mockPlugin);
+
+      const profile = {
+        profile_id: 'test-profile',
+        required_plugins: [{ id: 'test-plugin', version: '^1.0.0' }]
+      } as any;
+
+      const result = await loader.activateProfilePlugins(profile);
+
+      expect(result.success).toContain('test-plugin');
+      expect(result.failed).not.toContain('test-plugin');
+    });
+
+    it('should fail to activate if version does not satisfy requirement', async () => {
+      // Initialize loader so activatePluginForProfile works correctly
+      await loader.initialize(mockCoreAPI);
+      loader.registerPlugin(mockPlugin);
+
+      const profile = {
+        profile_id: 'test-profile',
+        required_plugins: [{ id: 'test-plugin', version: '^2.0.0' }]
+      } as any;
+
+      const result = await loader.activateProfilePlugins(profile);
+
+      expect(result.success).not.toContain('test-plugin');
+      expect(result.failed).toContain('test-plugin');
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('does not satisfy requirement')
+      );
+    });
+  });
 });
