@@ -10,9 +10,6 @@ coverage/
 .next/
 out/
 
-# Production
-build/
-
 # Misc
 .DS_Store
 *.pem

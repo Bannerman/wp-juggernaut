@@ -29,6 +29,7 @@ interface AIFillContext {
   taxonomyConfig: TaxonomyConfig[];
   taxonomyLabels: Record<string, string>;
   fieldLayout?: Record<string, unknown[]>;
+  postTypeLabel?: string;
 
   // State updaters
   setTitle: (title: string) => void;
@@ -101,6 +102,7 @@ function AIFillTab({ terms, context }: PluginTabProps) {
     seoData,
     taxonomyConfig,
     taxonomyLabels,
+    postTypeLabel,
     setTitle,
     setMetaBox,
     setTaxonomies,
@@ -195,6 +197,36 @@ function AIFillTab({ terms, context }: PluginTabProps) {
         }).join('\n\n')
       : `section: Download the ${title || '[Post Title]'}\ncolor: [hex color, e.g., #6366f1]\narchive: no\nlinks:\n- text: [Link Text] | format: [File Format] | type: link | url: [URL]`;
 
+    // Build "this post's tags" block — only the terms actually assigned to this resource,
+    // grouped by taxonomy with human-readable labels. Used by the featured-image prompt
+    // so the AI sees what THIS post is about, not the entire site vocabulary.
+    const postTaxonomiesBlock = (() => {
+      const lines: string[] = [];
+      for (const [tax, termIds] of Object.entries(taxonomies)) {
+        if (!termIds || termIds.length === 0) continue;
+        const catalog = terms[tax] || [];
+        const names = termIds
+          .map(id => catalog.find((t: Term) => t.id === id)?.name)
+          .filter((n): n is string => Boolean(n));
+        if (names.length === 0) continue;
+        lines.push(`${taxonomyLabels[tax] || tax}: ${names.join(', ')}`);
+      }
+      return lines.length > 0 ? lines.join('\n') : '[no tags selected yet]';
+    })();
+
+    // Per-taxonomy term lists for the new structured ai-fill prompt.
+    // Each taxonomy from the profile gets a `{{terms_<slug>}}` substitution that
+    // expands to a comma-separated list of its term names. This lets the prompt
+    // template embed a structured "Q1: …, Q2: …" classification flow that mirrors
+    // the PLEXKITS Taxonomy Selection Guide (see Desktop/Notes for canonical rules).
+    const perTaxonomyTermReplacements: Record<string, string> = {};
+    for (const tax of taxonomyConfig) {
+      const taxTerms = terms[tax.slug] || [];
+      const names = taxTerms.map((t: Term) => t.name);
+      perTaxonomyTermReplacements[`{{terms_${tax.slug}}}`] =
+        names.length > 0 ? names.join(', ') : '[none available]';
+    }
+
     // Build placeholder replacements
     const replacements: Record<string, string> = {
       '{{title}}': title || '[Enter a descriptive title]',
@@ -202,7 +234,10 @@ function AIFillTab({ terms, context }: PluginTabProps) {
       '{{text_content}}': (metaBox.text_content as string) || '[Enter the main content/description]',
       '{{features}}': featuresBlock,
       '{{available_taxonomies}}': availableTaxonomiesBlock,
+      '{{post_taxonomies}}': postTaxonomiesBlock,
+      '{{post_type_label}}': postTypeLabel || 'post',
       '{{taxonomy_selections}}': taxonomySelectionsBlock,
+      ...perTaxonomyTermReplacements,
       '{{timer_enabled}}': metaBox.timer_enable ? 'yes' : 'no',
       '{{timer_title}}': (metaBox.timer_title as string) || '[e.g., EVENT STARTS]',
       '{{timer_datetime}}': (metaBox.timer_single_datetime as string) || '[YYYY-MM-DDTHH:MM format]',
@@ -228,9 +263,10 @@ function AIFillTab({ terms, context }: PluginTabProps) {
     // Get template content
     let template = promptTemplates[templateId] || '';
 
-    // Fallback for ai-fill if not loaded
+    // Fallback for ai-fill if not loaded — keep in sync with the inline default
+    // in lib/prompt-templates.ts and prompt-templates/ai-fill/template.md.
     if (!template && templateId === 'ai-fill') {
-      template = `Please provide content for a resource titled "{{title}}" with the following fields. Use the EXACT format below with the field markers.
+      template = `Please provide content for a resource titled "{{title}}". Use the EXACT format below with the field markers — output ONLY the section markers and your filled-in values, in the same order.
 
 ---TITLE---
 {{title}}
@@ -245,13 +281,65 @@ function AIFillTab({ terms, context }: PluginTabProps) {
 {{features}}
 
 ---TAXONOMIES---
-IMPORTANT: Do NOT repeat the options below. Only output the "Your selections" section with your chosen values.
 
-Available options for reference:
-{{available_taxonomies}}
+# Classification rules — read carefully, these override your default tendencies
+- Pick the FEWEST terms that accurately classify this post. Quality over quantity.
+- LEAVE A TAXONOMY EMPTY if no listed term clearly applies. Empty is a valid answer.
+- Use ONLY the EXACT term names from the available lists — no inventing, no synonyms.
+- Do NOT pick a term just because its name appears in the title or content.
+- Each taxonomy has a strict pick count — never exceed it. Pick fewer when in doubt.
 
-Your selections (comma-separated, ONLY include the field name and your selections):
-{{taxonomy_selections}}
+## Q1: FORMAT (resource-type, pick exactly 1)
+Available: {{terms_resource-type}}
+
+Decision rules:
+- Bracket = a tournament/competition structure
+- Tracker = ongoing data entry over time
+- Calculator = formula-driven output
+- Checklist = a task list with checkboxes
+- Spreadsheet = one-time data organization (NOT ongoing tracking)
+- Slide Deck = a presentation file
+- Poster = a printable reference or wall display
+- Document = a fillable form, contract, or long-form text
+- Worksheet = a single-use activity sheet
+- Lesson Plan = a teaching resource with activities
+
+## Q2: DOMAIN (topic, pick 1-3, primary first)
+Available: {{terms_topic}}
+
+## Q3: LEAGUE (leagues, pick 0-2; empty for non-sports or generic posts)
+Available: {{terms_leagues}}
+
+## Q4: INTENT (intent, pick 1-3)
+Available: {{terms_intent}}
+- Plan = prepare, schedule, or organize future activities
+- Track = record and monitor ongoing data
+- Compete = run or participate in competitions
+- Manage = oversee operations, teams, or projects
+- Analyze = review data, calculate, or evaluate
+- Learn = understand concepts or acquire skills
+
+## Q5: AUDIENCE (audience, pick 0-2, DEFAULT EMPTY)
+Available: {{terms_audience}}
+Pick ONLY if specifically built for that role's professional workflow. Most posts are general-consumer — output empty.
+
+## Q6: BRACKET SIZE (bracket-size, pick exactly 1 if a bracket, else empty)
+Available: {{terms_bracket-size}}
+
+## Q7: COMPETITION FORMAT (competition_format, pick exactly 1 if a tournament, else empty)
+Available: {{terms_competition_format}}
+
+# Output
+
+Output one line per taxonomy. If nothing fits, output the slug followed by a colon and nothing else.
+
+resource-type:
+topic:
+leagues:
+intent:
+audience:
+bracket-size:
+competition_format:
 
 ---TIMER---
 timer_enabled: {{timer_enabled}}
@@ -261,12 +349,15 @@ timer_datetime: {{timer_datetime}}
 ---DOWNLOADS---
 Use this EXACT format for each download section. The first section heading MUST follow the pattern "Download the [Post Title]".
 Multiple sections are separated by a blank line. Each link is on its own line starting with "- ".
+
 Format per section:
 section: [Section Heading]
 color: [hex color, e.g., #6366f1]
 archive: yes|no
 links:
 - text: [Link Text] | format: [File Format] | type: link | url: [URL]
+
+**Link text rule (default):** keep link text formulaic — \`Download the [Format] version\` (e.g. \`Download the Google Sheet version\`, \`Download the Excel version\`, \`Download the PDF version\`). Do NOT invent custom marketing copy. Custom link text is OPTIONAL — only use a custom phrase if the existing data already has one and you're preserving it. When in doubt, use the formulaic default.
 
 Current data:
 {{downloads}}
@@ -296,37 +387,35 @@ twitter_description: {{twitter_description}}
 ---END---`;
     }
 
-    // Fallback for faq if not loaded
+    // Fallback for faq if not loaded — keep in sync with prompt-templates.ts
     if (!template && templateId === 'faq') {
-      template = `Generate a set of FAQ (Frequently Asked Questions) for a resource with the following details. Each FAQ should be relevant, helpful, and written in a natural conversational tone.
+      template = `Generate a set of FAQ (Frequently Asked Questions) about the EVENT, TOPIC, or SUBJECT this post is about — NOT about the post/resource itself.
 
-**Title:** {{title}}
+Use the post's title, topics, and intro to identify the underlying subject (e.g. a specific UFC event, a championship, a financial concept, an educational topic), then research and write FAQs that someone interested in that subject would naturally ask.
 
-**Introduction:** {{intro_text}}
+**Post info (use this to identify the subject — do NOT make the FAQ about the post itself):**
+Title: {{title}}
+Topics: {{post_taxonomies}}
+Intro: {{intro_text}}
 
-**Main Content:** {{text_content}}
-
-**Features:**
-{{features}}
-
-**Categories:** {{available_taxonomies}}
-
-Please generate 5-8 FAQ pairs that a user might ask about this resource. Use the EXACT format below.
+Please generate 5-8 FAQ pairs about the underlying subject. Use the EXACT format below.
 
 ---FAQ_ITEMS---
-Q: [Question about the resource]
-A: [Clear, helpful answer]
+Q: [Question about the SUBJECT — when, who, what, why, where, how it ended]
+A: [Factual, concise answer about the subject — 2–4 sentences]
 
 Q: [Another question]
-A: [Clear, helpful answer]
+A: [Answer]
 
 ---END---
 
 **Guidelines:**
-- Questions should be natural and reflect what real users would ask
-- Answers should be concise but comprehensive (2-4 sentences)
-- Cover topics like: what it is, how to use it, compatibility, customization, licensing
-- If existing FAQ data is provided above, improve and expand upon it
+- Focus on the SUBJECT itself: dates, participants, results, context, history, key facts.
+- DO NOT ask "how do I use this bracket/tracker/template" — those are about the resource, not the subject. Skip them entirely.
+- For named events (UFC 327, Super Bowl LVIII, NHL Draft, etc.): when did it happen, who fought / played / competed, what was the main card, who won, where was it held, what was notable about it.
+- For topical posts (Wedding Budget, Mortgage Calculator, etc.): what is the concept, common questions, key numbers / formulas, common misconceptions, why it matters.
+- Answers must be factually grounded. If you don't know a specific fact, omit that question rather than inventing.
+- If existing FAQ data is provided above, use it as a starting point and improve relevance to the subject.
 
 **Existing FAQ data:**
 {{faq_items}}`;
@@ -408,36 +497,34 @@ A: [Clear, helpful answer]
         }
       }
 
-      // Parse Taxonomies - comprehensive patterns
+      // Parse Taxonomies — profile-driven so any taxonomy in the active profile
+      // auto-parses without code changes. The pattern accepts either dash or
+      // underscore separator in the slug (so the AI can output `bracket-size:` or
+      // `bracket_size:` and both work).
       const taxMatch = content.match(/---TAXONOMIES---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
       if (taxMatch) {
         const taxContent = taxMatch[1];
         const newTaxonomies = { ...taxonomies };
-        
-        const taxPatterns = [
-          { key: 'resource-type', pattern: /resource-type:\s*(.+)/i },
-          { key: 'intent', pattern: /intent:\s*(.+)/i },
-          { key: 'topic', pattern: /topic:\s*(.+)/i },
-          { key: 'audience', pattern: /audience:\s*(.+)/i },
-          { key: 'leagues', pattern: /league:\s*(.+)/i },
-          { key: 'bracket-size', pattern: /bracket[\s-]*size:\s*(.+)/i },
-          { key: 'file-format', pattern: /file[\s-]*format:\s*(.+)/i },
-          { key: 'competition_format', pattern: /competition[\s-]*format:\s*(.+)/i },
-        ];
 
-        taxPatterns.forEach(({ key, pattern }) => {
-          const match = taxContent.match(pattern);
-          if (match && match[1]) {
-            const selectedNames = match[1].split(',').map(s => s.trim().toLowerCase());
-            const matchedIds = (terms[key] || [])
-              .filter((t: Term) => selectedNames.includes(t.name.toLowerCase()))
-              .map((t: Term) => t.id);
-            if (matchedIds.length > 0) {
-              newTaxonomies[key] = matchedIds;
-              fieldsUpdated++;
-            }
+        for (const tax of taxonomyConfig) {
+          const slugPattern = tax.slug.replace(/[-_]/g, '[-_]');
+          const re = new RegExp(`^\\s*${slugPattern}\\s*:\\s*(.*)$`, 'im');
+          const match = taxContent.match(re);
+          if (!match) continue;
+          const raw = match[1].trim();
+          if (!raw) {
+            // Explicit empty → the AI signalled "no terms apply". Clear the local set.
+            newTaxonomies[tax.slug] = [];
+            fieldsUpdated++;
+            continue;
           }
-        });
+          const selectedNames = raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+          const matchedIds = (terms[tax.slug] || [])
+            .filter((t: Term) => selectedNames.includes(t.name.toLowerCase()))
+            .map((t: Term) => t.id);
+          newTaxonomies[tax.slug] = matchedIds;
+          fieldsUpdated++;
+        }
 
         setTaxonomies(newTaxonomies);
       }

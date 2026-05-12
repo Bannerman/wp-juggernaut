@@ -81,6 +81,12 @@ export async function PATCH(request: NextRequest) {
       const activeTarget = getActiveTarget();
       const credentials = getCredentials();
 
+      // Refresh the on-disk agent guide so it reflects the newly-active site
+      try {
+        const { writeAgentGuide } = await import('@/lib/agent-guide');
+        writeAgentGuide();
+      } catch { /* non-blocking */ }
+
       return NextResponse.json({
         activeTarget,
         hasCredentials: Boolean(credentials),

@@ -22,6 +22,8 @@ extraResources:
     to: standalone
     filter:
       - "**/*"
+      - "!data/**"
+      - "!data"
 
 # macOS configuration
 mac:

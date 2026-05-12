@@ -587,7 +587,7 @@ const DEFAULT_SEO: LocalSeoData = {
 
 /**
  * Returns SEO data for a resource. Reads from the plugin_data table (seopress plugin).
- * Falls back to the legacy resource_seo table if plugin_data is empty.
+ * Returns defaults if no row exists yet (e.g. for newly-created posts).
  * @param resourceId - The resource/post ID
  * @returns LocalSeoData object (defaults to empty strings/false if no data)
  */
@@ -610,52 +610,14 @@ export function getResourceSeo(resourceId: number): LocalSeoData {
         robots: { ...DEFAULT_SEO.robots, ...seo.robots },
       };
     } catch {
-      // Fall through to legacy table
+      // Malformed JSON — fall through to defaults below
     }
   }
 
-  // Fall back to legacy resource_seo table
-  const row = db.prepare('SELECT * FROM resource_seo WHERE resource_id = ?').get(resourceId) as {
-    seo_title: string;
-    seo_description: string;
-    seo_canonical: string;
-    seo_target_keywords: string;
-    og_title: string;
-    og_description: string;
-    og_image: string;
-    twitter_title: string;
-    twitter_description: string;
-    twitter_image: string;
-    robots_noindex: number;
-    robots_nofollow: number;
-    robots_nosnippet: number;
-    robots_noimageindex: number;
-  } | undefined;
-
-  if (!row) return { ...DEFAULT_SEO };
-
-  return {
-    title: row.seo_title || '',
-    description: row.seo_description || '',
-    canonical: row.seo_canonical || '',
-    targetKeywords: row.seo_target_keywords || '',
-    og: {
-      title: row.og_title || '',
-      description: row.og_description || '',
-      image: row.og_image || '',
-    },
-    twitter: {
-      title: row.twitter_title || '',
-      description: row.twitter_description || '',
-      image: row.twitter_image || '',
-    },
-    robots: {
-      noindex: row.robots_noindex === 1,
-      nofollow: row.robots_nofollow === 1,
-      nosnippet: row.robots_nosnippet === 1,
-      noimageindex: row.robots_noimageindex === 1,
-    },
-  };
+  // No SEO data yet (e.g. newly-created post that hasn't been SEO-synced).
+  // Return defaults rather than reaching for the long-removed legacy
+  // `resource_seo` table, which would throw "no such table".
+  return { ...DEFAULT_SEO };
 }
 
 /**

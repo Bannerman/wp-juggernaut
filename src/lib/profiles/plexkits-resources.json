@@ -50,7 +50,7 @@
       "id": "convert-post-type",
       "version": ">=1.0.0",
       "source": "bundled",
-      "auto_enable": true
+      "auto_enable": false
     },
     {
       "id": "custom-views",

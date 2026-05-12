@@ -383,17 +383,20 @@ class SEOPressPlugin implements JuggernautPlugin {
     const payload: Record<string, string> = {};
 
     if (seoData.robots) {
+      // SEOPress meta keys store "should this be NOINDEXED?" — value 'yes' = noindex,
+      // 'no' / empty = follow site default (index normally). The mapping is the
+      // opposite of what the key name implies.
       if (seoData.robots.noindex !== undefined) {
-        payload._seopress_robots_index = seoData.robots.noindex ? 'no' : 'yes';
+        payload._seopress_robots_index = seoData.robots.noindex ? 'yes' : 'no';
       }
       if (seoData.robots.nofollow !== undefined) {
-        payload._seopress_robots_follow = seoData.robots.nofollow ? 'no' : 'yes';
+        payload._seopress_robots_follow = seoData.robots.nofollow ? 'yes' : 'no';
       }
       if (seoData.robots.nosnippet !== undefined) {
-        payload._seopress_robots_snippet = seoData.robots.nosnippet ? 'no' : 'yes';
+        payload._seopress_robots_snippet = seoData.robots.nosnippet ? 'yes' : 'no';
       }
       if (seoData.robots.noimageindex !== undefined) {
-        payload._seopress_robots_imageindex = seoData.robots.noimageindex ? 'no' : 'yes';
+        payload._seopress_robots_imageindex = seoData.robots.noimageindex ? 'yes' : 'no';
       }
     }
 

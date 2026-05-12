@@ -59,7 +59,7 @@ async function doInitialize(): Promise<void> {
       const profile = ensureProfileLoaded();
       const requiredPlugins = profile.required_plugins ?? [];
       const autoEnableIds = requiredPlugins
-        .filter(rp => rp.auto_enable && !registry.isPluginEnabled(rp.id))
+        .filter(rp => rp.auto_enable && !registry.isPluginEnabled(rp.id) && !registry.isUserDisabled(rp.id))
         .map(rp => rp.id);
 
       if (autoEnableIds.length > 0) {
@@ -99,6 +99,17 @@ async function doInitialize(): Promise<void> {
 
     initialized = true;
     console.log('[PluginInit] Plugin system initialized successfully');
+
+    // Refresh the on-disk agent guide (~/.juggernaut/agent-guide.md) so any
+    // local AI agent / MCP client has up-to-date classification rules and
+    // active-profile context to read on-demand. Best-effort — failure to write
+    // the guide should never block app startup.
+    try {
+      const { writeAgentGuide } = await import('../agent-guide');
+      writeAgentGuide();
+    } catch (err) {
+      console.warn('[PluginInit] Could not refresh agent guide:', err);
+    }
   } catch (error) {
     console.error('[PluginInit] Failed to initialize plugin system:', error);
     throw error;

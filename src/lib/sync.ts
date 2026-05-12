@@ -76,8 +76,9 @@ async function fetchMediaUrl(mediaId: number): Promise<string | null> {
   }
 
   try {
-    const { getWpBaseUrl, WP_USERNAME, WP_APP_PASSWORD } = await import('./wp-client');
-    const credentials = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
+    const { getWpBaseUrl, getWpCredentials } = await import('./wp-client');
+    const { username, appPassword } = getWpCredentials();
+    const credentials = Buffer.from(`${username}:${appPassword}`).toString('base64');
 
     const response = await fetch(
       `${getWpBaseUrl()}/wp-json/wp/v2/media/${mediaId}`,
@@ -89,7 +90,7 @@ async function fetchMediaUrl(mediaId: number): Promise<string | null> {
     );
 
     if (!response.ok) {
-      console.warn(`Failed to fetch media ${mediaId}: ${response.status}`);
+      console.warn(`Failed to fetch media ${mediaId}: ${response.status} (auth user: ${username || '(empty)'})`);
       return null;
     }
 

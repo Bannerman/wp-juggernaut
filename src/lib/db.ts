@@ -27,8 +27,11 @@ export function getDb(): Database.Database {
       fs.mkdirSync(dbDir, { recursive: true });
     }
 
-    // Check for legacy database and migrate if needed
-    if (!fs.existsSync(dbPath) && fs.existsSync(legacyDbPath)) {
+    // Check for legacy database and migrate if needed.
+    // Skip when DATABASE_PATH is explicitly set (e.g. Electron points at userData);
+    // in that case `process.cwd()` may be inside an app bundle that ships a stale
+    // legacy DB, which would silently overwrite a wiped database on next launch.
+    if (!process.env.DATABASE_PATH && !fs.existsSync(dbPath) && fs.existsSync(legacyDbPath)) {
       console.log('[db] Found legacy plexkits.db, copying to juggernaut.db...');
       fs.copyFileSync(legacyDbPath, dbPath);
     }

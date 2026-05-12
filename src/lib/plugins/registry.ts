@@ -163,9 +163,10 @@ export class PluginRegistry {
       return false;
     }
 
-    if (!state.enabled) {
+    if (!state.enabled || state.userDisabled) {
       state.enabled = true;
       state.enabledAt = new Date().toISOString();
+      state.userDisabled = false;
       this.save();
     }
 
@@ -182,13 +183,22 @@ export class PluginRegistry {
       return false;
     }
 
-    if (state.enabled) {
+    if (state.enabled || !state.userDisabled) {
       state.enabled = false;
       state.enabledAt = undefined;
+      state.userDisabled = true;
       this.save();
     }
 
     return true;
+  }
+
+  /**
+   * Whether a plugin has been explicitly disabled by the user.
+   * Used by the auto-enable flow to preserve user intent across launches/installs.
+   */
+  isUserDisabled(pluginId: string): boolean {
+    return this.state.plugins[pluginId]?.userDisabled === true;
   }
 
   /**
