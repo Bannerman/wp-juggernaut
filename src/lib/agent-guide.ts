@@ -89,16 +89,20 @@ The Juggernaut MCP server is bundled with this app. If your client (Claude Deskt
 
 Once connected, your client will list the tool surface automatically — \`list_posts\`, \`get_post\`, \`update_post\`, \`update_seo\`, \`update_post_terms\`, \`list_terms\`, \`get_site_index\`, \`get_stats\`, \`get_post_history\`. Use those rather than calling the WP REST API directly.
 
-## How to draft a post
+## How to edit a post
 
-The recipe for creating new content via Juggernaut:
+The MCP surface is **read + update only** right now — creating new posts via MCP isn't supported yet (planned: a \`create_post\` tool plus an AI-fill prompt/response workflow). If you've been asked to author a *new* post, tell the user to create the empty post in the Juggernaut UI first, then come back and edit it through MCP.
+
+For editing an existing post:
 
 1. \`get_site_index\` first if you don't yet know what taxonomies / post types are available.
-2. \`list_terms\` for any taxonomy you plan to assign, so you have term IDs.
-3. Decide classification using the rules in the next section. **Do not over-tag.**
-4. Use \`update_post\` (with \`create: true\` or by creating via the REST proxy if available) to save the post.
-5. \`update_post_terms\` to assign taxonomy terms.
-6. \`update_seo\` to set SEO title / description / robots flags.
+2. \`list_posts\` to find the target post (filter by post type, status, or search).
+3. \`get_post\` to load its current title, content, meta, and terms before changing anything.
+4. \`list_terms\` for any taxonomy you plan to change, so you have term IDs.
+5. Decide classification using the rules in the next section. **Do not over-tag.**
+6. \`update_post\` to change title, content, slug, status, or meta fields. This marks the post dirty locally; it does **not** push to WordPress automatically.
+7. \`update_post_terms\` to change taxonomy assignments.
+8. \`update_seo\` to set SEO title / description / robots flags.
 
 ## Classification rules — read carefully
 
