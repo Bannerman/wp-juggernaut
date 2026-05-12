@@ -383,7 +383,7 @@ function extractImagesMissingAlt(html: string): number {
 
 // ─── Validation ────────────────────────────────────────────────────────────────
 
-function validateStatus(status: string): string | null {
+export function validateStatus(status: string): string | null {
   if (!VALID_STATUSES.has(status)) {
     return `Invalid status '${status}'. Must be one of: ${Array.from(VALID_STATUSES).join(', ')}`;
   }

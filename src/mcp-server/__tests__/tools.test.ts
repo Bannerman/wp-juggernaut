@@ -15,6 +15,7 @@ import {
   updatePostTerms,
   getStats,
   getPostHistory,
+  validateStatus,
 } from '../index';
 
 // ─── Test Setup ────────────────────────────────────────────────────────────────
@@ -191,6 +192,20 @@ describe('list_posts', () => {
   it('clamps limit to 200', () => {
     const result = listPosts(db, { limit: 999 });
     expect(result.limit).toBe(200);
+  });
+});
+
+describe('validateStatus', () => {
+  it('returns null for valid statuses', () => {
+    const validStatuses = ['publish', 'draft', 'pending', 'private', 'trash', 'future'];
+    validStatuses.forEach((status) => {
+      expect(validateStatus(status)).toBeNull();
+    });
+  });
+
+  it('returns error message for invalid status', () => {
+    expect(validateStatus('invalid')).toBe("Invalid status 'invalid'. Must be one of: publish, draft, pending, private, trash, future");
+    expect(validateStatus('archived')).toBe("Invalid status 'archived'. Must be one of: publish, draft, pending, private, trash, future");
   });
 });
 
