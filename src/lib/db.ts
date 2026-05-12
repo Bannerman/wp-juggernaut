@@ -109,7 +109,7 @@ function tableExists(database: Database.Database, tableName: string): boolean {
  */
 function columnExists(database: Database.Database, tableName: string, columnName: string): boolean {
   try {
-    const columns = database.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+    const columns = database.prepare('SELECT name FROM pragma_table_info(?)').all(tableName) as Array<{ name: string }>;
     return columns.some(col => col.name === columnName);
   } catch {
     return false;
