@@ -1,0 +1,33 @@
+{
+  "base": "https://plexkits.com",
+  "total": 80,
+  "flaggedCount": 2,
+  "flagged": [
+    {
+      "id": 16512,
+      "title": "NBA Draft Order Tracker Template Excel and Google Sheets",
+      "post_type": "resource",
+      "status": "publish",
+      "link": "https://plexkits.com/nba-draft-order-tracker-template-excel-and-google-sheets/",
+      "flags": [
+        "follow",
+        "imageindex",
+        "index",
+        "snippet"
+      ]
+    },
+    {
+      "id": 16517,
+      "title": "NHL Draft Order Tracker Template Excel and Google Sheets",
+      "post_type": "resource",
+      "status": "publish",
+      "link": "https://plexkits.com/nhl-draft-order-tracker-template-excel-and-google-sheets/",
+      "flags": [
+        "follow",
+        "imageindex",
+        "index",
+        "snippet"
+      ]
+    }
+  ]
+}
