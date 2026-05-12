@@ -1,7 +1,23 @@
+/**
+ * Prompt templates.
+ *
+ * Built-in generic defaults ship with the app (lib/prompt-template-defaults.ts).
+ * User templates live in the user prompt templates dir
+ * (~/.juggernaut/prompt-templates/<id>/template.md, override with
+ * JUGGERNAUT_CONFIG_DIR). Saving writes there, with a timestamped backup
+ * (template-<ISO>.md) of the previous version alongside. Nothing is ever
+ * written to the app/repo directory.
+ */
+
 import fs from 'fs';
 import path from 'path';
+import { getUserPromptTemplatesDir } from './user-config-dir';
+import { getBuiltInTemplate } from './prompt-template-defaults';
 
-const TEMPLATES_DIR = path.join(process.cwd(), 'prompt-templates');
+/** Resolved per call so the user config dir can change (tests). */
+function templatesDir(): string {
+  return getUserPromptTemplatesDir();
+}
 
 export interface PromptTemplate {
   id: string;
@@ -21,7 +37,7 @@ export interface TemplateVersion {
 const TEMPLATE_META: Record<string, { name: string; description: string }> = {
   'ai-fill': {
     name: 'AI Fill',
-    description: 'Main prompt for generating resource content via AI',
+    description: 'Main prompt for generating post content via AI',
   },
   'featured-image': {
     name: 'Featured Image',
@@ -37,12 +53,12 @@ const TEMPLATE_META: Record<string, { name: string; description: string }> = {
  * Ensure the templates directory and subdirectories exist
  */
 function ensureDirectories(): void {
-  if (!fs.existsSync(TEMPLATES_DIR)) {
-    fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
+  if (!fs.existsSync(templatesDir())) {
+    fs.mkdirSync(templatesDir(), { recursive: true });
   }
 
   for (const templateId of Object.keys(TEMPLATE_META)) {
-    const templateDir = path.join(TEMPLATES_DIR, templateId);
+    const templateDir = path.join(templatesDir(), templateId);
     if (!fs.existsSync(templateDir)) {
       fs.mkdirSync(templateDir, { recursive: true });
     }
@@ -53,159 +69,14 @@ function ensureDirectories(): void {
  * Get the path to the main template file
  */
 function getMainTemplatePath(templateId: string): string {
-  return path.join(TEMPLATES_DIR, templateId, 'template.md');
+  return path.join(templatesDir(), templateId, 'template.md');
 }
 
 /**
- * Get the default content for a template
+ * Get the default content for a template (the built-in generic default).
  */
 export function getDefaultTemplate(templateId: string): string {
-  if (templateId === 'ai-fill') {
-    return `Please provide content for a resource titled "{{title}}" with the following fields. Use the EXACT format below with the field markers.
-
----TITLE---
-{{title}}
-
----INTRO_TEXT---
-{{intro_text}}
-
----TEXT_CONTENT---
-{{text_content}}
-
----FEATURES---
-{{features}}
-
----TAXONOMIES---
-IMPORTANT: Do NOT repeat the options below. Only output the "Your selections" section with your chosen values.
-
-Available options for reference:
-{{available_taxonomies}}
-
-Your selections (comma-separated, ONLY include the field name and your selections):
-{{taxonomy_selections}}
-
----TIMER---
-timer_enabled: {{timer_enabled}}
-timer_title: {{timer_title}}
-timer_datetime: {{timer_datetime}}
-
----DOWNLOADS---
-Use this EXACT format for each download section. The first section heading MUST follow the pattern "Download the [Post Title]".
-Multiple sections are separated by a blank line. Each link is on its own line starting with "- ".
-Format per section:
-section: [Section Heading]
-color: [hex color, e.g., #6366f1]
-archive: yes|no
-links:
-- text: [Link Text] | format: [File Format] | type: link | url: [URL]
-
-Current data:
-{{downloads}}
-
----CHANGELOG---
-Use this EXACT format for changelog entries. Multiple entries are separated by a blank line.
-Format per entry:
-version: [version number]
-date: [YYYY-MM-DD]
-notes:
-- [change description]
-
-Current data:
-{{changelog}}
-
----SEO---
-seo_title: {{seo_title}}
-seo_description: {{seo_description}}
-seo_keywords: {{seo_keywords}}
-
----SOCIAL---
-og_title: {{og_title}}
-og_description: {{og_description}}
-twitter_title: {{twitter_title}}
-twitter_description: {{twitter_description}}
-
----END---`;
-  }
-
-  if (templateId === 'featured-image') {
-    return `Generate a featured image description for a resource with the following details:
-
-**Title:** {{title}}
-
-**Introduction:** {{intro_text}}
-
-**Main Content:** {{text_content}}
-
-**Features:**
-{{features}}
-
-**Categories:** {{available_taxonomies}}
-
-Please provide:
-1. A detailed image description suitable for AI image generation
-2. Suggested alt text for accessibility
-3. Key visual elements to include
-
----IMAGE_DESCRIPTION---
-[Detailed description of the ideal featured image]
-
----ALT_TEXT---
-[Concise alt text for the image]
-
----VISUAL_ELEMENTS---
-[List of key visual elements to include]
-
----END---`;
-  }
-
-  if (templateId === 'faq') {
-    return `Generate a set of FAQ (Frequently Asked Questions) for a resource with the following details. Each FAQ should be relevant, helpful, and written in a natural conversational tone.
-
-**Title:** {{title}}
-
-**Introduction:** {{intro_text}}
-
-**Main Content:** {{text_content}}
-
-**Features:**
-{{features}}
-
-**Categories:** {{available_taxonomies}}
-
-Please generate 5-8 FAQ pairs that a user might ask about this resource. Use the EXACT format below.
-
----FAQ_ITEMS---
-Q: [Question about the resource]
-A: [Clear, helpful answer]
-
-Q: [Another question]
-A: [Clear, helpful answer]
-
----END---
-
-**Guidelines:**
-- Questions should be natural and reflect what real users would ask
-- Answers should be concise but comprehensive (2-4 sentences)
-- Cover topics like: what it is, how to use it, compatibility, customization, licensing
-- If existing FAQ data is provided above, improve and expand upon it
-
-**Existing FAQ data:**
-{{faq_items}}`;
-  }
-
-  return `# {{title}}
-
-{{intro_text}}
-
-{{text_content}}
-
-{{features}}
-
-{{available_taxonomies}}
-
-{{taxonomy_selections}}
-
-{{changelog}}`;
+  return getBuiltInTemplate(templateId);
 }
 
 /**
@@ -264,7 +135,7 @@ export function saveTemplate(templateId: string, content: string): PromptTemplat
     throw new Error(`Unknown template: ${templateId}`);
   }
 
-  const templateDir = path.join(TEMPLATES_DIR, templateId);
+  const templateDir = path.join(templatesDir(), templateId);
   const mainPath = getMainTemplatePath(templateId);
 
   // Create timestamped backup if main file exists
@@ -293,7 +164,7 @@ export function saveTemplate(templateId: string, content: string): PromptTemplat
 export function getTemplateVersions(templateId: string): TemplateVersion[] {
   ensureDirectories();
 
-  const templateDir = path.join(TEMPLATES_DIR, templateId);
+  const templateDir = path.join(templatesDir(), templateId);
   if (!fs.existsSync(templateDir)) {
     return [];
   }
@@ -346,8 +217,8 @@ export function getTemplateVersions(templateId: string): TemplateVersion[] {
  * Get content of a specific version
  */
 export function getTemplateVersion(templateId: string, filename: string): string | null {
-  const templateDir = path.join(TEMPLATES_DIR, templateId);
-  const filePath = path.join(templateDir, filename);
+  const templateDir = path.join(templatesDir(), templateId);
+  const filePath = path.join(templateDir, path.basename(filename));
 
   if (!fs.existsSync(filePath)) {
     return null;

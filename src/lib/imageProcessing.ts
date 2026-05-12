@@ -123,8 +123,11 @@ export function createFilenameProcessor(
     // Get original extension
     const originalName = context.file.name;
     const extension = originalName.split('.').pop() || 'jpg';
-    
-    const newFilename = `${slug}.${extension}`;
+
+    // Suffix so the attachment slug doesn't collide with the post slug.
+    // Without this, WP appends "-2" to the post slug because the bare title-slug
+    // is already claimed by the attachment URL.
+    const newFilename = `${slug}-featured.${extension}`;
     
     // Create new File with updated name
     const newFile = new File([context.file], newFilename, { type: context.file.type });

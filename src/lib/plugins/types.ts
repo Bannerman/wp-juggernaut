@@ -787,6 +787,14 @@ export interface PluginState {
   /** Whether plugin is enabled */
   enabled: boolean;
 
+  /**
+   * Set to true when the user explicitly disables a plugin via the UI.
+   * Cleared when the user re-enables it. Auto-enable from profile
+   * `required_plugins[].auto_enable` will skip plugins with this flag,
+   * preserving the user's choice across installs.
+   */
+  userDisabled?: boolean;
+
   /** Plugin tier */
   tier: 'bundled' | 'community' | 'premium';
 

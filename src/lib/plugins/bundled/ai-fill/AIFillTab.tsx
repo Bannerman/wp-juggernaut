@@ -15,6 +15,7 @@ import { Sparkles, Check, Wand2, Image as ImageIcon, HelpCircle } from 'lucide-r
 import { cn } from '@/lib/utils';
 import { registerPluginTab } from '@/components/fields';
 import type { PluginTabProps } from '@/components/fields';
+import { getBuiltInTemplate } from '@/lib/prompt-template-defaults';
 
 /**
  * Shape of the context object passed from EditModal when activeTab === 'ai'.
@@ -29,6 +30,7 @@ interface AIFillContext {
   taxonomyConfig: TaxonomyConfig[];
   taxonomyLabels: Record<string, string>;
   fieldLayout?: Record<string, unknown[]>;
+  postTypeLabel?: string;
 
   // State updaters
   setTitle: (title: string) => void;
@@ -101,6 +103,7 @@ function AIFillTab({ terms, context }: PluginTabProps) {
     seoData,
     taxonomyConfig,
     taxonomyLabels,
+    postTypeLabel,
     setTitle,
     setMetaBox,
     setTaxonomies,
@@ -195,6 +198,36 @@ function AIFillTab({ terms, context }: PluginTabProps) {
         }).join('\n\n')
       : `section: Download the ${title || '[Post Title]'}\ncolor: [hex color, e.g., #6366f1]\narchive: no\nlinks:\n- text: [Link Text] | format: [File Format] | type: link | url: [URL]`;
 
+    // Build "this post's tags" block — only the terms actually assigned to this resource,
+    // grouped by taxonomy with human-readable labels. Used by the featured-image prompt
+    // so the AI sees what THIS post is about, not the entire site vocabulary.
+    const postTaxonomiesBlock = (() => {
+      const lines: string[] = [];
+      for (const [tax, termIds] of Object.entries(taxonomies)) {
+        if (!termIds || termIds.length === 0) continue;
+        const catalog = terms[tax] || [];
+        const names = termIds
+          .map(id => catalog.find((t: Term) => t.id === id)?.name)
+          .filter((n): n is string => Boolean(n));
+        if (names.length === 0) continue;
+        lines.push(`${taxonomyLabels[tax] || tax}: ${names.join(', ')}`);
+      }
+      return lines.length > 0 ? lines.join('\n') : '[no tags selected yet]';
+    })();
+
+    // Per-taxonomy term lists for the new structured ai-fill prompt.
+    // Each taxonomy from the profile gets a `{{terms_<slug>}}` substitution that
+    // expands to a comma-separated list of its term names. This lets the prompt
+    // template embed a structured per-taxonomy classification flow (for example
+    // "Q1: format, Q2: topic") written in the user's own prompt template.
+    const perTaxonomyTermReplacements: Record<string, string> = {};
+    for (const tax of taxonomyConfig) {
+      const taxTerms = terms[tax.slug] || [];
+      const names = taxTerms.map((t: Term) => t.name);
+      perTaxonomyTermReplacements[`{{terms_${tax.slug}}}`] =
+        names.length > 0 ? names.join(', ') : '[none available]';
+    }
+
     // Build placeholder replacements
     const replacements: Record<string, string> = {
       '{{title}}': title || '[Enter a descriptive title]',
@@ -202,7 +235,10 @@ function AIFillTab({ terms, context }: PluginTabProps) {
       '{{text_content}}': (metaBox.text_content as string) || '[Enter the main content/description]',
       '{{features}}': featuresBlock,
       '{{available_taxonomies}}': availableTaxonomiesBlock,
+      '{{post_taxonomies}}': postTaxonomiesBlock,
+      '{{post_type_label}}': postTypeLabel || 'post',
       '{{taxonomy_selections}}': taxonomySelectionsBlock,
+      ...perTaxonomyTermReplacements,
       '{{timer_enabled}}': metaBox.timer_enable ? 'yes' : 'no',
       '{{timer_title}}': (metaBox.timer_title as string) || '[e.g., EVENT STARTS]',
       '{{timer_datetime}}': (metaBox.timer_single_datetime as string) || '[YYYY-MM-DDTHH:MM format]',
@@ -228,108 +264,9 @@ function AIFillTab({ terms, context }: PluginTabProps) {
     // Get template content
     let template = promptTemplates[templateId] || '';
 
-    // Fallback for ai-fill if not loaded
-    if (!template && templateId === 'ai-fill') {
-      template = `Please provide content for a resource titled "{{title}}" with the following fields. Use the EXACT format below with the field markers.
-
----TITLE---
-{{title}}
-
----INTRO_TEXT---
-{{intro_text}}
-
----TEXT_CONTENT---
-{{text_content}}
-
----FEATURES---
-{{features}}
-
----TAXONOMIES---
-IMPORTANT: Do NOT repeat the options below. Only output the "Your selections" section with your chosen values.
-
-Available options for reference:
-{{available_taxonomies}}
-
-Your selections (comma-separated, ONLY include the field name and your selections):
-{{taxonomy_selections}}
-
----TIMER---
-timer_enabled: {{timer_enabled}}
-timer_title: {{timer_title}}
-timer_datetime: {{timer_datetime}}
-
----DOWNLOADS---
-Use this EXACT format for each download section. The first section heading MUST follow the pattern "Download the [Post Title]".
-Multiple sections are separated by a blank line. Each link is on its own line starting with "- ".
-Format per section:
-section: [Section Heading]
-color: [hex color, e.g., #6366f1]
-archive: yes|no
-links:
-- text: [Link Text] | format: [File Format] | type: link | url: [URL]
-
-Current data:
-{{downloads}}
-
----CHANGELOG---
-Use this EXACT format for changelog entries. Multiple entries are separated by a blank line.
-Format per entry:
-version: [version number]
-date: [YYYY-MM-DD]
-notes:
-- [change description]
-
-Current data:
-{{changelog}}
-
----SEO---
-seo_title: {{seo_title}}
-seo_description: {{seo_description}}
-seo_keywords: {{seo_keywords}}
-
----SOCIAL---
-og_title: {{og_title}}
-og_description: {{og_description}}
-twitter_title: {{twitter_title}}
-twitter_description: {{twitter_description}}
-
----END---`;
-    }
-
-    // Fallback for faq if not loaded
-    if (!template && templateId === 'faq') {
-      template = `Generate a set of FAQ (Frequently Asked Questions) for a resource with the following details. Each FAQ should be relevant, helpful, and written in a natural conversational tone.
-
-**Title:** {{title}}
-
-**Introduction:** {{intro_text}}
-
-**Main Content:** {{text_content}}
-
-**Features:**
-{{features}}
-
-**Categories:** {{available_taxonomies}}
-
-Please generate 5-8 FAQ pairs that a user might ask about this resource. Use the EXACT format below.
-
----FAQ_ITEMS---
-Q: [Question about the resource]
-A: [Clear, helpful answer]
-
-Q: [Another question]
-A: [Clear, helpful answer]
-
----END---
-
-**Guidelines:**
-- Questions should be natural and reflect what real users would ask
-- Answers should be concise but comprehensive (2-4 sentences)
-- Cover topics like: what it is, how to use it, compatibility, customization, licensing
-- If existing FAQ data is provided above, improve and expand upon it
-
-**Existing FAQ data:**
-{{faq_items}}`;
+    // Fallback to the built-in default if the template has not loaded yet
+    if (!template) {
+      template = getBuiltInTemplate(templateId);
     }
 
     // Replace all placeholders
@@ -408,36 +345,34 @@ A: [Clear, helpful answer]
         }
       }
 
-      // Parse Taxonomies - comprehensive patterns
+      // Parse Taxonomies — profile-driven so any taxonomy in the active profile
+      // auto-parses without code changes. The pattern accepts either dash or
+      // underscore separator in the slug (so the AI can output `post-tag:` or
+      // `post_tag:` and both work).
       const taxMatch = content.match(/---TAXONOMIES---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
       if (taxMatch) {
         const taxContent = taxMatch[1];
         const newTaxonomies = { ...taxonomies };
-        
-        const taxPatterns = [
-          { key: 'resource-type', pattern: /resource-type:\s*(.+)/i },
-          { key: 'intent', pattern: /intent:\s*(.+)/i },
-          { key: 'topic', pattern: /topic:\s*(.+)/i },
-          { key: 'audience', pattern: /audience:\s*(.+)/i },
-          { key: 'leagues', pattern: /league:\s*(.+)/i },
-          { key: 'bracket-size', pattern: /bracket[\s-]*size:\s*(.+)/i },
-          { key: 'file-format', pattern: /file[\s-]*format:\s*(.+)/i },
-          { key: 'competition_format', pattern: /competition[\s-]*format:\s*(.+)/i },
-        ];
 
-        taxPatterns.forEach(({ key, pattern }) => {
-          const match = taxContent.match(pattern);
-          if (match && match[1]) {
-            const selectedNames = match[1].split(',').map(s => s.trim().toLowerCase());
-            const matchedIds = (terms[key] || [])
-              .filter((t: Term) => selectedNames.includes(t.name.toLowerCase()))
-              .map((t: Term) => t.id);
-            if (matchedIds.length > 0) {
-              newTaxonomies[key] = matchedIds;
-              fieldsUpdated++;
-            }
+        for (const tax of taxonomyConfig) {
+          const slugPattern = tax.slug.replace(/[-_]/g, '[-_]');
+          const re = new RegExp(`^\\s*${slugPattern}\\s*:\\s*(.*)$`, 'im');
+          const match = taxContent.match(re);
+          if (!match) continue;
+          const raw = match[1].trim();
+          if (!raw) {
+            // Explicit empty → the AI signalled "no terms apply". Clear the local set.
+            newTaxonomies[tax.slug] = [];
+            fieldsUpdated++;
+            continue;
           }
-        });
+          const selectedNames = raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+          const matchedIds = (terms[tax.slug] || [])
+            .filter((t: Term) => selectedNames.includes(t.name.toLowerCase()))
+            .map((t: Term) => t.id);
+          newTaxonomies[tax.slug] = matchedIds;
+          fieldsUpdated++;
+        }
 
         setTaxonomies(newTaxonomies);
       }

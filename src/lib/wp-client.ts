@@ -51,7 +51,11 @@ export function getWpCredentials(): { username: string; appPassword: string } {
   return { username: '', appPassword: '' };
 }
 
-// Legacy exports for backwards compatibility (now read dynamically)
+// Legacy exports — frozen at module load.
+// DO NOT USE in code paths that may run after credentials change at runtime
+// (e.g. Electron Settings UI saves new creds and restarts the server, but
+// imported modules may still hold the old reference). Use getWpCredentials()
+// and getWpBaseUrl() for runtime-correct values.
 export const WP_BASE_URL = process.env.WP_BASE_URL || '';
 export const WP_USERNAME = process.env.WP_USERNAME || '';
 export const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';

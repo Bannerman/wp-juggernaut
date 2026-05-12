@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getWpBaseUrl, WP_USERNAME, WP_APP_PASSWORD } from '@/lib/wp-client';
+import { getWpBaseUrl, getWpCredentials } from '@/lib/wp-client';
 
 export async function POST(request: NextRequest) {
   try {
-    // Check auth credentials
-    if (!WP_USERNAME || !WP_APP_PASSWORD) {
+    const { username, appPassword } = getWpCredentials();
+    if (!username || !appPassword) {
       return NextResponse.json(
         { error: 'WordPress credentials not configured' },
         { status: 500 }
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const url = `${getWpBaseUrl()}/wp-json/wp/v2/media`;
     
     // Create auth header
-    const credentials = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
+    const credentials = Buffer.from(`${username}:${appPassword}`).toString('base64');
     const authHeader = `Basic ${credentials}`;
 
     // Upload to WordPress

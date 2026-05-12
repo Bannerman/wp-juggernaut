@@ -226,6 +226,7 @@ async function startNextServer(): Promise<void> {
   // Store database in userData so it persists across app updates
   // (the standalone server cwd is inside the app bundle, which gets replaced on each install)
   const dbPath = path.join(app.getPath('userData'), 'data', 'juggernaut.db');
+  const dataDir = app.getPath('userData');
   const serverEnv: Record<string, string> = {
     ...process.env as Record<string, string>,
     PORT: String(PORT),
@@ -233,6 +234,7 @@ async function startNextServer(): Promise<void> {
     HOSTNAME: 'localhost',
     JUGGERNAUT_ELECTRON: '1',
     DATABASE_PATH: dbPath,
+    JUGGERNAUT_DATA_DIR: dataDir,
   };
 
   // Pass decrypted credentials to the server process

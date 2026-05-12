@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2, GripVertical, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FieldRenderer } from './FieldRenderer';
 import type { FieldRendererProps } from './types';
@@ -143,7 +143,6 @@ export function RepeaterRenderer({ field, value, onChange, terms, depth = 0, res
         <div className="space-y-2">
           {items.map((item, index) => (
             <div key={index} className="flex items-center gap-2">
-              <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
               <FieldRenderer
                 field={subFields[0]}
                 value={item[subFields[0].key]}

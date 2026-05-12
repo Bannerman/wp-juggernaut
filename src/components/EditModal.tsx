@@ -37,6 +37,7 @@ interface TaxonomyConfig {
   hierarchical?: boolean;
   show_in_filter?: boolean;
   filter_position?: number;
+  editable?: boolean;
   conditional?: { show_when?: { taxonomy: string; has_term_id: number } };
 }
 
@@ -393,9 +394,17 @@ export function EditModal({
     }
   };
 
-  // Get taxonomies sorted by filter_position for classification tab
-  // Show ALL taxonomies here — show_in_filter only controls the sidebar filter bar
+  // Get taxonomies sorted by filter_position for classification tab.
+  // Show ALL taxonomies here — show_in_filter only controls the sidebar filter bar.
+  // Hide ONLY taxonomies that are both `editable: false` AND have no conditional
+  // visibility rule. Those are auto-derived on the WP side (e.g. `file_format` on
+  // resources, synced from `download_file_format` per download link — see
+  // lib/push.ts:307-309). Taxonomies with a `conditional` (e.g. `leagues`,
+  // `bracket-size`, `competition_format`) need to remain in the candidate list
+  // so the separate `isTaxonomyVisible` check can show them when the conditional
+  // matches (e.g. league appears once Sports is selected on topic).
   const classificationTaxonomies = taxonomyConfig
+    .filter(t => t.editable !== false || !!t.conditional?.show_when)
     .sort((a, b) => (a.filter_position || 99) - (b.filter_position || 99));
 
   const resourceHasChanges = isCreateMode
@@ -1157,6 +1166,7 @@ export function EditModal({
                   taxonomyConfig,
                   taxonomyLabels,
                   fieldLayout,
+                  postTypeLabel,
                   setTitle,
                   setMetaBox,
                   setTaxonomies,
