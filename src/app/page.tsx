@@ -305,6 +305,23 @@ export default function Home() {
     fetchData();
   }, [fetchData]);
 
+  // Refetch on window focus, on tab visibility, and on a 5s background poll so
+  // changes from external writers (e.g. the MCP server) surface without a restart.
+  useEffect(() => {
+    if (isSyncing || isPushing) return;
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') fetchData();
+    };
+    window.addEventListener('focus', refreshIfVisible);
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    const intervalId = window.setInterval(refreshIfVisible, 5000);
+    return () => {
+      window.removeEventListener('focus', refreshIfVisible);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+      window.clearInterval(intervalId);
+    };
+  }, [fetchData, isSyncing, isPushing]);
+
   // Close sync dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
