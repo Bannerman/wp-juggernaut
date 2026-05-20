@@ -20,6 +20,13 @@ let initializationPromise: Promise<void> | null = null;
  * Safe to call multiple times - only initializes once
  */
 export async function initializePlugins(): Promise<void> {
+  // Skip during Next.js production build. Plugin activation has side effects
+  // (file writes, profile loading, hook registration) that don't belong in a
+  // prerender worker and were observed to hang static page generation.
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return;
+  }
+
   // Return existing promise if already initializing
   if (initializationPromise) {
     return initializationPromise;

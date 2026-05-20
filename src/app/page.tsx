@@ -1,5 +1,10 @@
 'use client';
 
+// The home page is a SQLite-backed dashboard — there is no value in
+// prerendering it, and doing so triggers the plugin loader inside the build
+// worker which has hung static page generation. Force-dynamic skips prerender.
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {

@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Save, RefreshCw, AlertCircle, CheckCircle, Plus, Trash2, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import { SettingsNav } from '@/components/SettingsNav';
