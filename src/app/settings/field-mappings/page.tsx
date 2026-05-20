@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowLeft, RefreshCw, AlertCircle, CheckCircle, Eye, EyeOff, Code, Save } from 'lucide-react';
 import { FieldMappingEditor } from '@/components/FieldMappingEditor';

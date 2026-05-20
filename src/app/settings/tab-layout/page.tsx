@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Save, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 import { TabLayoutEditor } from '@/components/TabLayoutEditor';
