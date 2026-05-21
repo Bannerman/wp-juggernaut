@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useId } from 'react';
 import { X, Save, AlertTriangle, Sparkles, Upload, Loader2, Repeat, ExternalLink, Pencil, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createFilenameProcessor, seoDataProcessor, shortpixelProcessor, createValidationProcessor, ImageProcessingPipeline } from '@/lib/imageProcessing';
@@ -261,6 +261,57 @@ export function EditModal({
     JSON.parse(JSON.stringify(effectiveResource.meta_box))
   );
   const [isSaving, setIsSaving] = useState(false);
+
+  // Dialog accessibility: container ref for focus trap, plus unique IDs so
+  // aria-labelledby / htmlFor don't collide if multiple modals ever co-render.
+  const modalRef = useRef<HTMLDivElement>(null);
+  const modalTitleId = useId();
+  const titleInputId = useId();
+
+  // Focus trap + Escape handler for the modal dialog (WCAG 4.1.2).
+  // Without this, aria-modal="true" is worse than no aria-modal at all —
+  // screen readers think the background is inert but keyboard users escape it.
+  useEffect(() => {
+    const modal = modalRef.current;
+    if (!modal) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    modal.focus();
+
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+
+      const focusables = Array.from(
+        modal.querySelectorAll<HTMLElement>(focusableSelector)
+      );
+      if (focusables.length === 0) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement;
+
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
 
   // Check if a taxonomy's conditional visibility is satisfied
   const isTaxonomyVisible = (taxSlug: string): boolean => {
@@ -667,6 +718,7 @@ export function EditModal({
               <button
                 key={term.id}
                 type="button"
+                aria-pressed={isSelected}
                 onClick={() => toggleTerm(taxonomy, term.id)}
                 className={cn(
                   'px-3 py-1 rounded-full text-sm border transition-colors',
@@ -742,6 +794,7 @@ export function EditModal({
               <button
                 key={term.id}
                 type="button"
+                aria-pressed={isSelected}
                 onClick={() => toggleTerm(taxSlug, term.id)}
                 className={cn(
                   'px-3 py-1.5 rounded-full text-sm border transition-colors',
@@ -799,6 +852,7 @@ export function EditModal({
                       <button
                         key={term.id}
                         type="button"
+                        aria-pressed={isSelected}
                         onClick={() => toggleTerm(taxSlug, term.id)}
                         className={cn(
                           'px-3 py-1 rounded-full text-sm border transition-colors',
@@ -825,14 +879,21 @@ export function EditModal({
       <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onClose} />
 
       <div className="relative min-h-full flex items-center justify-center p-4">
-        <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-[900px] h-[85vh] flex flex-col overflow-hidden">
+        <div
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={modalTitleId}
+          tabIndex={-1}
+          className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-[900px] h-[85vh] flex flex-col overflow-hidden focus:outline-none"
+        >
           {/* Header */}
           <div className={cn(
             "flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700",
             isCreateMode && "bg-green-50 dark:bg-green-900/20"
           )}>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-1">
+              <h2 id={modalTitleId} className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-1">
                 {isCreateMode ? (title || `New ${postTypeLabel}`) : title}
               </h2>
               {!isCreateMode && (
@@ -926,7 +987,7 @@ export function EditModal({
               <div className="space-y-4">
                 <div className={cn(changedFields.has('title') && 'border-l-4 border-amber-400 pl-3')}>
                   <div className="flex items-center gap-2 mb-1">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
+                    <label htmlFor={titleInputId} className="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
                     {changedFields.has('title') && syncedSnapshot && (
                       <DirtyFieldIndicator
                         fieldLabel="Title"
@@ -937,6 +998,7 @@ export function EditModal({
                     )}
                   </div>
                   <input
+                    id={titleInputId}
                     type="text"
                     value={title}
                     onChange={(e) => handleTitleChange(e.target.value)}
@@ -1242,6 +1304,7 @@ export function EditModal({
               <button
                 onClick={handleSave}
                 disabled={!hasChanges || isSaving || isCreating}
+                aria-busy={isSaving || isCreating}
                 className={cn(
                   'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
                   hasChanges
