@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getConfig, setActiveTarget, getActiveTarget, getSiteTargets, getCredentials, setCredentials } from '@/lib/site-config';
 import { getProfileManager, ensureProfileLoaded } from '@/lib/profiles';
+import { getDb } from '@/lib/db';
+import { discardAllDirtyPosts } from '@/lib/queries';
 
 // GET /api/site-config - Get current config and available targets
 export async function GET() {
@@ -48,7 +50,11 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { targetId, credentials } = body;
+    const { targetId, credentials, dirtyAction } = body as {
+      targetId?: string;
+      credentials?: { username: string; appPassword: string };
+      dirtyAction?: 'discard' | 'carry';
+    };
 
     // Handle credential update (saves for the currently active target)
     if (credentials) {
@@ -77,6 +83,33 @@ export async function PATCH(request: NextRequest) {
 
     // Handle target switch
     if (targetId) {
+      const previousTarget = getActiveTarget();
+      const isActualChange = previousTarget.id !== targetId;
+
+      // Only guard on real environment changes — switching to the already-active
+      // target is a no-op, and the dirty rows are correctly attributed to it.
+      if (isActualChange && !dirtyAction) {
+        const dirtyCount = (
+          getDb().prepare('SELECT COUNT(*) as c FROM posts WHERE is_dirty = 1').get() as { c: number }
+        ).c;
+        if (dirtyCount > 0) {
+          const newTargetMeta = getSiteTargets().find(t => t.id === targetId);
+          return NextResponse.json(
+            {
+              needsDirtyDecision: true,
+              dirtyCount,
+              previousTarget: { id: previousTarget.id, name: previousTarget.name },
+              newTarget: { id: targetId, name: newTargetMeta?.name || targetId },
+            },
+            { status: 409 }
+          );
+        }
+      }
+
+      if (isActualChange && dirtyAction === 'discard') {
+        discardAllDirtyPosts();
+      }
+
       setActiveTarget(targetId);
       const activeTarget = getActiveTarget();
       const credentials = getCredentials();
