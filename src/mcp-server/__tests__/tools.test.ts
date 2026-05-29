@@ -9,6 +9,7 @@ import Database from 'better-sqlite3';
 import {
   listPosts,
   getPost,
+  createPost,
   updatePost,
   updateSeo,
   listTerms,
@@ -234,6 +235,80 @@ describe('get_post', () => {
 
   it('returns error for non-existent post', () => {
     const result = getPost(db, { id: 999 });
+    expect(result.error).toBeDefined();
+  });
+});
+
+describe('create_post', () => {
+  let db: Database.Database;
+  beforeEach(() => { db = createTestDb(); });
+  afterEach(() => { db.close(); });
+
+  it('inserts a local stub with a synthetic negative ID and is_dirty=1', () => {
+    const result = createPost(db, { post_type: 'resource', title: 'New Bracket' });
+    expect(result.local_id as number).toBeLessThan(0);
+    expect(result.is_dirty).toBe(true);
+    expect(result.pending_push).toBe(true);
+
+    const row = db.prepare('SELECT * FROM posts WHERE id = ?').get(result.local_id) as { title: string; post_type: string; status: string; is_dirty: number };
+    expect(row.title).toBe('New Bracket');
+    expect(row.post_type).toBe('resource');
+    expect(row.status).toBe('draft');
+    expect(row.is_dirty).toBe(1);
+  });
+
+  it('decrements local_id below the lowest existing negative ID', () => {
+    const first = createPost(db, { post_type: 'resource', title: 'A' });
+    const second = createPost(db, { post_type: 'resource', title: 'B' });
+    expect(second.local_id as number).toBeLessThan(first.local_id as number);
+  });
+
+  it('persists meta fields with JSON encoding', () => {
+    const result = createPost(db, {
+      post_type: 'resource',
+      title: 'With Meta',
+      meta: { intro_text: 'hello', version: 2 },
+    });
+    const intro = db.prepare("SELECT value FROM post_meta WHERE post_id = ? AND field_id = 'intro_text'").get(result.local_id) as { value: string };
+    expect(JSON.parse(intro.value)).toBe('hello');
+    const ver = db.prepare("SELECT value FROM post_meta WHERE post_id = ? AND field_id = 'version'").get(result.local_id) as { value: string };
+    expect(JSON.parse(ver.value)).toBe(2);
+  });
+
+  it('records taxonomy assignments and marks all assigned taxonomies dirty', () => {
+    const result = createPost(db, {
+      post_type: 'resource',
+      title: 'Tagged',
+      taxonomies: { topic: [432, 528], intent: [511] },
+    });
+    const terms = db.prepare('SELECT taxonomy, term_id FROM post_terms WHERE post_id = ? ORDER BY taxonomy, term_id').all(result.local_id) as { taxonomy: string; term_id: number }[];
+    expect(terms).toEqual([
+      { taxonomy: 'intent', term_id: 511 },
+      { taxonomy: 'topic', term_id: 432 },
+      { taxonomy: 'topic', term_id: 528 },
+    ]);
+    const dirtyTax = db.prepare("SELECT value FROM post_meta WHERE post_id = ? AND field_id = '_dirty_taxonomies'").get(result.local_id) as { value: string };
+    expect(JSON.parse(dirtyTax.value).sort()).toEqual(['intent', 'topic']);
+  });
+
+  it('logs a _created entry in change_log', () => {
+    const result = createPost(db, { post_type: 'resource', title: 'Logged' });
+    const log = db.prepare("SELECT field FROM change_log WHERE post_id = ?").all(result.local_id) as { field: string }[];
+    expect(log.some(l => l.field === '_created')).toBe(true);
+  });
+
+  it('rejects missing title', () => {
+    const result = createPost(db, { post_type: 'resource', title: '' });
+    expect(result.error).toBeDefined();
+  });
+
+  it('rejects missing post_type', () => {
+    const result = createPost(db, { post_type: '', title: 'No type' });
+    expect(result.error).toBeDefined();
+  });
+
+  it('rejects invalid status', () => {
+    const result = createPost(db, { post_type: 'resource', title: 'Bad status', status: 'banana' });
     expect(result.error).toBeDefined();
   });
 });

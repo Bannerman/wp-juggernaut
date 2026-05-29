@@ -87,13 +87,23 @@ The Juggernaut MCP server is bundled with this app. If your client (Claude Deskt
 
 (That path is the dev location — the packaged install path may differ. Check the [Juggernaut docs](https://github.com/Bannerman/wp-juggernaut) for the canonical config.)
 
-Once connected, your client will list the tool surface automatically — \`list_posts\`, \`get_post\`, \`update_post\`, \`update_seo\`, \`update_post_terms\`, \`list_terms\`, \`get_site_index\`, \`get_stats\`, \`get_post_history\`. Use those rather than calling the WP REST API directly.
+Once connected, your client will list the tool surface automatically — \`list_posts\`, \`get_post\`, \`create_post\`, \`update_post\`, \`update_seo\`, \`update_post_terms\`, \`list_terms\`, \`get_site_index\`, \`get_stats\`, \`get_post_history\`. Use those rather than calling the WP REST API directly.
 
-## How to edit a post
+## How to author a new post
 
-The MCP surface is **read + update only** right now — creating new posts via MCP isn't supported yet (planned: a \`create_post\` tool plus an AI-fill prompt/response workflow). If you've been asked to author a *new* post, tell the user to create the empty post in the Juggernaut UI first, then come back and edit it through MCP.
+\`create_post\` writes a local stub to the Juggernaut SQLite DB with a synthetic *negative* ID (e.g., \`-1\`, \`-2\`). The post is marked dirty and pending push. It does **NOT** exist on WordPress yet — Juggernaut only contacts WP when the user clicks Push from the app, at which point the stub is created on WP and the local row is renumbered to the real positive WP ID.
 
-For editing an existing post:
+Flow:
+
+1. \`get_site_index\` (if you don't yet know what post types and taxonomies are available).
+2. \`list_terms\` for any taxonomy you plan to assign (so you have term IDs).
+3. \`create_post({ post_type, title, ...optional fields })\` — returns \`{ local_id, ... }\`. The \`local_id\` is negative and only valid in this Juggernaut install until push.
+4. \`update_post(local_id, ...)\` to add more content/meta. \`update_post_terms\` and \`update_seo\` work the same way using the negative \`local_id\`.
+5. Tell the user the draft is ready for review in the Juggernaut app. They review, then push when ready.
+
+After the push, the post has a real positive WP ID. If you need to find it again, query by title or slug via \`list_posts\`.
+
+## How to edit an existing post
 
 1. \`get_site_index\` first if you don't yet know what taxonomies / post types are available.
 2. \`list_posts\` to find the target post (filter by post type, status, or search).

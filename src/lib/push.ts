@@ -1,6 +1,7 @@
 import { getDb } from './db';
 import {
   updateResource,
+  createResource,
   batchUpdate,
   fetchResourceById,
   getTaxonomies,
@@ -160,6 +161,9 @@ export async function checkForConflicts(resourceIds: number[]): Promise<Conflict
   const conflicts: ConflictInfo[] = [];
 
   for (const id of resourceIds) {
+    // Local stubs (negative IDs) don't exist on WP yet — nothing to conflict with.
+    if (id < 0) continue;
+
     const localResource = db
       .prepare('SELECT id, title, modified_gmt, post_type FROM posts WHERE id = ?')
       .get(id) as { id: number; title: string; modified_gmt: string; post_type: string } | undefined;
@@ -346,6 +350,12 @@ export async function pushResource(
   skipConflictCheck: boolean = false
 ): Promise<PushResult> {
   try {
+    // Local stubs from MCP create_post have negative IDs and don't exist on WP yet —
+    // create on WP first, then renumber local row to the real WP ID.
+    if (resourceId < 0) {
+      return await pushNewResource(resourceId);
+    }
+
     // Check for conflicts
     if (!skipConflictCheck) {
       const conflicts = await checkForConflicts([resourceId]);
@@ -408,6 +418,59 @@ export async function pushResource(
       error: String(error),
     };
   }
+}
+
+/**
+ * Pushes a brand-new local stub (created via MCP create_post) to WordPress.
+ * The local row has a synthetic negative ID; we create on WP, then renumber
+ * the local row + all its FK children to the real WP ID returned by REST.
+ *
+ * No conflict check is run — the post doesn't exist on the server yet by
+ * definition, so there's nothing to conflict with.
+ */
+async function pushNewResource(localId: number): Promise<PushResult> {
+  if (localId >= 0) {
+    return { success: false, resourceId: localId, error: 'pushNewResource expects a negative local ID' };
+  }
+
+  const resource = getResourceById(localId);
+  if (!resource) {
+    return { success: false, resourceId: localId, error: `Local post ${localId} not found` };
+  }
+
+  const restBase = getRestBaseForPostType(resource.post_type || 'resource');
+  const payload = await buildUpdatePayload(localId);
+
+  console.log(`[push] Creating new ${restBase} on WP from local stub ${localId}, title="${resource.title}"`);
+  const created = await createResource(payload, restBase);
+  const realId = created.id;
+  console.log(`[push] WP assigned id=${realId} to local stub ${localId}`);
+
+  // Push SEO if any was attached to the local stub (non-blocking; warn on failure)
+  const seoResult = await pushSeoData(localId);
+  if (!seoResult.success) {
+    console.warn(`[push] SEO push warning for new resource ${localId} -> ${realId}: ${seoResult.error}`);
+  }
+
+  // Renumber the local row + every FK child from localId to realId.
+  // PRAGMA defer_foreign_keys defers FK validation to COMMIT so the order
+  // of UPDATEs within the transaction doesn't matter — the final state is
+  // consistent.
+  const db = getDb();
+  const renumber = db.transaction(() => {
+    db.exec('PRAGMA defer_foreign_keys = 1');
+    db.prepare('UPDATE post_meta SET post_id = ? WHERE post_id = ?').run(realId, localId);
+    db.prepare('UPDATE post_terms SET post_id = ? WHERE post_id = ?').run(realId, localId);
+    db.prepare('UPDATE change_log SET post_id = ? WHERE post_id = ?').run(realId, localId);
+    db.prepare('UPDATE plugin_data SET post_id = ? WHERE post_id = ?').run(realId, localId);
+    db.prepare(
+      'UPDATE posts SET id = ?, is_dirty = 0, modified_gmt = ?, synced_at = ? WHERE id = ?'
+    ).run(realId, created.modified_gmt, new Date().toISOString(), localId);
+    db.prepare("DELETE FROM post_meta WHERE post_id = ? AND field_id = '_dirty_taxonomies'").run(realId);
+  });
+  renumber();
+
+  return { success: true, resourceId: realId };
 }
 
 /**
