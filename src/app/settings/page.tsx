@@ -103,6 +103,16 @@ function SettingsPageContent() {
   const [targetLoading, setTargetLoading] = useState(true);
   const [targetSwitching, setTargetSwitching] = useState(false);
 
+  // Dirty-decision state: shown when the user switches sites while there are
+  // unpushed local edits. WP IDs aren't portable across environments, so we
+  // ask whether to carry the changes over or discard them.
+  const [dirtyDecision, setDirtyDecision] = useState<{
+    targetId: string;
+    dirtyCount: number;
+    previousTarget: { id: string; name: string };
+    newTarget: { id: string; name: string };
+  } | null>(null);
+
   // Credentials state
   const [username, setUsername] = useState('');
   const [appPassword, setAppPassword] = useState('');
@@ -202,8 +212,10 @@ function SettingsPageContent() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  // Switch target
-  const switchTarget = async (targetId: string) => {
+  // Switch target. If there are unpushed local edits and the new target is
+  // different, the API returns 409 with a payload describing the decision;
+  // we open a modal letting the user carry / discard / cancel.
+  const switchTarget = async (targetId: string, dirtyAction?: 'discard' | 'carry') => {
     setTargetSwitching(true);
     setMessage(null);
 
@@ -211,8 +223,22 @@ function SettingsPageContent() {
       const res = await fetch('/api/site-config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetId }),
+        body: JSON.stringify({ targetId, dirtyAction }),
       });
+
+      if (res.status === 409) {
+        const decision = await res.json();
+        if (decision.needsDirtyDecision) {
+          setDirtyDecision({
+            targetId,
+            dirtyCount: decision.dirtyCount,
+            previousTarget: decision.previousTarget,
+            newTarget: decision.newTarget,
+          });
+          setTargetSwitching(false);
+          return;
+        }
+      }
 
       if (!res.ok) throw new Error('Failed to switch target');
 
@@ -227,6 +253,7 @@ function SettingsPageContent() {
 
       // Clear diagnostics when switching
       setDiagnostics(null);
+      setDirtyDecision(null);
     } catch (err) {
       setMessage({ type: 'error', text: String(err) });
     } finally {
@@ -473,6 +500,55 @@ function SettingsPageContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {dirtyDecision && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dirty-decision-title"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 p-6"
+          >
+            <h2 id="dirty-decision-title" className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Unpushed changes from {dirtyDecision.previousTarget.name}
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+              You have <strong>{dirtyDecision.dirtyCount}</strong> post{dirtyDecision.dirtyCount === 1 ? '' : 's'} with unpushed local edits.
+              WordPress post IDs aren&apos;t portable between environments, so carrying them over to{' '}
+              <strong>{dirtyDecision.newTarget.name}</strong> may target different content there.
+            </p>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-5 space-y-1">
+              <p><strong>Carry over:</strong> keep the dirty edits — push will send them to the new environment.</p>
+              <p><strong>Discard:</strong> reset every dirty post to its synced snapshot, then switch.</p>
+              <p><strong>Cancel:</strong> stay on {dirtyDecision.previousTarget.name}.</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDirtyDecision(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => switchTarget(dirtyDecision.targetId, 'discard')}
+                disabled={targetSwitching}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                Discard {dirtyDecision.dirtyCount} change{dirtyDecision.dirtyCount === 1 ? '' : 's'} & switch
+              </button>
+              <button
+                type="button"
+                onClick={() => switchTarget(dirtyDecision.targetId, 'carry')}
+                disabled={targetSwitching}
+                className="px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 disabled:opacity-50"
+              >
+                Carry over & switch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <SettingsNav
         activeTab={activeTab}
         enabledPlugins={plugins.filter(p => p.enabled).map(p => p.id)}

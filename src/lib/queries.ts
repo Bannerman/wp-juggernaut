@@ -523,6 +523,30 @@ export function discardAllChanges(id: number): void {
 }
 
 /**
+ * Restores every dirty post in the database to its synced snapshot and clears
+ * `is_dirty`. Used by the site-switch flow when the user chooses "discard" —
+ * dirty rows from the previous environment otherwise stick around with hybrid
+ * state (local title from environment A, snapshot from environment B).
+ * @returns Number of posts that were discarded
+ */
+export function discardAllDirtyPosts(): number {
+  const db = getDb();
+  const rows = db.prepare('SELECT id FROM posts WHERE is_dirty = 1').all() as { id: number }[];
+  const discardTxn = db.transaction((ids: number[]) => {
+    for (const id of ids) {
+      try {
+        discardAllChanges(id);
+      } catch {
+        // Post may have no snapshot (rare — created-but-never-pushed local stub).
+        // Skip it; the row will remain dirty and the user can deal with it manually.
+      }
+    }
+  });
+  discardTxn(rows.map(r => r.id));
+  return rows.length;
+}
+
+/**
  * Returns summary statistics for the dashboard: total resources, dirty count,
  * and last sync timestamp.
  * @param postType - Optional post type filter
