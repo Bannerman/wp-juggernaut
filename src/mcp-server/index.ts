@@ -686,6 +686,21 @@ export function getPost(database: DatabaseType.Database, args: GetPostArgs): Rec
  * because the MCP server runs outside the Electron process and doesn't have
  * WP credentials.
  */
+/**
+ * Lowercase the title, replace runs of non-alphanumeric chars with single
+ * hyphens, trim leading/trailing hyphens. Matches WordPress's sanitize_title
+ * for ASCII input; non-ASCII falls back to a hyphen which is the same shape
+ * WP would produce after percent-decode + strip. Empty result falls back to
+ * 'post' so we always have something for the eye-icon URL.
+ */
+function slugifyTitle(title: string): string {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'post';
+}
+
 export function createPost(database: DatabaseType.Database, args: CreatePostArgs): Record<string, unknown> {
   if (!args.post_type || typeof args.post_type !== 'string') {
     return { error: 'post_type is required and must be a string' };
@@ -703,6 +718,13 @@ export function createPost(database: DatabaseType.Database, args: CreatePostArgs
   const localId = Math.min(minRow.m ?? 0, -1) - 1;
   const now = new Date().toISOString();
 
+  // Derive a slug from the title when the caller didn't supply one. Matches
+  // WP's sanitize_title for the common ASCII case so the "View on site" eye
+  // can render before the row round-trips through a sync. WP may rewrite on
+  // create if this slug collides; pushNewResource() then backfills with the
+  // actual server-assigned slug from the create response.
+  const effectiveSlug = (args.slug && args.slug.trim()) || slugifyTitle(args.title);
+
   const transaction = database.transaction(() => {
     database
       .prepare(
@@ -713,7 +735,7 @@ export function createPost(database: DatabaseType.Database, args: CreatePostArgs
         localId,
         args.post_type,
         args.title,
-        args.slug || '',
+        effectiveSlug,
         status,
         args.content || '',
         args.excerpt || '',
@@ -763,7 +785,7 @@ export function createPost(database: DatabaseType.Database, args: CreatePostArgs
     local_id: localId,
     post_type: args.post_type,
     title: args.title,
-    slug: args.slug || '',
+    slug: effectiveSlug,
     status,
     is_dirty: true,
     pending_push: true,

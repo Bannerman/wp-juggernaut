@@ -463,9 +463,13 @@ async function pushNewResource(localId: number): Promise<PushResult> {
     db.prepare('UPDATE post_terms SET post_id = ? WHERE post_id = ?').run(realId, localId);
     db.prepare('UPDATE change_log SET post_id = ? WHERE post_id = ?').run(realId, localId);
     db.prepare('UPDATE plugin_data SET post_id = ? WHERE post_id = ?').run(realId, localId);
+    // WP may rewrite the slug we sent (collision, sanitize). Pull whatever
+    // it actually assigned out of the create response so the local row's
+    // permalink matches; otherwise the "View on site" eye stays broken
+    // until the next full sync.
     db.prepare(
-      'UPDATE posts SET id = ?, is_dirty = 0, modified_gmt = ?, synced_at = ? WHERE id = ?'
-    ).run(realId, created.modified_gmt, new Date().toISOString(), localId);
+      'UPDATE posts SET id = ?, slug = ?, is_dirty = 0, modified_gmt = ?, synced_at = ? WHERE id = ?'
+    ).run(realId, created.slug, created.modified_gmt, new Date().toISOString(), localId);
     db.prepare("DELETE FROM post_meta WHERE post_id = ? AND field_id = '_dirty_taxonomies'").run(realId);
   });
   renumber();
