@@ -794,10 +794,6 @@ export default function Home() {
                   <span className="text-gray-500 dark:text-gray-400">Total:</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100">{stats.totalResources} {pluralize(postTypeLabel.toLowerCase())}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-500 dark:text-gray-400">Terms:</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{stats.totalTerms}</span>
-                </div>
                 {stats.dirtyResources > 0 && (
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
