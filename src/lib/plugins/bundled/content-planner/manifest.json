@@ -1,0 +1,24 @@
+{
+  "id": "content-planner",
+  "name": "Content Planner",
+  "version": "0.1.0",
+  "description": "Plan content before it becomes a post. Idea backlog kanban + keyword/topic planner. Stays local until ideas graduate to real WP posts.",
+  "author": {
+    "name": "Juggernaut",
+    "url": "https://github.com/Bannerman/wp-juggernaut"
+  },
+  "license": "MIT",
+  "requires_core": ">=1.0.0",
+  "tier": "bundled",
+  "provides": {
+    "global_pages": ["planner"]
+  },
+  "settings_schema": {
+    "default_status": {
+      "type": "string",
+      "label": "Default idea status",
+      "description": "Status assigned when a new idea is created",
+      "default": "idea"
+    }
+  }
+}
