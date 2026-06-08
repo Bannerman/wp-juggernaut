@@ -30,6 +30,9 @@ import { PostTypeSwitcher } from '@/components/PostTypeSwitcher';
 import { ConvertPostTypeModal } from '@/components/ConvertPostTypeModal';
 import { EnvironmentIndicator } from '@/components/EnvironmentIndicator';
 import { ViewSwitcher } from '@/components/ViewSwitcher';
+import { getAllGlobalPages } from '@/components/globalPages';
+// Side-effect import: plugin pages self-register via registerGlobalPage()
+import '@/lib/plugins/bundled/content-planner/PlannerPage';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import type { FieldDefinition, ViewConfig, ViewColumn } from '@/lib/plugins/types';
 import type { EnvironmentType } from '@/lib/site-config';
@@ -101,6 +104,11 @@ export default function Home() {
   // Views state (replaces old viewMode)
   const [allViews, setAllViews] = useState<ViewConfig[]>([]);
   const [activeViewId, setActiveViewId] = useState<string>('');
+
+  // Active plugin-provided global page (null = main resource view)
+  const [activeGlobalPage, setActiveGlobalPage] = useState<string | null>(null);
+  const globalPages = useMemo(() => getAllGlobalPages(), []);
+  const activePage = activeGlobalPage ? globalPages.find((p) => p.id === activeGlobalPage) : null;
 
   // Plugin-enabled features and profile config
   const [enabledTabs, setEnabledTabs] = useState<string[]>(['basic', 'classification']);
@@ -661,9 +669,44 @@ export default function Home() {
         <div className="w-full pr-4 sm:pr-6 pl-20">
           <div className="flex items-center justify-between h-12">
             <div className="flex items-center gap-3">
-              <img src="/icon.png" alt="Juggernaut" className="w-6 h-6" />
-              <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Juggernaut</h1>
+              <button
+                onClick={() => setActiveGlobalPage(null)}
+                className="flex items-center gap-3 electron-no-drag"
+                title="Posts"
+              >
+                <img src="/icon.png" alt="Juggernaut" className="w-6 h-6" />
+                <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Juggernaut</h1>
+              </button>
               <EnvironmentIndicator workspaceName={workspaceName} environment={activeEnvironment} />
+              {globalPages.length > 0 && (
+                <nav className="flex items-center gap-1 ml-2 electron-no-drag">
+                  <button
+                    onClick={() => setActiveGlobalPage(null)}
+                    className={cn(
+                      'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                      activeGlobalPage === null
+                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700',
+                    )}
+                  >
+                    Posts
+                  </button>
+                  {globalPages.map((page) => (
+                    <button
+                      key={page.id}
+                      onClick={() => setActiveGlobalPage(page.id)}
+                      className={cn(
+                        'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                        activeGlobalPage === page.id
+                          ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700',
+                      )}
+                    >
+                      {page.label}
+                    </button>
+                  ))}
+                </nav>
+              )}
             </div>
 
             <div className="flex items-center gap-2 electron-no-drag">
@@ -777,8 +820,16 @@ export default function Home() {
         </div>
       )}
 
+      {/* Plugin-provided global page short-circuits the resource view */}
+      {activePage && (
+        <activePage.component
+          profile={{} as never}
+          settings={{}}
+        />
+      )}
+
       {/* Stats Bar */}
-      {stats && (
+      {!activePage && stats && (
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="w-full px-4 sm:px-6 py-2">
             <div className="flex items-center justify-between text-sm">
@@ -812,7 +863,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Main Content */}
+      {/* Main Content (hidden when a plugin global page is active) */}
+      {!activePage && (
       <main className={cn(
         'mx-auto px-4 sm:px-6 lg:px-8 py-6',
         isDownloadsView ? 'max-w-full' : 'max-w-7xl'
@@ -987,6 +1039,7 @@ export default function Home() {
           />
         )}
       </main>
+      )}
 
       {/* Edit Modal */}
       {editingResource && (

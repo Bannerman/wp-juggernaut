@@ -70,6 +70,8 @@ export interface PluginManifest {
     field_types?: string[];
     /** API extensions provided */
     api_extensions?: string[];
+    /** Global pages registered in the main app nav */
+    global_pages?: string[];
   };
 
   /** Settings schema for auto-generated settings UI */
@@ -173,6 +175,14 @@ export interface JuggernautPlugin {
    * Get tabs this plugin adds to the editor
    */
   getTabs?(): TabDefinition[];
+
+  /**
+   * Get global pages this plugin adds to the main app navigation.
+   * Global pages render outside the per-resource EditModal (e.g. a planner
+   * board, a reports dashboard) and live at /planner-style routes mounted
+   * by the main app.
+   */
+  getGlobalPages?(): PageDefinition[];
 
   /**
    * Get field renderers for custom field types
@@ -346,6 +356,41 @@ export interface TabDefinition {
 
   /** Only show tab when condition is met */
   condition?: (resource: LocalResource, profile: SiteProfile) => boolean;
+}
+
+/**
+ * Global page definition for the main app navigation.
+ * Unlike TabDefinition (which renders inside a per-resource EditModal),
+ * a PageDefinition is a top-level destination keyed by `id`.
+ */
+export interface PageDefinition {
+  /** Unique page identifier, used as the route key (e.g. "planner") */
+  id: string;
+
+  /** Display label in the main nav */
+  label: string;
+
+  /** Lucide icon name (optional) */
+  icon?: string;
+
+  /** React component rendered as the page body */
+  component: ComponentType<PageComponentProps>;
+
+  /** Position hint among other global pages (smaller = earlier). Default 100. */
+  position?: number;
+}
+
+/**
+ * Props passed to global page components.
+ * Plugin pages get a minimal slice of core state, not per-resource context,
+ * since they render outside any editor modal.
+ */
+export interface PageComponentProps {
+  /** Current site profile */
+  profile: SiteProfile;
+
+  /** Plugin settings from profile */
+  settings: Record<string, unknown>;
 }
 
 /**

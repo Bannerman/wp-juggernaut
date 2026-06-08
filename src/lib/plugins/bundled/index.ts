@@ -15,6 +15,7 @@ import convertPostTypePlugin from './convert-post-type';
 import woocommercePlugin from './woocommerce';
 import customViewsPlugin from './custom-views';
 import mcpServerPlugin from './mcp-server';
+import contentPlannerPlugin from './content-planner';
 // Future bundled plugins:
 // import acfPlugin from './acf';
 
@@ -29,6 +30,7 @@ export const bundledPlugins: JuggernautPlugin[] = [
   woocommercePlugin,
   customViewsPlugin,
   mcpServerPlugin,
+  contentPlannerPlugin,
   // acfPlugin,
 ];
 
@@ -54,4 +56,5 @@ export { convertPostTypePlugin };
 export { woocommercePlugin };
 export { customViewsPlugin };
 export { mcpServerPlugin };
+export { contentPlannerPlugin };
 // export { acfPlugin };

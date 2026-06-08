@@ -350,6 +350,29 @@ export class PluginLoader {
   }
 
   /**
+   * Get global pages registered by all active plugins, sorted by `position`.
+   * Pages with no `position` default to 100; ties break on `id` for determinism.
+   */
+  getGlobalPages(): ReturnType<NonNullable<JuggernautPlugin['getGlobalPages']>> {
+    const pages: ReturnType<NonNullable<JuggernautPlugin['getGlobalPages']>> = [];
+
+    for (const plugin of this.getActivePlugins()) {
+      if (plugin.getGlobalPages) {
+        pages.push(...plugin.getGlobalPages());
+      }
+    }
+
+    pages.sort((a, b) => {
+      const pa = a.position ?? 100;
+      const pb = b.position ?? 100;
+      if (pa !== pb) return pa - pb;
+      return a.id.localeCompare(b.id);
+    });
+
+    return pages;
+  }
+
+  /**
    * Get field renderers from all active plugins
    */
   getFieldRenderers(): Record<string, React.ComponentType<any>> {

@@ -7,7 +7,7 @@ const DB_PATH = process.env.DATABASE_PATH || './data/juggernaut.db';
 const LEGACY_DB_PATH = './data/plexkits.db';
 
 // Schema version - increment when making breaking changes
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 let db: Database.Database | null = null;
 
@@ -133,6 +133,11 @@ function migrateSchema(database: Database.Database, fromVersion: number, toVersi
   // Version 2 -> 3: Add synced_snapshot column to posts
   if (fromVersion < 3) {
     migrateV2toV3(database);
+  }
+
+  // Version 3 -> 4: Add planner_ideas + planner_keywords tables (content-planner plugin)
+  if (fromVersion < 4) {
+    migrateV3toV4(database);
   }
 
   setSchemaVersion(database, toVersion);
@@ -386,6 +391,46 @@ function migrateV2toV3(database: Database.Database): void {
 }
 
 /**
+ * Migration from v3 to v4: Add planner_ideas + planner_keywords tables.
+ * Backs the content-planner plugin. Both tables are plugin-global, not keyed
+ * on post_id (unlike plugin_data), since the planner needs free-standing
+ * idea/keyword records that may have no associated WP post yet.
+ */
+function migrateV3toV4(database: Database.Database): void {
+  console.log('[db] Running migration v3 -> v4...');
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS planner_ideas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'idea',
+      notes TEXT,
+      linked_keyword_ids TEXT,
+      promoted_post_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_planner_ideas_status ON planner_ideas(status);
+
+    CREATE TABLE IF NOT EXISTS planner_keywords (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      term TEXT NOT NULL,
+      volume INTEGER,
+      target_post_id INTEGER,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(term)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_planner_keywords_target ON planner_keywords(target_post_id);
+  `);
+
+  console.log('[db] Migration v3 -> v4 complete');
+}
+
+/**
  * Initialize a fresh database with v2 schema
  */
 function initializeSchema(database: Database.Database) {
@@ -474,6 +519,29 @@ function initializeSchema(database: Database.Database) {
       UNIQUE(audit_run_at, field_name)
     );
 
+    -- Content planner (content-planner plugin)
+    CREATE TABLE IF NOT EXISTS planner_ideas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'idea',
+      notes TEXT,
+      linked_keyword_ids TEXT,
+      promoted_post_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS planner_keywords (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      term TEXT NOT NULL,
+      volume INTEGER,
+      target_post_id INTEGER,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(term)
+    );
+
     -- Indexes for performance
     CREATE INDEX IF NOT EXISTS idx_terms_taxonomy ON terms(taxonomy);
     CREATE INDEX IF NOT EXISTS idx_posts_post_type ON posts(post_type);
@@ -484,6 +552,8 @@ function initializeSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_post_terms_taxonomy ON post_terms(taxonomy);
     CREATE INDEX IF NOT EXISTS idx_plugin_data_plugin ON plugin_data(plugin_id);
     CREATE INDEX IF NOT EXISTS idx_plugin_data_post ON plugin_data(post_id);
+    CREATE INDEX IF NOT EXISTS idx_planner_ideas_status ON planner_ideas(status);
+    CREATE INDEX IF NOT EXISTS idx_planner_keywords_target ON planner_keywords(target_post_id);
   `);
 
   setSchemaVersion(database, SCHEMA_VERSION);
