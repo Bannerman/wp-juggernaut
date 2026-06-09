@@ -115,4 +115,5 @@ export const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
   pending: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
   private: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+  trash: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
 };

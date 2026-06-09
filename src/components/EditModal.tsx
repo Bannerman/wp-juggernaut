@@ -261,6 +261,7 @@ export function EditModal({
     JSON.parse(JSON.stringify(effectiveResource.meta_box))
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   // Dialog accessibility: container ref for focus trap, plus unique IDs so
   // aria-labelledby / htmlFor don't collide if multiple modals ever co-render.
@@ -935,6 +936,42 @@ export function EditModal({
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {/* Trash banner — only when the live status on WP is 'trash' */}
+          {!isCreateMode && status === 'trash' && (
+            <div className="flex items-center justify-between gap-3 px-6 py-2.5 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
+              <div className="flex items-center gap-2 text-sm text-red-800 dark:text-red-300">
+                <span className="font-medium">This post is in trash on WordPress.</span>
+                <span className="text-red-700/80 dark:text-red-400/80">It will not render on the live site.</span>
+              </div>
+              <button
+                onClick={async () => {
+                  if (!effectiveResource.id) return;
+                  if (isRestoring) return;
+                  setIsRestoring(true);
+                  try {
+                    const res = await fetch(`/api/resources/${effectiveResource.id}/restore`, {
+                      method: 'POST',
+                    });
+                    if (!res.ok) {
+                      const body = await res.json().catch(() => ({}));
+                      throw new Error(body.error || `Restore failed (HTTP ${res.status})`);
+                    }
+                    onClose();
+                  } catch (err) {
+                    console.error('[EditModal] Restore failed:', err);
+                    alert(`Restore failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                  } finally {
+                    setIsRestoring(false);
+                  }
+                }}
+                disabled={isRestoring}
+                className="px-3 py-1 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isRestoring ? 'Restoring…' : 'Restore to draft'}
+              </button>
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="border-b border-gray-200 dark:border-gray-700 px-6">
