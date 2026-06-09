@@ -321,6 +321,33 @@ export async function fetchAllResources(
     page++;
   }
 
+  // Second pass for trash. WP's `status=any` shorthand excludes trash by design,
+  // and `status=any,trash` is interpreted as a literal list (returns trash only).
+  // Two fetches + union is the only safe path.
+  if (hasValidCredentials()) {
+    let trashPage = 1;
+    let trashTotalPages = 1;
+    while (trashPage <= trashTotalPages) {
+      try {
+        const result = await fetchResources({
+          page: trashPage,
+          modifiedAfter,
+          postType,
+          status: 'trash',
+        });
+        allResources.push(...result.resources);
+        trashTotalPages = result.totalPages;
+        if (onProgress) onProgress(allResources.length, total + result.total);
+        trashPage++;
+      } catch (err) {
+        // Some endpoints reject status=trash without permissions; skip rather
+        // than failing the whole sync.
+        console.warn('[wp-client] Trash fetch skipped:', err);
+        break;
+      }
+    }
+  }
+
   return allResources;
 }
 
@@ -347,7 +374,24 @@ export async function fetchResourceIds(postType?: string): Promise<number[]> {
     {},
     hasAuth
   );
-  return data.map((r) => r.id);
+  const ids = data.map((r) => r.id);
+
+  // Union with trash IDs so deletion detection doesn't sweep away trashed
+  // local rows. WP's `any` shorthand excludes trash by design.
+  if (hasAuth) {
+    try {
+      const { data: trashData } = await wpFetch<{ id: number }[]>(
+        `/${restBase}?per_page=100&_fields=id&status=trash`,
+        {},
+        true,
+      );
+      for (const r of trashData) ids.push(r.id);
+    } catch (err) {
+      console.warn('[wp-client] Trash ID fetch skipped:', err);
+    }
+  }
+
+  return ids;
 }
 
 export async function createResource(

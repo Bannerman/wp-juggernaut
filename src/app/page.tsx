@@ -633,8 +633,12 @@ export default function Home() {
       }
     }
 
-    if (statusFilter && resource.status !== statusFilter) {
-      return false;
+    if (statusFilter) {
+      if (resource.status !== statusFilter) return false;
+    } else {
+      // "All Statuses" hides trash by default (mirrors WP admin). Select
+      // "Trashed" to see them.
+      if (resource.status === 'trash') return false;
     }
 
     if (showDirtyOnly && !resource.is_dirty) {
@@ -902,6 +906,7 @@ export default function Home() {
               <option value="draft">Draft</option>
               <option value="pending">Pending</option>
               <option value="private">Private</option>
+              <option value="trash">Trashed</option>
             </select>
 
             <label className="flex items-center gap-2 cursor-pointer">
