@@ -32,7 +32,7 @@ export interface ConflictInfo {
  * Resolves the WP REST base for a given post type slug by looking it up
  * in the profile's post_types config. Falls back to the slug itself.
  */
-function getRestBaseForPostType(postTypeSlug: string): string {
+export function getRestBaseForPostType(postTypeSlug: string): string {
   const postTypes = getProfileManager().getPostTypes();
   const pt = postTypes.find((p) => p.slug === postTypeSlug);
   return pt?.rest_base || postTypeSlug;

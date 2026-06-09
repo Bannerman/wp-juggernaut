@@ -474,12 +474,22 @@ export function ResourceTable({
                       <span className="w-2 h-2 bg-yellow-400 rounded-full flex-shrink-0" title="Unsaved changes" />
                     )}
                     <span
-                      className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-xs cursor-pointer hover:text-brand-600 dark:hover:text-brand-400"
+                      className={cn(
+                        'font-medium truncate max-w-xs cursor-pointer hover:text-brand-600 dark:hover:text-brand-400',
+                        resource.status === 'trash'
+                          ? 'text-gray-500 dark:text-gray-500 line-through'
+                          : 'text-gray-900 dark:text-gray-100',
+                      )}
                       title={resource.title}
                       onClick={() => onEdit(resource)}
                     >
                       {truncate(resource.title, 50)}
                     </span>
+                    {resource.status === 'trash' && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 flex-shrink-0">
+                        Trashed
+                      </span>
+                    )}
                   </div>
                 </td>
 
