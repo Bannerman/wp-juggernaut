@@ -2,6 +2,7 @@ import { getDb } from './db';
 import {
   updateResource,
   createResource,
+  trashResource,
   batchUpdate,
   fetchResourceById,
   getTaxonomies,
@@ -366,6 +367,20 @@ export async function pushResource(
           error: `Conflict detected: server was modified at ${conflicts[0].serverModified}`,
         };
       }
+    }
+
+    // WP REST rejects status='trash' on the update endpoint with
+    // `rest_invalid_param` (trash is reachable only via DELETE without force).
+    // Route trashes through DELETE so the local status change actually
+    // propagates to WP and the row clears its dirty flag.
+    const preTrashResource = getResourceById(resourceId);
+    if (preTrashResource?.status === 'trash') {
+      const restBase = getRestBaseForPostType(preTrashResource.post_type || 'resource');
+      await trashResource(resourceId, restBase);
+      const db = getDb();
+      db.prepare('UPDATE posts SET is_dirty = 0 WHERE id = ?').run(resourceId);
+      db.prepare("DELETE FROM post_meta WHERE post_id = ? AND field_id = '_dirty_taxonomies'").run(resourceId);
+      return { success: true, resourceId };
     }
 
     const payload = await buildUpdatePayload(resourceId);
