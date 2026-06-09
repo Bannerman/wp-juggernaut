@@ -405,6 +405,17 @@ export async function updateResource(
   return data;
 }
 
+/**
+ * Trash a resource on WordPress via DELETE without force. WP transitions the
+ * post to status=trash but keeps the row, so it can be untrashed later.
+ * Used because the regular update endpoint rejects status='trash' as an
+ * invalid enum value (WP REST exposes trash only through this DELETE path).
+ */
+export async function trashResource(id: number, postType?: string): Promise<void> {
+  const restBase = postType || getPrimaryPostTypeRestBase();
+  await wpFetch<unknown>(`/${restBase}/${id}`, { method: 'DELETE' });
+}
+
 // ─── Batch Operations ────────────────────────────────────────────────────────
 
 export interface BatchRequest {
