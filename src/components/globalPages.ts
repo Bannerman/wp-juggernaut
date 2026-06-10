@@ -28,6 +28,8 @@ export interface GlobalPageEntry {
   icon?: string;
   position?: number;
   component: ComponentType<PageComponentProps>;
+  /** ID of the plugin that owns this page; used to gate nav visibility. */
+  pluginId: string;
 }
 
 const globalPageRegistry: Record<string, GlobalPageEntry> = {};

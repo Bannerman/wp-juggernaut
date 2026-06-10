@@ -26,6 +26,7 @@ export async function PATCH(
     const idea = updateIdea(id, {
       title: typeof body.title === 'string' ? body.title : undefined,
       status: body.status,
+      description: typeof body.description === 'string' ? body.description : undefined,
       notes: typeof body.notes === 'string' ? body.notes : undefined,
       linked_keyword_ids: Array.isArray(body.linked_keyword_ids) ? body.linked_keyword_ids : undefined,
       promoted_post_id: typeof body.promoted_post_id === 'number' ? body.promoted_post_id : undefined,

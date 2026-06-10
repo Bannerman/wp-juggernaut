@@ -107,8 +107,49 @@ export default function Home() {
 
   // Active plugin-provided global page (null = main resource view)
   const [activeGlobalPage, setActiveGlobalPage] = useState<string | null>(null);
-  const globalPages = useMemo(() => getAllGlobalPages(), []);
+  const [enabledPluginIds, setEnabledPluginIds] = useState<Set<string> | null>(null);
+  const globalPages = useMemo(() => {
+    const all = getAllGlobalPages();
+    // While we haven't loaded /api/plugins yet, hide everything to avoid a
+    // flash of a tab that gets pulled away. Once we know the enabled set,
+    // filter to pages owned by enabled plugins.
+    if (!enabledPluginIds) return [];
+    return all.filter((p) => enabledPluginIds.has(p.pluginId));
+  }, [enabledPluginIds]);
   const activePage = activeGlobalPage ? globalPages.find((p) => p.id === activeGlobalPage) : null;
+
+  // Fetch enabled plugin set once on mount so we know which global pages
+  // should appear in the nav. Falls back to "show all" on error rather
+  // than hiding plugin features permanently.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/plugins');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        const enabled = new Set<string>(
+          Array.isArray(data.plugins)
+            ? data.plugins.filter((p: { enabled: boolean }) => p.enabled).map((p: { id: string }) => p.id)
+            : [],
+        );
+        setEnabledPluginIds(enabled);
+      } catch (err) {
+        console.warn('[main] Failed to load plugin enabled set:', err);
+        if (!cancelled) setEnabledPluginIds(new Set(getAllGlobalPages().map((p) => p.pluginId)));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // If the user was on a global page whose plugin just got disabled, fall
+  // back to the main resource view rather than rendering an orphaned tab.
+  useEffect(() => {
+    if (activeGlobalPage && !globalPages.some((p) => p.id === activeGlobalPage)) {
+      setActiveGlobalPage(null);
+    }
+  }, [activeGlobalPage, globalPages]);
 
   // Plugin-enabled features and profile config
   const [enabledTabs, setEnabledTabs] = useState<string[]>(['basic', 'classification']);

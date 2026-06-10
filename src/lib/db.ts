@@ -7,7 +7,7 @@ const DB_PATH = process.env.DATABASE_PATH || './data/juggernaut.db';
 const LEGACY_DB_PATH = './data/plexkits.db';
 
 // Schema version - increment when making breaking changes
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 let db: Database.Database | null = null;
 
@@ -138,6 +138,11 @@ function migrateSchema(database: Database.Database, fromVersion: number, toVersi
   // Version 3 -> 4: Add planner_ideas + planner_keywords tables (content-planner plugin)
   if (fromVersion < 4) {
     migrateV3toV4(database);
+  }
+
+  // Version 4 -> 5: Add description column to planner_ideas
+  if (fromVersion < 5) {
+    migrateV4toV5(database);
   }
 
   setSchemaVersion(database, toVersion);
@@ -431,6 +436,22 @@ function migrateV3toV4(database: Database.Database): void {
 }
 
 /**
+ * Migration from v4 to v5: Add description column to planner_ideas.
+ * Powers the longer-form "what is this template" field surfaced in the
+ * idea drawer; existing rows get NULL until edited.
+ */
+function migrateV4toV5(database: Database.Database): void {
+  console.log('[db] Running migration v4 -> v5...');
+
+  if (tableExists(database, 'planner_ideas') && !columnExists(database, 'planner_ideas', 'description')) {
+    database.exec('ALTER TABLE planner_ideas ADD COLUMN description TEXT');
+    console.log('[db] Added description column to planner_ideas');
+  }
+
+  console.log('[db] Migration v4 -> v5 complete');
+}
+
+/**
  * Initialize a fresh database with v2 schema
  */
 function initializeSchema(database: Database.Database) {
@@ -524,6 +545,7 @@ function initializeSchema(database: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'idea',
+      description TEXT,
       notes TEXT,
       linked_keyword_ids TEXT,
       promoted_post_id INTEGER,

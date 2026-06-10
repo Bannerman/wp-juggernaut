@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import { registerGlobalPage } from '@/components/globalPages';
 import { cn } from '@/lib/utils';
 import type { PageComponentProps } from '../../types';
@@ -12,6 +12,7 @@ interface Idea {
   id: number;
   title: string;
   status: IdeaStatus;
+  description: string | null;
   notes: string | null;
   linked_keyword_ids: number[];
   promoted_post_id: number | null;
@@ -43,6 +44,7 @@ function IdeasBoard() {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openIdeaId, setOpenIdeaId] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -71,22 +73,24 @@ function IdeasBoard() {
     if (res.ok) await refresh();
   };
 
-  const moveIdea = async (id: number, status: IdeaStatus) => {
-    setIdeas((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i))); // optimistic
+  const patchIdea = async (id: number, patch: Partial<Pick<Idea, 'title' | 'status' | 'description' | 'notes'>>) => {
     const res = await fetch(`/api/planner/ideas/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(patch),
     });
-    if (!res.ok) await refresh(); // revert on failure
+    if (res.ok) await refresh();
   };
 
   const removeIdea = async (id: number) => {
     if (!confirm('Delete this idea?')) return;
-    setIdeas((prev) => prev.filter((i) => i.id !== id)); // optimistic
+    setIdeas((prev) => prev.filter((i) => i.id !== id));
+    if (openIdeaId === id) setOpenIdeaId(null);
     const res = await fetch(`/api/planner/ideas/${id}`, { method: 'DELETE' });
     if (!res.ok) await refresh();
   };
+
+  const openIdea = openIdeaId !== null ? ideas.find((i) => i.id === openIdeaId) || null : null;
 
   if (loading) {
     return <div className="text-sm text-gray-500 dark:text-gray-400">Loading ideas…</div>;
@@ -96,73 +100,59 @@ function IdeasBoard() {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-      {STATUS_COLUMNS.map((col) => {
-        const items = ideas.filter((i) => i.status === col.id);
-        return (
-          <div
-            key={col.id}
-            className={cn(
-              'flex flex-col rounded-lg bg-white dark:bg-gray-800 border-t-2',
-              col.accent,
-            )}
-          >
-            <div className="flex items-center justify-between px-3 pt-3 pb-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-                {col.label}
-              </h3>
-              <span className="text-xs text-gray-400 dark:text-gray-500">{items.length}</span>
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {STATUS_COLUMNS.map((col) => {
+          const items = ideas.filter((i) => i.status === col.id);
+          return (
+            <div
+              key={col.id}
+              className={cn(
+                'flex flex-col rounded-lg bg-white dark:bg-gray-800 border-t-2',
+                col.accent,
+              )}
+            >
+              <div className="flex items-center justify-between px-3 pt-3 pb-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
+                  {col.label}
+                </h3>
+                <span className="text-xs text-gray-400 dark:text-gray-500">{items.length}</span>
+              </div>
+
+              <ul className="flex-1 pb-1 min-h-[40px]">
+                {items.map((idea) => (
+                  <li
+                    key={idea.id}
+                    onClick={() => setOpenIdeaId(idea.id)}
+                    className="group flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900/40 cursor-pointer border-b border-gray-100 dark:border-gray-700/50 last:border-b-0"
+                  >
+                    <span className="truncate">{idea.title}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeIdea(idea.id); }}
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity flex-shrink-0"
+                      aria-label="Delete idea"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+
+              <AddIdeaForm status={col.id} onAdd={addIdea} />
             </div>
-
-            <div className="flex-1 px-2 pb-2 space-y-2 min-h-[60px]">
-              {items.map((idea) => (
-                <IdeaCard key={idea.id} idea={idea} onMove={moveIdea} onDelete={removeIdea} />
-              ))}
-            </div>
-
-            <AddIdeaForm status={col.id} onAdd={addIdea} />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function IdeaCard({
-  idea,
-  onMove,
-  onDelete,
-}: {
-  idea: Idea;
-  onMove: (id: number, status: IdeaStatus) => void;
-  onDelete: (id: number) => void;
-}) {
-  return (
-    <div className="group rounded-md bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-2 text-sm">
-      <div className="flex items-start justify-between gap-2">
-        <span className="font-medium text-gray-900 dark:text-gray-100 break-words flex-1">
-          {idea.title}
-        </span>
-        <button
-          onClick={() => onDelete(idea.id)}
-          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
-          aria-label="Delete idea"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+          );
+        })}
       </div>
-      <select
-        value={idea.status}
-        onChange={(e) => onMove(idea.id, e.target.value as IdeaStatus)}
-        className="mt-2 w-full text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-1.5 py-0.5"
-      >
-        {STATUS_COLUMNS.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.label}
-          </option>
-        ))}
-      </select>
-    </div>
+
+      {openIdea && (
+        <IdeaDrawer
+          idea={openIdea}
+          onClose={() => setOpenIdeaId(null)}
+          onSave={patchIdea}
+          onDelete={removeIdea}
+        />
+      )}
+    </>
   );
 }
 
@@ -182,7 +172,7 @@ function AddIdeaForm({
     setTitle('');
   };
   return (
-    <form onSubmit={submit} className="p-2 border-t border-gray-200 dark:border-gray-700">
+    <form onSubmit={submit} className="px-2 pb-2 pt-1 border-t border-gray-100 dark:border-gray-700/50">
       <div className="flex items-center gap-1">
         <input
           type="text"
@@ -202,6 +192,169 @@ function AddIdeaForm({
         )}
       </div>
     </form>
+  );
+}
+
+// ─── Idea drawer ─────────────────────────────────────────────────────────────
+
+function IdeaDrawer({
+  idea,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  idea: Idea;
+  onClose: () => void;
+  onSave: (id: number, patch: Partial<Pick<Idea, 'title' | 'status' | 'description' | 'notes'>>) => Promise<void>;
+  onDelete: (id: number) => Promise<void>;
+}) {
+  const [title, setTitle] = useState(idea.title);
+  const [status, setStatus] = useState<IdeaStatus>(idea.status);
+  const [description, setDescription] = useState(idea.description ?? '');
+  const [notes, setNotes] = useState(idea.notes ?? '');
+
+  // Reset local form state when switching to a different idea.
+  useEffect(() => {
+    setTitle(idea.title);
+    setStatus(idea.status);
+    setDescription(idea.description ?? '');
+    setNotes(idea.notes ?? '');
+  }, [idea.id, idea.title, idea.status, idea.description, idea.notes]);
+
+  // Auto-transition from "idea" to "researching" the moment any notes get
+  // typed in. Captures the "the act of researching is starting" signal.
+  useEffect(() => {
+    if (idea.status === 'idea' && status === 'idea' && notes.trim().length > 0) {
+      setStatus('researching');
+    }
+  }, [notes, idea.status, status]);
+
+  const commit = async (patch: Partial<Pick<Idea, 'title' | 'status' | 'description' | 'notes'>>) => {
+    await onSave(idea.id, patch);
+  };
+
+  const close = async () => {
+    // Flush any unsaved local changes before closing.
+    const patch: Partial<Pick<Idea, 'title' | 'status' | 'description' | 'notes'>> = {};
+    if (title.trim() && title !== idea.title) patch.title = title.trim();
+    if (status !== idea.status) patch.status = status;
+    if (description !== (idea.description ?? '')) patch.description = description;
+    if (notes !== (idea.notes ?? '')) patch.notes = notes;
+    if (Object.keys(patch).length > 0) await commit(patch);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="fixed inset-0 bg-black/40" onClick={close} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative bg-white dark:bg-gray-800 w-full max-w-md shadow-xl h-full flex flex-col overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Idea</h2>
+          <button
+            onClick={close}
+            className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            aria-label="Close drawer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+              Title
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => { if (title.trim() && title !== idea.title) commit({ title: title.trim() }); }}
+              className="w-full text-base font-medium text-gray-900 dark:text-gray-100 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-brand-500 focus:outline-none py-1"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+              Status
+            </label>
+            <select
+              value={status}
+              onChange={(e) => {
+                const next = e.target.value as IdeaStatus;
+                setStatus(next);
+                commit({ status: next });
+              }}
+              className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
+            >
+              {STATUS_COLUMNS.map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onBlur={() => { if (description !== (idea.description ?? '')) commit({ description }); }}
+              placeholder="What is this template? Why is it worth building?"
+              rows={4}
+              className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 placeholder-gray-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+              Notes
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={() => {
+                const patch: Partial<Pick<Idea, 'status' | 'notes'>> = {};
+                if (notes !== (idea.notes ?? '')) patch.notes = notes;
+                if (status !== idea.status) patch.status = status;
+                if (Object.keys(patch).length > 0) commit(patch);
+              }}
+              placeholder="Scratch space. Typing anything here moves the idea into Researching."
+              rows={5}
+              className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 placeholder-gray-400"
+            />
+            {idea.status === 'idea' && notes.trim().length > 0 && status === 'researching' && (
+              <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                Status will move to Researching on save.
+              </p>
+            )}
+          </div>
+
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            Research log (SEO angles, structure, audience, related templates) coming next.
+          </p>
+        </div>
+
+        <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <button
+            onClick={() => onDelete(idea.id)}
+            className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+          >
+            Delete idea
+          </button>
+          <button
+            onClick={close}
+            className="px-3 py-1 text-xs font-medium rounded-md bg-brand-600 text-white hover:bg-brand-700"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -492,5 +645,6 @@ registerGlobalPage({
   label: 'Planner',
   icon: 'ClipboardList',
   position: 50,
+  pluginId: 'content-planner',
   component: PlannerPage,
 });
