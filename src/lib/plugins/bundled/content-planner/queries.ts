@@ -13,6 +13,7 @@ export interface PlannerIdea {
   id: number;
   title: string;
   status: IdeaStatus;
+  description: string | null;
   notes: string | null;
   linked_keyword_ids: number[];
   promoted_post_id: number | null;
@@ -34,6 +35,7 @@ interface IdeaRow {
   id: number;
   title: string;
   status: IdeaStatus;
+  description: string | null;
   notes: string | null;
   linked_keyword_ids: string | null;
   promoted_post_id: number | null;
@@ -76,17 +78,19 @@ export function listIdeas(): PlannerIdea[] {
 export function createIdea(input: {
   title: string;
   status?: IdeaStatus;
+  description?: string;
   notes?: string;
   linked_keyword_ids?: number[];
 }): PlannerIdea {
   const result = getDb()
     .prepare(
-      `INSERT INTO planner_ideas (title, status, notes, linked_keyword_ids)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO planner_ideas (title, status, description, notes, linked_keyword_ids)
+       VALUES (?, ?, ?, ?, ?)`,
     )
     .run(
       input.title,
       input.status ?? 'idea',
+      input.description ?? null,
       input.notes ?? null,
       input.linked_keyword_ids ? JSON.stringify(input.linked_keyword_ids) : null,
     );
@@ -103,7 +107,7 @@ export function getIdea(id: number): PlannerIdea | null {
 
 export function updateIdea(
   id: number,
-  patch: Partial<Pick<PlannerIdea, 'title' | 'status' | 'notes' | 'linked_keyword_ids' | 'promoted_post_id'>>,
+  patch: Partial<Pick<PlannerIdea, 'title' | 'status' | 'description' | 'notes' | 'linked_keyword_ids' | 'promoted_post_id'>>,
 ): PlannerIdea | null {
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -114,6 +118,10 @@ export function updateIdea(
   if (patch.status !== undefined) {
     fields.push('status = ?');
     values.push(patch.status);
+  }
+  if (patch.description !== undefined) {
+    fields.push('description = ?');
+    values.push(patch.description);
   }
   if (patch.notes !== undefined) {
     fields.push('notes = ?');

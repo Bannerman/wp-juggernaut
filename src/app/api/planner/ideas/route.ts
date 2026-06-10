@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
     const idea = createIdea({
       title: body.title.trim(),
       status: body.status,
-      notes: body.notes,
+      description: typeof body.description === 'string' ? body.description : undefined,
+      notes: typeof body.notes === 'string' ? body.notes : undefined,
       linked_keyword_ids: Array.isArray(body.linked_keyword_ids) ? body.linked_keyword_ids : undefined,
     });
     return NextResponse.json({ idea }, { status: 201 });

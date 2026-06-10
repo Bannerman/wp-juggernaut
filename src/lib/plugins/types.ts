@@ -378,6 +378,13 @@ export interface PageDefinition {
 
   /** Position hint among other global pages (smaller = earlier). Default 100. */
   position?: number;
+
+  /**
+   * ID of the plugin that owns this page. Used by the main nav to hide the
+   * entry when the owning plugin is disabled in the registry. Required for
+   * pages registered via the client-side side-effect import pattern.
+   */
+  pluginId: string;
 }
 
 /**
