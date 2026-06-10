@@ -52,6 +52,7 @@ class ContentPlannerPlugin implements JuggernautPlugin {
         label: 'Planner',
         icon: 'ClipboardList',
         position: 50,
+        pluginId: this.id,
         component: PlannerPage,
       },
     ];
