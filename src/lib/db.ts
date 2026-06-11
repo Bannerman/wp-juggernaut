@@ -7,7 +7,7 @@ const DB_PATH = process.env.DATABASE_PATH || './data/juggernaut.db';
 const LEGACY_DB_PATH = './data/plexkits.db';
 
 // Schema version - increment when making breaking changes
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 let db: Database.Database | null = null;
 
@@ -143,6 +143,11 @@ function migrateSchema(database: Database.Database, fromVersion: number, toVersi
   // Version 4 -> 5: Add description column to planner_ideas
   if (fromVersion < 5) {
     migrateV4toV5(database);
+  }
+
+  // Version 5 -> 6: research entries table + planning columns on planner_ideas
+  if (fromVersion < 6) {
+    migrateV5toV6(database);
   }
 
   setSchemaVersion(database, toVersion);
@@ -452,6 +457,68 @@ function migrateV4toV5(database: Database.Database): void {
 }
 
 /**
+ * Migration from v5 to v6: powers the Phase C.2 planner upgrade.
+ *
+ * Adds `planner_research_entries` for typed research-log entries (one row per
+ * finding, type from a fixed taxonomy) and ten new planning columns on
+ * `planner_ideas`: deadline, refresh_cadence, refresh_next_due, cluster,
+ * priority, estimated_effort_hours, and four JSON-array columns for
+ * schema_types, monetization_angles, serp_targets, audience_personas.
+ *
+ * The typed columns let the kanban filter/sort by deadline and cluster; the
+ * JSON columns hold structured shapes that an agent (via the new MCP tools)
+ * can populate end-to-end during a planning pass.
+ */
+function migrateV5toV6(database: Database.Database): void {
+  console.log('[db] Running migration v5 -> v6...');
+
+  if (tableExists(database, 'planner_ideas')) {
+    const cols: Array<[string, string]> = [
+      ['deadline', 'TEXT'],
+      ['refresh_cadence', 'TEXT'],
+      ['refresh_next_due', 'TEXT'],
+      ['cluster', 'TEXT'],
+      ['priority', 'INTEGER'],
+      ['estimated_effort_hours', 'REAL'],
+      ['schema_types', 'TEXT'],
+      ['monetization_angles', 'TEXT'],
+      ['serp_targets', 'TEXT'],
+      ['audience_personas', 'TEXT'],
+    ];
+    for (const [name, type] of cols) {
+      if (!columnExists(database, 'planner_ideas', name)) {
+        database.exec(`ALTER TABLE planner_ideas ADD COLUMN ${name} ${type}`);
+      }
+    }
+    console.log('[db] Added planning columns to planner_ideas');
+  }
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS planner_research_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      idea_id INTEGER NOT NULL,
+      type TEXT NOT NULL CHECK (type IN (
+        'seo', 'structure', 'audience', 'competitor', 'internal_linking',
+        'monetization', 'schema_markup', 'serp_features', 'publishing',
+        'templates', 'legal_compliance', 'tech_notes'
+      )),
+      content TEXT NOT NULL,
+      source_url TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (idea_id) REFERENCES planner_ideas(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_planner_research_idea ON planner_research_entries(idea_id);
+    CREATE INDEX IF NOT EXISTS idx_planner_research_type ON planner_research_entries(type);
+    CREATE INDEX IF NOT EXISTS idx_planner_ideas_cluster ON planner_ideas(cluster);
+    CREATE INDEX IF NOT EXISTS idx_planner_ideas_deadline ON planner_ideas(deadline);
+  `);
+
+  console.log('[db] Migration v5 -> v6 complete');
+}
+
+/**
  * Initialize a fresh database with v2 schema
  */
 function initializeSchema(database: Database.Database) {
@@ -549,8 +616,33 @@ function initializeSchema(database: Database.Database) {
       notes TEXT,
       linked_keyword_ids TEXT,
       promoted_post_id INTEGER,
+      deadline TEXT,
+      refresh_cadence TEXT,
+      refresh_next_due TEXT,
+      cluster TEXT,
+      priority INTEGER,
+      estimated_effort_hours REAL,
+      schema_types TEXT,
+      monetization_angles TEXT,
+      serp_targets TEXT,
+      audience_personas TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS planner_research_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      idea_id INTEGER NOT NULL,
+      type TEXT NOT NULL CHECK (type IN (
+        'seo', 'structure', 'audience', 'competitor', 'internal_linking',
+        'monetization', 'schema_markup', 'serp_features', 'publishing',
+        'templates', 'legal_compliance', 'tech_notes'
+      )),
+      content TEXT NOT NULL,
+      source_url TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (idea_id) REFERENCES planner_ideas(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS planner_keywords (
@@ -575,7 +667,11 @@ function initializeSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_plugin_data_plugin ON plugin_data(plugin_id);
     CREATE INDEX IF NOT EXISTS idx_plugin_data_post ON plugin_data(post_id);
     CREATE INDEX IF NOT EXISTS idx_planner_ideas_status ON planner_ideas(status);
+    CREATE INDEX IF NOT EXISTS idx_planner_ideas_cluster ON planner_ideas(cluster);
+    CREATE INDEX IF NOT EXISTS idx_planner_ideas_deadline ON planner_ideas(deadline);
     CREATE INDEX IF NOT EXISTS idx_planner_keywords_target ON planner_keywords(target_post_id);
+    CREATE INDEX IF NOT EXISTS idx_planner_research_idea ON planner_research_entries(idea_id);
+    CREATE INDEX IF NOT EXISTS idx_planner_research_type ON planner_research_entries(type);
   `);
 
   setSchemaVersion(database, SCHEMA_VERSION);
