@@ -53,6 +53,16 @@ interface Term {
   parent_id: number;
 }
 
+interface PendingTerm {
+  id: number; // negative
+  taxonomy: string;
+  name: string;
+  slug: string | null;
+  parent_id: number;
+  status: 'pending' | 'created';
+  wp_term_id: number | null;
+}
+
 interface Idea {
   id: number;
   title: string;
@@ -272,8 +282,16 @@ function deadlineBadge(deadline: string | null): { label: string; cls: string } 
   return { label, cls: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' };
 }
 
+function hasPendingTermRefs(idea: Idea): boolean {
+  if (idea.resource_type_term_id !== null && idea.resource_type_term_id < 0) return true;
+  if (idea.topic_term_ids.some((n) => n < 0)) return true;
+  if (idea.audience_term_ids.some((n) => n < 0)) return true;
+  return false;
+}
+
 function IdeaListItem({ idea, onOpen, onDelete }: { idea: Idea; onOpen: () => void; onDelete: () => void }) {
   const badge = deadlineBadge(idea.deadline);
+  const hasPending = hasPendingTermRefs(idea);
   return (
     <li
       onClick={onOpen}
@@ -283,6 +301,12 @@ function IdeaListItem({ idea, onOpen, onDelete }: { idea: Idea; onOpen: () => vo
       <div className="flex items-center gap-1 flex-shrink-0">
         {idea.priority !== null && idea.priority >= 8 && (
           <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">P{idea.priority}</span>
+        )}
+        {hasPending && (
+          <span
+            className="w-1.5 h-1.5 rounded-full bg-amber-500"
+            title="References terms that don't exist on WordPress yet"
+          />
         )}
         {badge && (
           <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium', badge.cls)}>{badge.label}</span>
@@ -371,6 +395,9 @@ function IdeaDrawer({
   // PLEXKITS taxonomies (audience / topic / resource-type) — loaded once,
   // shared by every drawer instance via state ref module-scope cache.
   const [termsByTax, setTermsByTax] = useState<Record<string, Term[]>>({});
+  // Pending terms the user has added inside the planner that don't yet exist
+  // on WP. Keyed by taxonomy; IDs are negative to coexist with synced (+) IDs.
+  const [plannerTermsByTax, setPlannerTermsByTax] = useState<Record<string, PendingTerm[]>>({});
 
   // Research log state
   const [entries, setEntries] = useState<ResearchEntry[]>([]);
@@ -399,15 +426,53 @@ function IdeaDrawer({
     setAudienceIds(idea.audience_term_ids);
   }, [idea]);
 
-  // Load the synced PLEXKITS taxonomy terms once per drawer mount.
+  // Load the synced PLEXKITS taxonomy terms once per drawer mount, plus the
+  // planner-side pending terms (kept in a separate table so they don't
+  // pollute the resource-edit UI's term lists).
+  const refreshPlannerTerms = useCallback(async () => {
+    try {
+      const r = await fetch('/api/planner/terms');
+      const d = await r.json();
+      if (d && typeof d.terms === 'object') setPlannerTermsByTax(d.terms);
+    } catch (err) {
+      console.warn('[planner] planner-terms load failed:', err);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/terms')
-      .then((r) => r.json())
-      .then((d) => { if (!cancelled && d && typeof d === 'object') setTermsByTax(d); })
-      .catch((err) => console.warn('[planner] terms load failed:', err));
+    Promise.all([
+      fetch('/api/terms').then((r) => r.json()).catch((err) => { console.warn('[planner] terms load failed:', err); return {}; }),
+      fetch('/api/planner/terms').then((r) => r.json()).catch((err) => { console.warn('[planner] planner-terms load failed:', err); return { terms: {} }; }),
+    ]).then(([synced, planner]) => {
+      if (cancelled) return;
+      if (synced && typeof synced === 'object') setTermsByTax(synced);
+      if (planner && typeof planner.terms === 'object') setPlannerTermsByTax(planner.terms);
+    });
     return () => { cancelled = true; };
   }, []);
+
+  const addPendingTerm = useCallback(async (taxonomy: string, name: string): Promise<PendingTerm | null> => {
+    const res = await fetch('/api/planner/terms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taxonomy, name }),
+    });
+    if (res.status === 409) {
+      const existing = (plannerTermsByTax[taxonomy] || []).find((t) => t.name === name.trim());
+      if (existing) return existing;
+      alert(`A pending "${name}" already exists for ${taxonomy}.`);
+      return null;
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(`Failed to add term: ${body.error || res.status}`);
+      return null;
+    }
+    const data = await res.json();
+    await refreshPlannerTerms();
+    return data.term as PendingTerm;
+  }, [plannerTermsByTax, refreshPlannerTerms]);
 
   // Load research entries when the open idea changes.
   useEffect(() => {
@@ -645,22 +710,28 @@ function IdeaDrawer({
             label="Resource type"
             taxonomy="resource-type"
             termsByTax={termsByTax}
+            pendingByTax={plannerTermsByTax}
             value={resourceTypeId}
             onChange={(next) => { setResourceTypeId(next); commit({ resource_type_term_id: next }); }}
+            onAddNew={addPendingTerm}
           />
           <TaxonomyMultiField
             label="Tags (topic)"
             taxonomy="topic"
             termsByTax={termsByTax}
+            pendingByTax={plannerTermsByTax}
             values={topicIds}
             onChange={(next) => { setTopicIds(next); commit({ topic_term_ids: next }); }}
+            onAddNew={addPendingTerm}
           />
           <TaxonomyMultiField
             label="Audience"
             taxonomy="audience"
             termsByTax={termsByTax}
+            pendingByTax={plannerTermsByTax}
             values={audienceIds}
             onChange={(next) => { setAudienceIds(next); commit({ audience_term_ids: next }); }}
+            onAddNew={addPendingTerm}
           />
 
           {/* Description */}
@@ -866,44 +937,131 @@ function TagChipField({
   );
 }
 
+interface MergedTerm {
+  id: number;
+  name: string;
+  isPending: boolean;
+}
+
+function mergeTerms(
+  synced: Term[],
+  pending: PendingTerm[],
+): MergedTerm[] {
+  const out: MergedTerm[] = synced.map((t) => ({ id: t.id, name: t.name, isPending: false }));
+  for (const p of pending) {
+    // Hide pending term if a synced term with the same name was added since
+    // (e.g. user pulled the WP sync after creating the pending row).
+    if (!out.some((s) => s.name.toLowerCase() === p.name.toLowerCase() && !s.isPending)) {
+      out.push({ id: p.id, name: p.name, isPending: true });
+    }
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
+}
+
+function PendingBadge() {
+  return (
+    <span className="ml-1 inline-flex items-center px-1 py-0 rounded text-[9px] font-medium uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" title="Not on WordPress yet — will be created on promote">
+      new
+    </span>
+  );
+}
+
+function NewTermInlineForm({
+  taxonomy,
+  onAdd,
+}: {
+  taxonomy: string;
+  onAdd: (taxonomy: string, name: string) => Promise<PendingTerm | null>;
+}) {
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    const trimmed = name.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    const term = await onAdd(taxonomy, trimmed);
+    setBusy(false);
+    if (term) setName('');
+  };
+  return (
+    <div className="mt-1.5 flex items-center gap-1">
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
+        placeholder={`+ Add new ${taxonomy} term…`}
+        disabled={busy}
+        className="flex-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1 placeholder-gray-400 disabled:opacity-50"
+      />
+      {name.trim() && (
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy}
+          className="text-xs px-2 py-0.5 rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+        >
+          {busy ? '…' : 'Add'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TaxonomySingleField({
   label,
   taxonomy,
   termsByTax,
+  pendingByTax,
   value,
   onChange,
+  onAddNew,
 }: {
   label: string;
   taxonomy: string;
   termsByTax: Record<string, Term[]>;
+  pendingByTax: Record<string, PendingTerm[]>;
   value: number | null;
   onChange: (next: number | null) => void;
+  onAddNew: (taxonomy: string, name: string) => Promise<PendingTerm | null>;
 }) {
-  const terms = termsByTax[taxonomy] || [];
   const isReady = Object.prototype.hasOwnProperty.call(termsByTax, taxonomy);
+  const merged = useMemo(
+    () => mergeTerms(termsByTax[taxonomy] || [], pendingByTax[taxonomy] || []),
+    [termsByTax, pendingByTax, taxonomy],
+  );
+  const selectedTerm = merged.find((t) => t.id === value);
+  const handleAdd = async (tax: string, name: string) => {
+    const term = await onAddNew(tax, name);
+    if (term) onChange(term.id);
+    return term;
+  };
   return (
     <div>
       <Label>{label}</Label>
-      {!isReady ? (
+      {!isReady && merged.length === 0 ? (
         <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">Loading taxonomy…</div>
-      ) : terms.length === 0 ? (
-        <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">
-          No <code>{taxonomy}</code> terms synced from WordPress yet.
-        </div>
       ) : (
-        <select
-          value={value ?? ''}
-          onChange={(e) => {
-            const v = e.target.value === '' ? null : Number(e.target.value);
-            onChange(Number.isFinite(v as number) ? (v as number) : null);
-          }}
-          className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
-        >
-          <option value="">—</option>
-          {terms.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
+        <>
+          <div className="flex items-center gap-2">
+            <select
+              value={value ?? ''}
+              onChange={(e) => {
+                const v = e.target.value === '' ? null : Number(e.target.value);
+                onChange(Number.isFinite(v as number) ? (v as number) : null);
+              }}
+              className="flex-1 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
+            >
+              <option value="">—</option>
+              {merged.map((t) => (
+                <option key={t.id} value={t.id}>{t.isPending ? `${t.name}  (new)` : t.name}</option>
+              ))}
+            </select>
+            {selectedTerm?.isPending && <PendingBadge />}
+          </div>
+          <NewTermInlineForm taxonomy={taxonomy} onAdd={handleAdd} />
+        </>
       )}
     </div>
   );
@@ -913,43 +1071,56 @@ function TaxonomyMultiField({
   label,
   taxonomy,
   termsByTax,
+  pendingByTax,
   values,
   onChange,
+  onAddNew,
 }: {
   label: string;
   taxonomy: string;
   termsByTax: Record<string, Term[]>;
+  pendingByTax: Record<string, PendingTerm[]>;
   values: number[];
   onChange: (next: number[]) => void;
+  onAddNew: (taxonomy: string, name: string) => Promise<PendingTerm | null>;
 }) {
-  const terms = termsByTax[taxonomy] || [];
   const isReady = Object.prototype.hasOwnProperty.call(termsByTax, taxonomy);
+  const merged = useMemo(
+    () => mergeTerms(termsByTax[taxonomy] || [], pendingByTax[taxonomy] || []),
+    [termsByTax, pendingByTax, taxonomy],
+  );
   const selected = useMemo(() => new Set(values), [values]);
   const toggle = (id: number) => {
     const next = new Set(selected);
     if (next.has(id)) next.delete(id); else next.add(id);
     onChange(Array.from(next));
   };
-  const selectedTerms = terms.filter((t) => selected.has(t.id));
+  const handleAdd = async (tax: string, name: string) => {
+    const term = await onAddNew(tax, name);
+    if (term) onChange([...values, term.id]);
+    return term;
+  };
+  const selectedMerged = merged.filter((t) => selected.has(t.id));
   return (
     <div>
       <Label>{label}</Label>
-      {!isReady ? (
+      {!isReady && merged.length === 0 ? (
         <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">Loading taxonomy…</div>
-      ) : terms.length === 0 ? (
-        <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">
-          No <code>{taxonomy}</code> terms synced from WordPress yet.
-        </div>
       ) : (
         <>
-          {selectedTerms.length > 0 && (
+          {selectedMerged.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-              {selectedTerms.map((t) => (
+              {selectedMerged.map((t) => (
                 <span
                   key={t.id}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-300"
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs',
+                    t.isPending
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                      : 'bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-300',
+                  )}
                 >
-                  {t.name}
+                  {t.name}{t.isPending && <PendingBadge />}
                   <button onClick={() => toggle(t.id)} className="hover:text-red-600" aria-label={`Remove ${t.name}`}>
                     <X className="w-3 h-3" />
                   </button>
@@ -957,22 +1128,26 @@ function TaxonomyMultiField({
               ))}
             </div>
           )}
-          <div className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 max-h-32 overflow-y-auto p-1">
-            {terms.map((t) => (
-              <label
-                key={t.id}
-                className="flex items-center gap-2 px-1.5 py-0.5 rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900/40 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.has(t.id)}
-                  onChange={() => toggle(t.id)}
-                  className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                />
-                {t.name}
-              </label>
-            ))}
-          </div>
+          {merged.length > 0 && (
+            <div className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 max-h-32 overflow-y-auto p-1">
+              {merged.map((t) => (
+                <label
+                  key={t.id}
+                  className="flex items-center gap-2 px-1.5 py-0.5 rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900/40 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(t.id)}
+                    onChange={() => toggle(t.id)}
+                    className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span>{t.name}</span>
+                  {t.isPending && <PendingBadge />}
+                </label>
+              ))}
+            </div>
+          )}
+          <NewTermInlineForm taxonomy={taxonomy} onAdd={handleAdd} />
         </>
       )}
     </div>

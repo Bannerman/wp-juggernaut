@@ -7,7 +7,7 @@ const DB_PATH = process.env.DATABASE_PATH || './data/juggernaut.db';
 const LEGACY_DB_PATH = './data/plexkits.db';
 
 // Schema version - increment when making breaking changes
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 let db: Database.Database | null = null;
 
@@ -153,6 +153,11 @@ function migrateSchema(database: Database.Database, fromVersion: number, toVersi
   // Version 6 -> 7: bind planner_ideas to PLEXKITS taxonomies + rename refresh_cadence -> frequency
   if (fromVersion < 7) {
     migrateV6toV7(database);
+  }
+
+  // Version 7 -> 8: planner_terms (pending taxonomy terms the planner can flag for promotion to WP)
+  if (fromVersion < 8) {
+    migrateV7toV8(database);
   }
 
   setSchemaVersion(database, toVersion);
@@ -562,6 +567,43 @@ function migrateV6toV7(database: Database.Database): void {
 }
 
 /**
+ * Migration from v7 to v8: pending taxonomy terms surfaced inside the planner.
+ *
+ * Lets a planner-tailored term picker offer "+ add new" alongside synced WP
+ * terms without polluting the global `terms` table (which the resource
+ * edit/filter UI reads). Pending terms get negative IDs so the existing
+ * JSON-array columns on `planner_ideas` (topic_term_ids, audience_term_ids)
+ * can hold a mix of real WP term IDs (positive) and planner-pending IDs
+ * (negative) in a single number[] without a prefix scheme.
+ *
+ * Promote-to-draft (queued for a later rc) will mint real WP terms for each
+ * pending row, then renumber the negative IDs to the assigned positive IDs
+ * the same way pushNewResource renumbers post stubs.
+ */
+function migrateV7toV8(database: Database.Database): void {
+  console.log('[db] Running migration v7 -> v8...');
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS planner_terms (
+      id INTEGER PRIMARY KEY,
+      taxonomy TEXT NOT NULL,
+      name TEXT NOT NULL,
+      slug TEXT,
+      parent_id INTEGER DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'created')),
+      wp_term_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(taxonomy, name)
+    );
+    CREATE INDEX IF NOT EXISTS idx_planner_terms_taxonomy ON planner_terms(taxonomy);
+    CREATE INDEX IF NOT EXISTS idx_planner_terms_status ON planner_terms(status);
+  `);
+
+  console.log('[db] Migration v7 -> v8 complete');
+}
+
+/**
  * Initialize a fresh database with v2 schema
  */
 function initializeSchema(database: Database.Database) {
@@ -676,6 +718,19 @@ function initializeSchema(database: Database.Database) {
       updated_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS planner_terms (
+      id INTEGER PRIMARY KEY,
+      taxonomy TEXT NOT NULL,
+      name TEXT NOT NULL,
+      slug TEXT,
+      parent_id INTEGER DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'created')),
+      wp_term_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(taxonomy, name)
+    );
+
     CREATE TABLE IF NOT EXISTS planner_research_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       idea_id INTEGER NOT NULL,
@@ -718,6 +773,8 @@ function initializeSchema(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_planner_keywords_target ON planner_keywords(target_post_id);
     CREATE INDEX IF NOT EXISTS idx_planner_research_idea ON planner_research_entries(idea_id);
     CREATE INDEX IF NOT EXISTS idx_planner_research_type ON planner_research_entries(type);
+    CREATE INDEX IF NOT EXISTS idx_planner_terms_taxonomy ON planner_terms(taxonomy);
+    CREATE INDEX IF NOT EXISTS idx_planner_terms_status ON planner_terms(status);
   `);
 
   setSchemaVersion(database, SCHEMA_VERSION);

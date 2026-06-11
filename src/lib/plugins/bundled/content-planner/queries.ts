@@ -370,6 +370,83 @@ export function deleteResearchEntry(id: number): boolean {
   return result.changes > 0;
 }
 
+// ─── Planner terms (pending taxonomy terms) ─────────────────────────────────
+
+export type PlannerTermStatus = 'pending' | 'created';
+
+export interface PlannerTerm {
+  id: number;
+  taxonomy: string;
+  name: string;
+  slug: string | null;
+  parent_id: number;
+  status: PlannerTermStatus;
+  wp_term_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function listPlannerTerms(taxonomy?: string): PlannerTerm[] {
+  if (taxonomy) {
+    return getDb()
+      .prepare('SELECT * FROM planner_terms WHERE taxonomy = ? ORDER BY name ASC')
+      .all(taxonomy) as PlannerTerm[];
+  }
+  return getDb()
+    .prepare('SELECT * FROM planner_terms ORDER BY taxonomy ASC, name ASC')
+    .all() as PlannerTerm[];
+}
+
+export function listPlannerTermsGrouped(): Record<string, PlannerTerm[]> {
+  const rows = listPlannerTerms();
+  const grouped: Record<string, PlannerTerm[]> = {};
+  for (const r of rows) {
+    if (!grouped[r.taxonomy]) grouped[r.taxonomy] = [];
+    grouped[r.taxonomy].push(r);
+  }
+  return grouped;
+}
+
+export function getPlannerTerm(id: number): PlannerTerm | null {
+  const row = getDb()
+    .prepare('SELECT * FROM planner_terms WHERE id = ?')
+    .get(id) as PlannerTerm | undefined;
+  return row ?? null;
+}
+
+/**
+ * Insert a new planner-side term with a negative ID (so positive WP-term IDs
+ * and negative planner-term IDs can coexist in the same number[] column on
+ * planner_ideas without a prefix scheme). Returns null on UNIQUE collision.
+ */
+export function createPlannerTerm(input: {
+  taxonomy: string;
+  name: string;
+  slug?: string;
+  parent_id?: number;
+}): PlannerTerm | null {
+  const db = getDb();
+  // Find the next available negative ID (one less than the current minimum,
+  // or -1 if no rows yet). Mirrors the MCP `create_post` synthetic-ID pattern.
+  const minRow = db.prepare('SELECT MIN(id) as m FROM planner_terms').get() as { m: number | null };
+  const nextId = Math.min(minRow.m ?? 0, 0) - 1;
+  try {
+    db.prepare(
+      `INSERT INTO planner_terms (id, taxonomy, name, slug, parent_id)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(nextId, input.taxonomy, input.name, input.slug ?? null, input.parent_id ?? 0);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('UNIQUE')) return null;
+    throw err;
+  }
+  return getPlannerTerm(nextId);
+}
+
+export function deletePlannerTerm(id: number): boolean {
+  const result = getDb().prepare('DELETE FROM planner_terms WHERE id = ? AND status = ?').run(id, 'pending');
+  return result.changes > 0;
+}
+
 // ─── Keywords ────────────────────────────────────────────────────────────────
 
 export function listKeywords(): PlannerKeyword[] {

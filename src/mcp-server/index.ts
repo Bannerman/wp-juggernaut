@@ -733,6 +733,32 @@ const TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: 'planner_create_term',
+    description:
+      'Create a pending taxonomy term that does not yet exist on WordPress. Returns a row with a negative ID that can be used directly in planner_create_idea / planner_update_idea (in resource_type_term_id, topic_term_ids, audience_term_ids). On a future promote-to-draft, pending terms get created on WP and the negative ID gets renumbered to the real WP term ID. Use this when the desired taxonomy term does not appear in list_terms.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taxonomy: { type: 'string', description: "Taxonomy slug, e.g. 'audience', 'topic', 'resource-type'." },
+        name: { type: 'string', description: 'Human-readable term name. WP slug will be generated on promote unless `slug` is also provided.' },
+        slug: { type: 'string', description: 'Optional slug override.' },
+        parent_id: { type: 'number', description: 'Parent term ID for hierarchical taxonomies. May reference a synced WP term (positive) or another pending term (negative).' },
+      },
+      required: ['taxonomy', 'name'],
+    },
+  },
+  {
+    name: 'planner_list_terms',
+    description:
+      'List pending planner terms (taxonomy terms created locally that have not been promoted to WordPress yet). Use to discover the negative IDs that may already be referenced by planner_ideas.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taxonomy: { type: 'string', description: 'Filter to a single taxonomy slug.' },
+      },
+    },
+  },
+  {
     name: 'planner_upsert_keyword',
     description: 'Insert a new planner keyword, or update an existing one keyed by term. Returns {keyword, created:bool}.',
     inputSchema: {
@@ -1609,6 +1635,50 @@ interface PlannerUpsertKeywordArgs {
   notes?: string;
 }
 
+interface PlannerCreateTermArgs {
+  taxonomy: string;
+  name: string;
+  slug?: string;
+  parent_id?: number;
+}
+
+export function plannerCreateTerm(database: DatabaseType.Database, args: PlannerCreateTermArgs): Record<string, unknown> {
+  if (!args.taxonomy || typeof args.taxonomy !== 'string') return { error: 'taxonomy is required' };
+  if (!args.name || typeof args.name !== 'string') return { error: 'name is required' };
+  const taxonomy = args.taxonomy.trim();
+  const name = args.name.trim();
+  // Negative IDs so this row coexists with positive WP-term IDs inside the
+  // same JSON-array columns on planner_ideas.
+  const minRow = database.prepare('SELECT MIN(id) as m FROM planner_terms').get() as { m: number | null };
+  const nextId = Math.min(minRow.m ?? 0, 0) - 1;
+  try {
+    database.prepare(
+      `INSERT INTO planner_terms (id, taxonomy, name, slug, parent_id)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(nextId, taxonomy, name, args.slug || null, typeof args.parent_id === 'number' ? args.parent_id : 0);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('UNIQUE')) {
+      const existing = database.prepare('SELECT * FROM planner_terms WHERE taxonomy = ? AND name = ?').get(taxonomy, name);
+      return { term: existing, created: false, note: 'pending term already existed' };
+    }
+    throw err;
+  }
+  const term = database.prepare('SELECT * FROM planner_terms WHERE id = ?').get(nextId);
+  return { term, created: true };
+}
+
+interface PlannerListTermsArgs { taxonomy?: string }
+
+export function plannerListTerms(database: DatabaseType.Database, args: PlannerListTermsArgs): Record<string, unknown> {
+  let rows;
+  if (args.taxonomy) {
+    rows = database.prepare('SELECT * FROM planner_terms WHERE taxonomy = ? ORDER BY name ASC').all(args.taxonomy);
+  } else {
+    rows = database.prepare('SELECT * FROM planner_terms ORDER BY taxonomy ASC, name ASC').all();
+  }
+  return { total: (rows as unknown[]).length, terms: rows };
+}
+
 export function plannerUpsertKeyword(database: DatabaseType.Database, args: PlannerUpsertKeywordArgs): Record<string, unknown> {
   if (!args.term || typeof args.term !== 'string') return { error: 'term is required' };
   const trimmed = args.term.trim();
@@ -1660,6 +1730,8 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   planner_add_research_entry: plannerAddResearchEntry as unknown as ToolHandler,
   planner_list_keywords: plannerListKeywords as unknown as ToolHandler,
   planner_upsert_keyword: plannerUpsertKeyword as unknown as ToolHandler,
+  planner_create_term: plannerCreateTerm as unknown as ToolHandler,
+  planner_list_terms: plannerListTerms as unknown as ToolHandler,
 };
 
 // ─── MCP Protocol (JSON-RPC 2.0 + newline-delimited JSON over stdio) ───────────
