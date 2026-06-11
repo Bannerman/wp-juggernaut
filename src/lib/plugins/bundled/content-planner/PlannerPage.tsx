@@ -394,8 +394,18 @@ export function PlannerPage(_props: PageComponentProps) {
       } catch { /* surfaced in the per-tab components */ }
     };
     load();
-    const id = window.setInterval(load, 6000);
+    const id = window.setInterval(load, 15000);
     return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
+  // useCallback so the IdeasBoard's `refresh` useCallback (which depends on
+  // onChange) keeps a stable identity. Without this, every polling tick of
+  // the masthead recreated the lambda, regenerated `refresh`, fired the
+  // IdeasBoard's useEffect([refresh]), and refetched the ideas list — which
+  // handed the drawer a fresh `idea` reference mid-keystroke and clobbered
+  // every controlled input.
+  const handleIdeasChange = useCallback((ideas: Idea[]) => {
+    setTotals((t) => ({ ...t, ideas }));
   }, []);
 
   return (
@@ -404,7 +414,7 @@ export function PlannerPage(_props: PageComponentProps) {
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '40px 48px' }}>
         <Masthead totals={totals} />
         <TabBar tab={tab} setTab={setTab} totals={totals} />
-        {tab === 'ideas' ? <IdeasBoard onChange={(ideas) => setTotals((t) => ({ ...t, ideas }))} /> : <KeywordsTable />}
+        {tab === 'ideas' ? <IdeasBoard onChange={handleIdeasChange} /> : <KeywordsTable />}
       </div>
     </div>
   );
@@ -821,6 +831,11 @@ function IdeaDrawer({
   const [entryContent, setEntryContent] = useState('');
   const [entrySource, setEntrySource] = useState('');
 
+  // Only reseed local state when the drawer SWITCHES to a different idea.
+  // Keying on `[idea]` (the full object) was clobbering every keystroke
+  // because the parent hands back a new object reference after each refetch
+  // even when the underlying record hasn't changed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setTitle(idea.title);
     setStatus(idea.status);
@@ -838,7 +853,7 @@ function IdeaDrawer({
     setResourceTypeId(idea.resource_type_term_id);
     setTopicIds(idea.topic_term_ids);
     setAudienceIds(idea.audience_term_ids);
-  }, [idea]);
+  }, [idea.id]);
 
   const refreshPlannerTerms = useCallback(async () => {
     try {
