@@ -1,12 +1,49 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Plus, Trash2, X, AlertCircle } from 'lucide-react';
 import { registerGlobalPage } from '@/components/globalPages';
 import { cn } from '@/lib/utils';
 import type { PageComponentProps } from '../../types';
 
 type IdeaStatus = 'idea' | 'researching' | 'drafting' | 'ready' | 'published';
+type RefreshCadence = 'annual' | 'seasonal' | 'quarterly' | 'once' | null;
+type ResearchType =
+  | 'seo'
+  | 'structure'
+  | 'audience'
+  | 'competitor'
+  | 'internal_linking'
+  | 'monetization'
+  | 'schema_markup'
+  | 'serp_features'
+  | 'publishing'
+  | 'templates'
+  | 'legal_compliance'
+  | 'tech_notes';
+
+const RESEARCH_TYPES: Array<{ id: ResearchType; label: string }> = [
+  { id: 'seo', label: 'SEO' },
+  { id: 'structure', label: 'Structure' },
+  { id: 'audience', label: 'Audience' },
+  { id: 'competitor', label: 'Competitor' },
+  { id: 'internal_linking', label: 'Internal Linking' },
+  { id: 'monetization', label: 'Monetization' },
+  { id: 'schema_markup', label: 'Schema Markup' },
+  { id: 'serp_features', label: 'SERP Features' },
+  { id: 'publishing', label: 'Publishing' },
+  { id: 'templates', label: 'Templates' },
+  { id: 'legal_compliance', label: 'Legal & Compliance' },
+  { id: 'tech_notes', label: 'Tech Notes' },
+];
+
+const CADENCE_OPTIONS: Array<{ id: RefreshCadence; label: string }> = [
+  { id: null, label: '—' },
+  { id: 'annual', label: 'Annual' },
+  { id: 'seasonal', label: 'Seasonal' },
+  { id: 'quarterly', label: 'Quarterly' },
+  { id: 'once', label: 'Once' },
+];
 
 interface Idea {
   id: number;
@@ -16,6 +53,26 @@ interface Idea {
   notes: string | null;
   linked_keyword_ids: number[];
   promoted_post_id: number | null;
+  deadline: string | null;
+  refresh_cadence: RefreshCadence;
+  refresh_next_due: string | null;
+  cluster: string | null;
+  priority: number | null;
+  estimated_effort_hours: number | null;
+  schema_types: string[];
+  monetization_angles: string[];
+  serp_targets: string[];
+  audience_personas: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface ResearchEntry {
+  id: number;
+  idea_id: number;
+  type: ResearchType;
+  content: string;
+  source_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +102,7 @@ function IdeasBoard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openIdeaId, setOpenIdeaId] = useState<number | null>(null);
+  const [clusterFilter, setClusterFilter] = useState<string>('');
 
   const refresh = useCallback(async () => {
     try {
@@ -73,7 +131,7 @@ function IdeasBoard() {
     if (res.ok) await refresh();
   };
 
-  const patchIdea = async (id: number, patch: Partial<Pick<Idea, 'title' | 'status' | 'description' | 'notes'>>) => {
+  const patchIdea = async (id: number, patch: Partial<Idea>) => {
     const res = await fetch(`/api/planner/ideas/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -83,12 +141,23 @@ function IdeasBoard() {
   };
 
   const removeIdea = async (id: number) => {
-    if (!confirm('Delete this idea?')) return;
+    if (!confirm('Delete this idea and all its research entries?')) return;
     setIdeas((prev) => prev.filter((i) => i.id !== id));
     if (openIdeaId === id) setOpenIdeaId(null);
     const res = await fetch(`/api/planner/ideas/${id}`, { method: 'DELETE' });
     if (!res.ok) await refresh();
   };
+
+  const clusters = useMemo(() => {
+    const set = new Set<string>();
+    ideas.forEach((i) => { if (i.cluster) set.add(i.cluster); });
+    return Array.from(set).sort();
+  }, [ideas]);
+
+  const filteredIdeas = useMemo(() => {
+    if (!clusterFilter) return ideas;
+    return ideas.filter((i) => i.cluster === clusterFilter);
+  }, [ideas, clusterFilter]);
 
   const openIdea = openIdeaId !== null ? ideas.find((i) => i.id === openIdeaId) || null : null;
 
@@ -101,9 +170,40 @@ function IdeasBoard() {
 
   return (
     <>
+      {clusters.length > 0 && (
+        <div className="mb-3 flex items-center gap-2 text-xs">
+          <span className="text-gray-500 dark:text-gray-400">Cluster:</span>
+          <button
+            onClick={() => setClusterFilter('')}
+            className={cn(
+              'px-2 py-0.5 rounded-full border',
+              clusterFilter === ''
+                ? 'bg-brand-600 text-white border-brand-600'
+                : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
+            )}
+          >
+            All
+          </button>
+          {clusters.map((c) => (
+            <button
+              key={c}
+              onClick={() => setClusterFilter(c)}
+              className={cn(
+                'px-2 py-0.5 rounded-full border',
+                clusterFilter === c
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
+              )}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {STATUS_COLUMNS.map((col) => {
-          const items = ideas.filter((i) => i.status === col.id);
+          const items = filteredIdeas.filter((i) => i.status === col.id);
           return (
             <div
               key={col.id}
@@ -121,20 +221,12 @@ function IdeasBoard() {
 
               <ul className="flex-1 pb-1 min-h-[40px]">
                 {items.map((idea) => (
-                  <li
+                  <IdeaListItem
                     key={idea.id}
-                    onClick={() => setOpenIdeaId(idea.id)}
-                    className="group flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900/40 cursor-pointer border-b border-gray-100 dark:border-gray-700/50 last:border-b-0"
-                  >
-                    <span className="truncate">{idea.title}</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); removeIdea(idea.id); }}
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity flex-shrink-0"
-                      aria-label="Delete idea"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </li>
+                    idea={idea}
+                    onOpen={() => setOpenIdeaId(idea.id)}
+                    onDelete={() => removeIdea(idea.id)}
+                  />
                 ))}
               </ul>
 
@@ -153,6 +245,46 @@ function IdeasBoard() {
         />
       )}
     </>
+  );
+}
+
+function deadlineBadge(deadline: string | null): { label: string; cls: string } | null {
+  if (!deadline) return null;
+  const d = new Date(deadline);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  const days = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const label = days < 0 ? `${-days}d ago` : days === 0 ? 'today' : `${days}d`;
+  if (days < 0) return { label, cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' };
+  if (days <= 14) return { label, cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' };
+  if (days <= 30) return { label, cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' };
+  return { label, cls: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' };
+}
+
+function IdeaListItem({ idea, onOpen, onDelete }: { idea: Idea; onOpen: () => void; onDelete: () => void }) {
+  const badge = deadlineBadge(idea.deadline);
+  return (
+    <li
+      onClick={onOpen}
+      className="group flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900/40 cursor-pointer border-b border-gray-100 dark:border-gray-700/50 last:border-b-0"
+    >
+      <span className="truncate flex-1">{idea.title}</span>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {idea.priority !== null && idea.priority >= 8 && (
+          <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">P{idea.priority}</span>
+        )}
+        {badge && (
+          <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium', badge.cls)}>{badge.label}</span>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+          aria-label="Delete idea"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </li>
   );
 }
 
@@ -205,44 +337,140 @@ function IdeaDrawer({
 }: {
   idea: Idea;
   onClose: () => void;
-  onSave: (id: number, patch: Partial<Pick<Idea, 'title' | 'status' | 'description' | 'notes'>>) => Promise<void>;
+  onSave: (id: number, patch: Partial<Idea>) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
 }) {
   const [title, setTitle] = useState(idea.title);
   const [status, setStatus] = useState<IdeaStatus>(idea.status);
   const [description, setDescription] = useState(idea.description ?? '');
   const [notes, setNotes] = useState(idea.notes ?? '');
+  const [deadline, setDeadline] = useState(idea.deadline ?? '');
+  const [cluster, setCluster] = useState(idea.cluster ?? '');
+  const [priority, setPriority] = useState<string>(idea.priority?.toString() ?? '');
+  const [effort, setEffort] = useState<string>(idea.estimated_effort_hours?.toString() ?? '');
+  const [refreshCadence, setRefreshCadence] = useState<RefreshCadence>(idea.refresh_cadence);
+  const [refreshNextDue, setRefreshNextDue] = useState(idea.refresh_next_due ?? '');
+  const [schemaTypes, setSchemaTypes] = useState<string[]>(idea.schema_types);
+  const [monetization, setMonetization] = useState<string[]>(idea.monetization_angles);
+  const [serpTargets, setSerpTargets] = useState<string[]>(idea.serp_targets);
+  const [personas, setPersonas] = useState<string[]>(idea.audience_personas);
 
-  // Reset local form state when switching to a different idea.
+  // Research log state
+  const [entries, setEntries] = useState<ResearchEntry[]>([]);
+  const [entriesLoading, setEntriesLoading] = useState(true);
+  const [entryType, setEntryType] = useState<ResearchType>('seo');
+  const [entryContent, setEntryContent] = useState('');
+  const [entrySource, setEntrySource] = useState('');
+
+  // Reset local state when switching to a different idea.
   useEffect(() => {
     setTitle(idea.title);
     setStatus(idea.status);
     setDescription(idea.description ?? '');
     setNotes(idea.notes ?? '');
-  }, [idea.id, idea.title, idea.status, idea.description, idea.notes]);
+    setDeadline(idea.deadline ?? '');
+    setCluster(idea.cluster ?? '');
+    setPriority(idea.priority?.toString() ?? '');
+    setEffort(idea.estimated_effort_hours?.toString() ?? '');
+    setRefreshCadence(idea.refresh_cadence);
+    setRefreshNextDue(idea.refresh_next_due ?? '');
+    setSchemaTypes(idea.schema_types);
+    setMonetization(idea.monetization_angles);
+    setSerpTargets(idea.serp_targets);
+    setPersonas(idea.audience_personas);
+  }, [idea]);
 
-  // Auto-transition from "idea" to "researching" the moment any notes get
-  // typed in. Captures the "the act of researching is starting" signal.
+  // Load research entries when the open idea changes.
   useEffect(() => {
-    if (idea.status === 'idea' && status === 'idea' && notes.trim().length > 0) {
-      setStatus('researching');
-    }
-  }, [notes, idea.status, status]);
+    let cancelled = false;
+    setEntriesLoading(true);
+    fetch(`/api/planner/ideas/${idea.id}/research`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setEntries(d.entries || []); })
+      .catch((err) => console.warn('[planner] research load failed:', err))
+      .finally(() => { if (!cancelled) setEntriesLoading(false); });
+    return () => { cancelled = true; };
+  }, [idea.id]);
 
-  const commit = async (patch: Partial<Pick<Idea, 'title' | 'status' | 'description' | 'notes'>>) => {
+  const commit = async (patch: Partial<Idea>) => {
     await onSave(idea.id, patch);
   };
 
+  const addResearchEntry = async () => {
+    const content = entryContent.trim();
+    if (!content) return;
+    const res = await fetch(`/api/planner/ideas/${idea.id}/research`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: entryType,
+        content,
+        source_url: entrySource.trim() || undefined,
+      }),
+    });
+    if (!res.ok) {
+      alert('Failed to add research entry');
+      return;
+    }
+    const data = await res.json();
+    setEntries((prev) => [...prev, data.entry]);
+    setEntryContent('');
+    setEntrySource('');
+    // Auto-transition: adding research is the explicit "research started"
+    // signal. Bumps idea->researching once.
+    if (idea.status === 'idea' && status === 'idea') {
+      setStatus('researching');
+      await commit({ status: 'researching' });
+    }
+  };
+
+  const removeResearchEntry = async (entryId: number) => {
+    setEntries((prev) => prev.filter((e) => e.id !== entryId));
+    const res = await fetch(`/api/planner/research/${entryId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      // Reload on failure.
+      const r = await fetch(`/api/planner/ideas/${idea.id}/research`);
+      const d = await r.json();
+      setEntries(d.entries || []);
+    }
+  };
+
   const close = async () => {
-    // Flush any unsaved local changes before closing.
-    const patch: Partial<Pick<Idea, 'title' | 'status' | 'description' | 'notes'>> = {};
+    const patch: Partial<Idea> = {};
     if (title.trim() && title !== idea.title) patch.title = title.trim();
     if (status !== idea.status) patch.status = status;
     if (description !== (idea.description ?? '')) patch.description = description;
     if (notes !== (idea.notes ?? '')) patch.notes = notes;
+    if (deadline !== (idea.deadline ?? '')) patch.deadline = deadline || null;
+    if (cluster !== (idea.cluster ?? '')) patch.cluster = cluster || null;
+    if (priority !== (idea.priority?.toString() ?? '')) {
+      const n = parseInt(priority, 10);
+      patch.priority = Number.isFinite(n) ? n : null;
+    }
+    if (effort !== (idea.estimated_effort_hours?.toString() ?? '')) {
+      const n = parseFloat(effort);
+      patch.estimated_effort_hours = Number.isFinite(n) ? n : null;
+    }
+    if (refreshCadence !== idea.refresh_cadence) patch.refresh_cadence = refreshCadence;
+    if (refreshNextDue !== (idea.refresh_next_due ?? '')) patch.refresh_next_due = refreshNextDue || null;
+    if (JSON.stringify(schemaTypes) !== JSON.stringify(idea.schema_types)) patch.schema_types = schemaTypes;
+    if (JSON.stringify(monetization) !== JSON.stringify(idea.monetization_angles)) patch.monetization_angles = monetization;
+    if (JSON.stringify(serpTargets) !== JSON.stringify(idea.serp_targets)) patch.serp_targets = serpTargets;
+    if (JSON.stringify(personas) !== JSON.stringify(idea.audience_personas)) patch.audience_personas = personas;
+
     if (Object.keys(patch).length > 0) await commit(patch);
     onClose();
   };
+
+  // Readiness checklist for graduating to drafting/ready.
+  const readiness = {
+    hasDescription: description.trim().length > 30,
+    hasResearchEntries: entries.length >= 3,
+    hasSchemaTypes: schemaTypes.length > 0,
+    hasDeadline: deadline.length > 0,
+    hasCluster: cluster.trim().length > 0,
+  };
+  const readinessCount = Object.values(readiness).filter(Boolean).length;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -250,7 +478,7 @@ function IdeaDrawer({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative bg-white dark:bg-gray-800 w-full max-w-md shadow-xl h-full flex flex-col overflow-hidden"
+        className="relative bg-white dark:bg-gray-800 w-full max-w-2xl shadow-xl h-full flex flex-col overflow-hidden"
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Idea</h2>
@@ -263,11 +491,10 @@ function IdeaDrawer({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {/* Title */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-              Title
-            </label>
+            <Label>Title</Label>
             <input
               type="text"
               value={title}
@@ -277,66 +504,226 @@ function IdeaDrawer({
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-              Status
-            </label>
-            <select
-              value={status}
-              onChange={(e) => {
-                const next = e.target.value as IdeaStatus;
-                setStatus(next);
-                commit({ status: next });
-              }}
-              className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
-            >
-              {STATUS_COLUMNS.map((c) => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
+          {/* Quick fields row */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label>Status</Label>
+              <select
+                value={status}
+                onChange={(e) => {
+                  const next = e.target.value as IdeaStatus;
+                  setStatus(next);
+                  commit({ status: next });
+                }}
+                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
+              >
+                {STATUS_COLUMNS.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Cluster</Label>
+              <input
+                type="text"
+                value={cluster}
+                onChange={(e) => setCluster(e.target.value)}
+                onBlur={() => { if (cluster !== (idea.cluster ?? '')) commit({ cluster: cluster || null }); }}
+                placeholder="e.g. office-pools"
+                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1 placeholder-gray-400"
+              />
+            </div>
+            <div>
+              <Label>Priority (1-10)</Label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                onBlur={() => {
+                  const n = parseInt(priority, 10);
+                  const next = Number.isFinite(n) ? n : null;
+                  if (next !== idea.priority) commit({ priority: next });
+                }}
+                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
+              />
+            </div>
           </div>
 
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label>Deadline</Label>
+              <input
+                type="date"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                onBlur={() => { if (deadline !== (idea.deadline ?? '')) commit({ deadline: deadline || null }); }}
+                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
+              />
+            </div>
+            <div>
+              <Label>Refresh cadence</Label>
+              <select
+                value={refreshCadence ?? ''}
+                onChange={(e) => {
+                  const v = (e.target.value || null) as RefreshCadence;
+                  setRefreshCadence(v);
+                  commit({ refresh_cadence: v });
+                }}
+                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
+              >
+                {CADENCE_OPTIONS.map((c) => (
+                  <option key={c.id ?? 'none'} value={c.id ?? ''}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Effort (hours)</Label>
+              <input
+                type="number"
+                step={0.5}
+                min={0}
+                value={effort}
+                onChange={(e) => setEffort(e.target.value)}
+                onBlur={() => {
+                  const n = parseFloat(effort);
+                  const next = Number.isFinite(n) ? n : null;
+                  if (next !== idea.estimated_effort_hours) commit({ estimated_effort_hours: next });
+                }}
+                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
+              />
+            </div>
+          </div>
+
+          {refreshCadence && (
+            <div>
+              <Label>Next refresh due</Label>
+              <input
+                type="date"
+                value={refreshNextDue}
+                onChange={(e) => setRefreshNextDue(e.target.value)}
+                onBlur={() => { if (refreshNextDue !== (idea.refresh_next_due ?? '')) commit({ refresh_next_due: refreshNextDue || null }); }}
+                className="w-full sm:w-1/3 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
+              />
+            </div>
+          )}
+
+          {/* Description */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-              Description
-            </label>
+            <Label>Description</Label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={() => { if (description !== (idea.description ?? '')) commit({ description }); }}
-              placeholder="What is this template? Why is it worth building?"
-              rows={4}
+              placeholder="What is this template? Why is it worth building best-in-class?"
+              rows={3}
               className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 placeholder-gray-400"
             />
           </div>
 
+          {/* Tag-chip fields */}
+          <TagChipField
+            label="Schema markup types"
+            placeholder="HowTo, FAQPage, Dataset…"
+            values={schemaTypes}
+            onChange={(next) => { setSchemaTypes(next); commit({ schema_types: next }); }}
+          />
+          <TagChipField
+            label="Monetization angles"
+            placeholder="ads, affiliate, email_capture…"
+            values={monetization}
+            onChange={(next) => { setMonetization(next); commit({ monetization_angles: next }); }}
+          />
+          <TagChipField
+            label="SERP feature targets"
+            placeholder="featured_snippet, paa, image_pack…"
+            values={serpTargets}
+            onChange={(next) => { setSerpTargets(next); commit({ serp_targets: next }); }}
+          />
+          <TagChipField
+            label="Audience personas"
+            placeholder="pool organizer, casual fan…"
+            values={personas}
+            onChange={(next) => { setPersonas(next); commit({ audience_personas: next }); }}
+          />
+
+          {/* Research log */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-              Notes
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <Label noMargin>Research log</Label>
+              <span className="text-xs text-gray-400 dark:text-gray-500">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span>
+            </div>
+            {entriesLoading ? (
+              <div className="text-xs text-gray-500 dark:text-gray-400 py-3">Loading…</div>
+            ) : (
+              <ResearchTimeline entries={entries} onDelete={removeResearchEntry} />
+            )}
+            <div className="mt-2 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-2 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <select
+                  value={entryType}
+                  onChange={(e) => setEntryType(e.target.value as ResearchType)}
+                  className="text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-1"
+                >
+                  {RESEARCH_TYPES.map((t) => (
+                    <option key={t.id} value={t.id}>{t.label}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={entrySource}
+                  onChange={(e) => setEntrySource(e.target.value)}
+                  placeholder="Source URL (optional)"
+                  className="flex-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-1 placeholder-gray-400"
+                />
+              </div>
+              <textarea
+                value={entryContent}
+                onChange={(e) => setEntryContent(e.target.value)}
+                placeholder={`Concrete finding for ${RESEARCH_TYPES.find((t) => t.id === entryType)?.label || entryType}…`}
+                rows={2}
+                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 placeholder-gray-400"
+              />
+              <div className="flex justify-end">
+                <button
+                  onClick={addResearchEntry}
+                  disabled={!entryContent.trim()}
+                  className="text-xs px-2.5 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add entry
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes (free scratch) */}
+          <div>
+            <Label>Notes (free scratch)</Label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              onBlur={() => {
-                const patch: Partial<Pick<Idea, 'status' | 'notes'>> = {};
-                if (notes !== (idea.notes ?? '')) patch.notes = notes;
-                if (status !== idea.status) patch.status = status;
-                if (Object.keys(patch).length > 0) commit(patch);
-              }}
-              placeholder="Scratch space. Typing anything here moves the idea into Researching."
-              rows={5}
+              onBlur={() => { if (notes !== (idea.notes ?? '')) commit({ notes }); }}
+              placeholder="Anything that doesn't fit a typed research entry."
+              rows={3}
               className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 placeholder-gray-400"
             />
-            {idea.status === 'idea' && notes.trim().length > 0 && status === 'researching' && (
-              <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-                Status will move to Researching on save.
-              </p>
-            )}
           </div>
 
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            Research log (SEO angles, structure, audience, related templates) coming next.
-          </p>
+          {/* Readiness checklist */}
+          <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Readiness</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">{readinessCount}/5</span>
+            </div>
+            <ul className="text-xs space-y-0.5">
+              <ReadinessRow ok={readiness.hasDescription} label="Description ≥30 chars" />
+              <ReadinessRow ok={readiness.hasResearchEntries} label="≥3 research entries" />
+              <ReadinessRow ok={readiness.hasSchemaTypes} label="At least one schema type" />
+              <ReadinessRow ok={readiness.hasDeadline} label="Deadline set" />
+              <ReadinessRow ok={readiness.hasCluster} label="Cluster tagged" />
+            </ul>
+          </div>
         </div>
 
         <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
@@ -355,6 +742,138 @@ function IdeaDrawer({
         </div>
       </div>
     </div>
+  );
+}
+
+function Label({ children, noMargin }: { children: React.ReactNode; noMargin?: boolean }) {
+  return (
+    <label className={cn('block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider', noMargin ? '' : 'mb-1')}>
+      {children}
+    </label>
+  );
+}
+
+function ReadinessRow({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <li className="flex items-center gap-1.5">
+      <span className={cn('inline-block w-3 text-center', ok ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500')}>{ok ? '✓' : '·'}</span>
+      <span className={cn(ok ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-500')}>{label}</span>
+    </li>
+  );
+}
+
+function TagChipField({
+  label,
+  placeholder,
+  values,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  values: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [draft, setDraft] = useState('');
+  const add = () => {
+    const v = draft.trim();
+    if (!v) return;
+    if (values.includes(v)) { setDraft(''); return; }
+    onChange([...values, v]);
+    setDraft('');
+  };
+  const remove = (v: string) => onChange(values.filter((x) => x !== v));
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="flex items-center gap-1.5 flex-wrap rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 min-h-[34px]">
+        {values.map((v) => (
+          <span
+            key={v}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-300"
+          >
+            {v}
+            <button onClick={() => remove(v)} className="hover:text-red-600" aria-label={`Remove ${v}`}>
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault();
+              add();
+            } else if (e.key === 'Backspace' && !draft && values.length > 0) {
+              onChange(values.slice(0, -1));
+            }
+          }}
+          onBlur={add}
+          placeholder={values.length === 0 ? placeholder : ''}
+          className="flex-1 min-w-[120px] text-sm bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none placeholder-gray-400"
+        />
+      </div>
+    </div>
+  );
+}
+
+const RESEARCH_TYPE_COLORS: Record<ResearchType, string> = {
+  seo: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  structure: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+  audience: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  competitor: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  internal_linking: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
+  monetization: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  schema_markup: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300',
+  serp_features: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+  publishing: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+  templates: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  legal_compliance: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  tech_notes: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+};
+
+function ResearchTimeline({ entries, onDelete }: { entries: ResearchEntry[]; onDelete: (id: number) => void }) {
+  if (entries.length === 0) {
+    return (
+      <div className="text-xs text-gray-500 dark:text-gray-400 italic py-2 px-3 rounded border border-dashed border-gray-300 dark:border-gray-700">
+        No research yet. Add typed findings below: SEO angles, competitor checks, schema decisions, audience notes…
+      </div>
+    );
+  }
+  return (
+    <ul className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+      {entries.map((e) => {
+        const typeLabel = RESEARCH_TYPES.find((t) => t.id === e.type)?.label || e.type;
+        return (
+          <li key={e.id} className="group rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
+            <div className="flex items-start justify-between gap-2">
+              <span className={cn('inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium', RESEARCH_TYPE_COLORS[e.type])}>
+                {typeLabel}
+              </span>
+              <button
+                onClick={() => onDelete(e.id)}
+                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+                aria-label="Delete entry"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+            <p className="mt-1 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{e.content}</p>
+            {e.source_url && (
+              <a
+                href={e.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-[11px] text-brand-600 dark:text-brand-400 hover:underline truncate max-w-full"
+              >
+                {e.source_url}
+              </a>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

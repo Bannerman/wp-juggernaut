@@ -604,6 +604,140 @@ const TOOLS: McpToolDef[] = [
       },
     },
   },
+  // ── Content Planner tools ──
+  {
+    name: 'planner_list_ideas',
+    description:
+      'List planner ideas with optional filters (status, cluster, deadline_before). Planner ideas are pre-publication content plans tracked in the Juggernaut DB; they live separately from WP posts until promoted.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['idea', 'researching', 'drafting', 'ready', 'published'] },
+        cluster: { type: 'string', description: 'Filter to a single cluster tag (e.g. "office-pools")' },
+        deadline_before: { type: 'string', description: 'ISO date; return ideas whose deadline is on or before this date' },
+        limit: { type: 'number', description: 'Default 100, max 500' },
+      },
+    },
+  },
+  {
+    name: 'planner_get_idea',
+    description: 'Get a single planner idea by ID, plus all its typed research entries.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'number' } },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'planner_create_idea',
+    description:
+      'Create a planner idea with optional rich planning fields and an initial batch of research entries. This is the primary way for an agent to fill the planner in one pass.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        status: { type: 'string', enum: ['idea', 'researching', 'drafting', 'ready', 'published'], description: "Defaults to 'idea'." },
+        description: { type: 'string', description: '2-4 sentence elevator pitch: what is this template + why best-in-class.' },
+        notes: { type: 'string', description: 'Free scratch.' },
+        deadline: { type: 'string', description: 'ISO date.' },
+        refresh_cadence: { type: 'string', enum: ['annual', 'seasonal', 'quarterly', 'once'] },
+        refresh_next_due: { type: 'string', description: 'ISO date for the next refresh.' },
+        cluster: { type: 'string', description: 'Free-form cluster tag (e.g. "office-pools").' },
+        priority: { type: 'number', description: 'Integer 1-10.' },
+        estimated_effort_hours: { type: 'number' },
+        schema_types: { type: 'array', items: { type: 'string' }, description: 'e.g. ["HowTo", "FAQPage"].' },
+        monetization_angles: { type: 'array', items: { type: 'string' }, description: 'e.g. ["ads", "email_capture", "affiliate"].' },
+        serp_targets: { type: 'array', items: { type: 'string' }, description: 'e.g. ["featured_snippet", "paa", "image_pack"].' },
+        audience_personas: { type: 'array', items: { type: 'string' } },
+        research_entries: {
+          type: 'array',
+          description: 'Initial batch of typed research findings to seed the log.',
+          items: {
+            type: 'object',
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['seo', 'structure', 'audience', 'competitor', 'internal_linking', 'monetization', 'schema_markup', 'serp_features', 'publishing', 'templates', 'legal_compliance', 'tech_notes'],
+              },
+              content: { type: 'string' },
+              source_url: { type: 'string' },
+            },
+            required: ['type', 'content'],
+          },
+        },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'planner_update_idea',
+    description: 'Patch a planner idea. Any field omitted is left untouched. Pass null to clear nullable fields.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'number' },
+        title: { type: 'string' },
+        status: { type: 'string', enum: ['idea', 'researching', 'drafting', 'ready', 'published'] },
+        description: { type: 'string' },
+        notes: { type: 'string' },
+        deadline: { type: 'string' },
+        refresh_cadence: { type: 'string', enum: ['annual', 'seasonal', 'quarterly', 'once'] },
+        refresh_next_due: { type: 'string' },
+        cluster: { type: 'string' },
+        priority: { type: 'number' },
+        estimated_effort_hours: { type: 'number' },
+        schema_types: { type: 'array', items: { type: 'string' } },
+        monetization_angles: { type: 'array', items: { type: 'string' } },
+        serp_targets: { type: 'array', items: { type: 'string' } },
+        audience_personas: { type: 'array', items: { type: 'string' } },
+        promoted_post_id: { type: 'number' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'planner_add_research_entry',
+    description: 'Append a typed research finding to an idea. Use to log SEO angles, competitor checks, schema decisions, audience notes, etc.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        idea_id: { type: 'number' },
+        type: {
+          type: 'string',
+          enum: ['seo', 'structure', 'audience', 'competitor', 'internal_linking', 'monetization', 'schema_markup', 'serp_features', 'publishing', 'templates', 'legal_compliance', 'tech_notes'],
+        },
+        content: { type: 'string', description: 'Concrete finding. Be specific.' },
+        source_url: { type: 'string', description: 'Optional URL backing the finding.' },
+      },
+      required: ['idea_id', 'type', 'content'],
+    },
+  },
+  {
+    name: 'planner_list_keywords',
+    description: 'List planner keywords with optional substring search and a gap-only filter (returns only keywords with no target_post_id).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        search: { type: 'string', description: 'LIKE substring on term.' },
+        gap_only: { type: 'boolean', description: 'Only return keywords without a target post yet.' },
+        limit: { type: 'number', description: 'Default 200, max 1000.' },
+      },
+    },
+  },
+  {
+    name: 'planner_upsert_keyword',
+    description: 'Insert a new planner keyword, or update an existing one keyed by term. Returns {keyword, created:bool}.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        term: { type: 'string' },
+        volume: { type: 'number' },
+        target_post_id: { type: 'number', description: 'WP post ID this keyword maps to. Omit to leave the row as a gap.' },
+        notes: { type: 'string' },
+      },
+      required: ['term'],
+    },
+  },
 ];
 
 // ─── Tool Handlers ─────────────────────────────────────────────────────────────
@@ -1205,6 +1339,273 @@ export function getSiteIndex(database: DatabaseType.Database, args: GetSiteIndex
   return { total: index.length, posts: index };
 }
 
+// ─── Planner (content-planner plugin) ─────────────────────────────────────────
+
+const PLANNER_RESEARCH_TYPES = [
+  'seo', 'structure', 'audience', 'competitor', 'internal_linking',
+  'monetization', 'schema_markup', 'serp_features', 'publishing',
+  'templates', 'legal_compliance', 'tech_notes',
+] as const;
+type PlannerResearchType = typeof PLANNER_RESEARCH_TYPES[number];
+const PLANNER_VALID_STATUSES = ['idea', 'researching', 'drafting', 'ready', 'published'] as const;
+const PLANNER_VALID_CADENCES = ['annual', 'seasonal', 'quarterly', 'once'] as const;
+
+function parseStringArray(raw: unknown): string[] {
+  if (typeof raw !== 'string' || !raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (Array.isArray(v)) return v.filter((s): s is string => typeof s === 'string');
+  } catch { /* fall through */ }
+  return [];
+}
+
+function parseIdeaRow(row: Record<string, unknown> | undefined): Record<string, unknown> | null {
+  if (!row) return null;
+  let linkedKw: number[] = [];
+  if (typeof row.linked_keyword_ids === 'string' && row.linked_keyword_ids) {
+    try {
+      const v = JSON.parse(row.linked_keyword_ids);
+      if (Array.isArray(v)) linkedKw = v.filter((n): n is number => typeof n === 'number');
+    } catch { /* ignore */ }
+  }
+  return {
+    ...row,
+    linked_keyword_ids: linkedKw,
+    schema_types: parseStringArray(row.schema_types),
+    monetization_angles: parseStringArray(row.monetization_angles),
+    serp_targets: parseStringArray(row.serp_targets),
+    audience_personas: parseStringArray(row.audience_personas),
+  };
+}
+
+interface PlannerListIdeasArgs {
+  status?: string;
+  cluster?: string;
+  deadline_before?: string;
+  limit?: number;
+}
+
+export function plannerListIdeas(database: DatabaseType.Database, args: PlannerListIdeasArgs): Record<string, unknown> {
+  const conds: string[] = [];
+  const vals: unknown[] = [];
+  if (args.status) {
+    if (!(PLANNER_VALID_STATUSES as readonly string[]).includes(args.status)) {
+      return { error: `status must be one of ${PLANNER_VALID_STATUSES.join(', ')}` };
+    }
+    conds.push('status = ?'); vals.push(args.status);
+  }
+  if (args.cluster) { conds.push('cluster = ?'); vals.push(args.cluster); }
+  if (args.deadline_before) { conds.push('deadline IS NOT NULL AND deadline <= ?'); vals.push(args.deadline_before); }
+  const limit = Math.min(Math.max(args.limit || 100, 1), 500);
+  const where = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
+  const rows = database.prepare(
+    `SELECT * FROM planner_ideas ${where} ORDER BY updated_at DESC LIMIT ?`,
+  ).all(...vals, limit) as Array<Record<string, unknown>>;
+  return { total: rows.length, ideas: rows.map(parseIdeaRow) };
+}
+
+interface PlannerGetIdeaArgs { id: number }
+
+export function plannerGetIdea(database: DatabaseType.Database, args: PlannerGetIdeaArgs): Record<string, unknown> {
+  if (typeof args.id !== 'number') return { error: 'id is required' };
+  const row = database.prepare('SELECT * FROM planner_ideas WHERE id = ?').get(args.id) as Record<string, unknown> | undefined;
+  if (!row) return { error: 'idea not found' };
+  const idea = parseIdeaRow(row);
+  const research = database
+    .prepare('SELECT * FROM planner_research_entries WHERE idea_id = ? ORDER BY created_at ASC')
+    .all(args.id);
+  return { idea, research_entries: research };
+}
+
+interface PlannerCreateIdeaArgs {
+  title: string;
+  status?: typeof PLANNER_VALID_STATUSES[number];
+  description?: string;
+  notes?: string;
+  deadline?: string;
+  refresh_cadence?: typeof PLANNER_VALID_CADENCES[number];
+  refresh_next_due?: string;
+  cluster?: string;
+  priority?: number;
+  estimated_effort_hours?: number;
+  schema_types?: string[];
+  monetization_angles?: string[];
+  serp_targets?: string[];
+  audience_personas?: string[];
+  research_entries?: Array<{ type: PlannerResearchType; content: string; source_url?: string }>;
+}
+
+export function plannerCreateIdea(database: DatabaseType.Database, args: PlannerCreateIdeaArgs): Record<string, unknown> {
+  if (!args.title || typeof args.title !== 'string') return { error: 'title is required' };
+  if (args.status && !(PLANNER_VALID_STATUSES as readonly string[]).includes(args.status)) {
+    return { error: `status must be one of ${PLANNER_VALID_STATUSES.join(', ')}` };
+  }
+  if (args.refresh_cadence && !(PLANNER_VALID_CADENCES as readonly string[]).includes(args.refresh_cadence)) {
+    return { error: `refresh_cadence must be one of ${PLANNER_VALID_CADENCES.join(', ')}` };
+  }
+  const jsonOrNull = (v: unknown) => Array.isArray(v) ? JSON.stringify(v) : null;
+  let newId = 0;
+  const transaction = database.transaction(() => {
+    const result = database.prepare(
+      `INSERT INTO planner_ideas (
+         title, status, description, notes,
+         deadline, refresh_cadence, refresh_next_due, cluster, priority,
+         estimated_effort_hours, schema_types, monetization_angles,
+         serp_targets, audience_personas
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      args.title,
+      args.status || 'idea',
+      args.description || null,
+      args.notes || null,
+      args.deadline || null,
+      args.refresh_cadence || null,
+      args.refresh_next_due || null,
+      args.cluster || null,
+      typeof args.priority === 'number' ? args.priority : null,
+      typeof args.estimated_effort_hours === 'number' ? args.estimated_effort_hours : null,
+      jsonOrNull(args.schema_types),
+      jsonOrNull(args.monetization_angles),
+      jsonOrNull(args.serp_targets),
+      jsonOrNull(args.audience_personas),
+    );
+    newId = Number(result.lastInsertRowid);
+    if (Array.isArray(args.research_entries)) {
+      const stmt = database.prepare(
+        'INSERT INTO planner_research_entries (idea_id, type, content, source_url) VALUES (?, ?, ?, ?)',
+      );
+      for (const e of args.research_entries) {
+        if (!e?.type || !(PLANNER_RESEARCH_TYPES as readonly string[]).includes(e.type)) continue;
+        if (typeof e.content !== 'string' || !e.content.trim()) continue;
+        stmt.run(newId, e.type, e.content, e.source_url || null);
+      }
+    }
+  });
+  transaction();
+  return plannerGetIdea(database, { id: newId });
+}
+
+interface PlannerUpdateIdeaArgs extends Omit<PlannerCreateIdeaArgs, 'title' | 'research_entries'> {
+  id: number;
+  title?: string;
+  promoted_post_id?: number;
+}
+
+export function plannerUpdateIdea(database: DatabaseType.Database, args: PlannerUpdateIdeaArgs): Record<string, unknown> {
+  if (typeof args.id !== 'number') return { error: 'id is required' };
+  if (args.status && !(PLANNER_VALID_STATUSES as readonly string[]).includes(args.status)) {
+    return { error: `status must be one of ${PLANNER_VALID_STATUSES.join(', ')}` };
+  }
+  if (args.refresh_cadence && !(PLANNER_VALID_CADENCES as readonly string[]).includes(args.refresh_cadence)) {
+    return { error: `refresh_cadence must be one of ${PLANNER_VALID_CADENCES.join(', ')}` };
+  }
+  const fields: string[] = [];
+  const vals: unknown[] = [];
+  const push = (col: string, v: unknown) => { fields.push(`${col} = ?`); vals.push(v); };
+  const pushJson = (col: string, v: unknown) => { fields.push(`${col} = ?`); vals.push(Array.isArray(v) ? JSON.stringify(v) : null); };
+
+  if (args.title !== undefined) push('title', args.title);
+  if (args.status !== undefined) push('status', args.status);
+  if (args.description !== undefined) push('description', args.description);
+  if (args.notes !== undefined) push('notes', args.notes);
+  if (args.deadline !== undefined) push('deadline', args.deadline);
+  if (args.refresh_cadence !== undefined) push('refresh_cadence', args.refresh_cadence);
+  if (args.refresh_next_due !== undefined) push('refresh_next_due', args.refresh_next_due);
+  if (args.cluster !== undefined) push('cluster', args.cluster);
+  if (args.priority !== undefined) push('priority', args.priority);
+  if (args.estimated_effort_hours !== undefined) push('estimated_effort_hours', args.estimated_effort_hours);
+  if (args.schema_types !== undefined) pushJson('schema_types', args.schema_types);
+  if (args.monetization_angles !== undefined) pushJson('monetization_angles', args.monetization_angles);
+  if (args.serp_targets !== undefined) pushJson('serp_targets', args.serp_targets);
+  if (args.audience_personas !== undefined) pushJson('audience_personas', args.audience_personas);
+  if (args.promoted_post_id !== undefined) push('promoted_post_id', args.promoted_post_id);
+
+  if (fields.length === 0) return plannerGetIdea(database, { id: args.id });
+  fields.push("updated_at = datetime('now')");
+  vals.push(args.id);
+  const result = database.prepare(`UPDATE planner_ideas SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+  if (result.changes === 0) return { error: 'idea not found' };
+  return plannerGetIdea(database, { id: args.id });
+}
+
+interface PlannerAddResearchArgs {
+  idea_id: number;
+  type: PlannerResearchType;
+  content: string;
+  source_url?: string;
+}
+
+export function plannerAddResearchEntry(database: DatabaseType.Database, args: PlannerAddResearchArgs): Record<string, unknown> {
+  if (typeof args.idea_id !== 'number') return { error: 'idea_id is required' };
+  if (!args.type || !(PLANNER_RESEARCH_TYPES as readonly string[]).includes(args.type)) {
+    return { error: `type must be one of ${PLANNER_RESEARCH_TYPES.join(', ')}` };
+  }
+  if (!args.content || typeof args.content !== 'string') return { error: 'content is required' };
+  const exists = database.prepare('SELECT id FROM planner_ideas WHERE id = ?').get(args.idea_id);
+  if (!exists) return { error: 'idea not found' };
+  const result = database.prepare(
+    'INSERT INTO planner_research_entries (idea_id, type, content, source_url) VALUES (?, ?, ?, ?)',
+  ).run(args.idea_id, args.type, args.content, args.source_url || null);
+  const id = Number(result.lastInsertRowid);
+  const entry = database.prepare('SELECT * FROM planner_research_entries WHERE id = ?').get(id);
+  return { entry };
+}
+
+interface PlannerListKeywordsArgs {
+  search?: string;
+  gap_only?: boolean;
+  limit?: number;
+}
+
+export function plannerListKeywords(database: DatabaseType.Database, args: PlannerListKeywordsArgs): Record<string, unknown> {
+  const conds: string[] = [];
+  const vals: unknown[] = [];
+  if (args.search) { conds.push('term LIKE ?'); vals.push(`%${args.search}%`); }
+  if (args.gap_only) conds.push('target_post_id IS NULL');
+  const limit = Math.min(Math.max(args.limit || 200, 1), 1000);
+  const where = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
+  const rows = database.prepare(
+    `SELECT * FROM planner_keywords ${where} ORDER BY (volume IS NULL), volume DESC, term ASC LIMIT ?`,
+  ).all(...vals, limit);
+  return { total: rows.length, keywords: rows };
+}
+
+interface PlannerUpsertKeywordArgs {
+  term: string;
+  volume?: number;
+  target_post_id?: number;
+  notes?: string;
+}
+
+export function plannerUpsertKeyword(database: DatabaseType.Database, args: PlannerUpsertKeywordArgs): Record<string, unknown> {
+  if (!args.term || typeof args.term !== 'string') return { error: 'term is required' };
+  const trimmed = args.term.trim();
+  const existing = database.prepare('SELECT * FROM planner_keywords WHERE term = ?').get(trimmed) as Record<string, unknown> | undefined;
+  if (existing) {
+    const fields: string[] = [];
+    const vals: unknown[] = [];
+    if (args.volume !== undefined) { fields.push('volume = ?'); vals.push(args.volume); }
+    if (args.target_post_id !== undefined) { fields.push('target_post_id = ?'); vals.push(args.target_post_id); }
+    if (args.notes !== undefined) { fields.push('notes = ?'); vals.push(args.notes); }
+    if (fields.length > 0) {
+      fields.push("updated_at = datetime('now')");
+      vals.push(existing.id);
+      database.prepare(`UPDATE planner_keywords SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+    }
+    return { keyword: database.prepare('SELECT * FROM planner_keywords WHERE id = ?').get(existing.id), created: false };
+  }
+  const result = database.prepare(
+    'INSERT INTO planner_keywords (term, volume, target_post_id, notes) VALUES (?, ?, ?, ?)',
+  ).run(
+    trimmed,
+    typeof args.volume === 'number' ? args.volume : null,
+    typeof args.target_post_id === 'number' ? args.target_post_id : null,
+    args.notes || null,
+  );
+  const id = Number(result.lastInsertRowid);
+  return { keyword: database.prepare('SELECT * FROM planner_keywords WHERE id = ?').get(id), created: true };
+}
+
 // ─── Tool Dispatch ─────────────────────────────────────────────────────────────
 
 type ToolHandler = (database: DatabaseType.Database, args: Record<string, unknown>) => Record<string, unknown>;
@@ -1220,6 +1621,13 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_stats: getStats as unknown as ToolHandler,
   get_post_history: getPostHistory as unknown as ToolHandler,
   get_site_index: getSiteIndex as unknown as ToolHandler,
+  planner_list_ideas: plannerListIdeas as unknown as ToolHandler,
+  planner_get_idea: plannerGetIdea as unknown as ToolHandler,
+  planner_create_idea: plannerCreateIdea as unknown as ToolHandler,
+  planner_update_idea: plannerUpdateIdea as unknown as ToolHandler,
+  planner_add_research_entry: plannerAddResearchEntry as unknown as ToolHandler,
+  planner_list_keywords: plannerListKeywords as unknown as ToolHandler,
+  planner_upsert_keyword: plannerUpsertKeyword as unknown as ToolHandler,
 };
 
 // ─── MCP Protocol (JSON-RPC 2.0 + newline-delimited JSON over stdio) ───────────
