@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import type { PageComponentProps } from '../../types';
 
 type IdeaStatus = 'idea' | 'researching' | 'drafting' | 'ready' | 'published';
-type RefreshCadence = 'annual' | 'seasonal' | 'quarterly' | 'once' | null;
+type Frequency = 'annual' | 'seasonal' | 'quarterly' | 'once' | null;
 type ResearchType =
   | 'seo'
   | 'structure'
@@ -37,13 +37,21 @@ const RESEARCH_TYPES: Array<{ id: ResearchType; label: string }> = [
   { id: 'tech_notes', label: 'Tech Notes' },
 ];
 
-const CADENCE_OPTIONS: Array<{ id: RefreshCadence; label: string }> = [
+const FREQUENCY_OPTIONS: Array<{ id: Frequency; label: string }> = [
   { id: null, label: '—' },
   { id: 'annual', label: 'Annual' },
   { id: 'seasonal', label: 'Seasonal' },
   { id: 'quarterly', label: 'Quarterly' },
   { id: 'once', label: 'Once' },
 ];
+
+interface Term {
+  id: number;
+  taxonomy: string;
+  name: string;
+  slug: string;
+  parent_id: number;
+}
 
 interface Idea {
   id: number;
@@ -54,7 +62,7 @@ interface Idea {
   linked_keyword_ids: number[];
   promoted_post_id: number | null;
   deadline: string | null;
-  refresh_cadence: RefreshCadence;
+  frequency: Frequency;
   refresh_next_due: string | null;
   cluster: string | null;
   priority: number | null;
@@ -63,6 +71,9 @@ interface Idea {
   monetization_angles: string[];
   serp_targets: string[];
   audience_personas: string[];
+  resource_type_term_id: number | null;
+  topic_term_ids: number[];
+  audience_term_ids: number[];
   created_at: string;
   updated_at: string;
 }
@@ -348,12 +359,18 @@ function IdeaDrawer({
   const [cluster, setCluster] = useState(idea.cluster ?? '');
   const [priority, setPriority] = useState<string>(idea.priority?.toString() ?? '');
   const [effort, setEffort] = useState<string>(idea.estimated_effort_hours?.toString() ?? '');
-  const [refreshCadence, setRefreshCadence] = useState<RefreshCadence>(idea.refresh_cadence);
+  const [frequency, setFrequency] = useState<Frequency>(idea.frequency);
   const [refreshNextDue, setRefreshNextDue] = useState(idea.refresh_next_due ?? '');
   const [schemaTypes, setSchemaTypes] = useState<string[]>(idea.schema_types);
   const [monetization, setMonetization] = useState<string[]>(idea.monetization_angles);
   const [serpTargets, setSerpTargets] = useState<string[]>(idea.serp_targets);
-  const [personas, setPersonas] = useState<string[]>(idea.audience_personas);
+  const [resourceTypeId, setResourceTypeId] = useState<number | null>(idea.resource_type_term_id);
+  const [topicIds, setTopicIds] = useState<number[]>(idea.topic_term_ids);
+  const [audienceIds, setAudienceIds] = useState<number[]>(idea.audience_term_ids);
+
+  // PLEXKITS taxonomies (audience / topic / resource-type) — loaded once,
+  // shared by every drawer instance via state ref module-scope cache.
+  const [termsByTax, setTermsByTax] = useState<Record<string, Term[]>>({});
 
   // Research log state
   const [entries, setEntries] = useState<ResearchEntry[]>([]);
@@ -372,13 +389,25 @@ function IdeaDrawer({
     setCluster(idea.cluster ?? '');
     setPriority(idea.priority?.toString() ?? '');
     setEffort(idea.estimated_effort_hours?.toString() ?? '');
-    setRefreshCadence(idea.refresh_cadence);
+    setFrequency(idea.frequency);
     setRefreshNextDue(idea.refresh_next_due ?? '');
     setSchemaTypes(idea.schema_types);
     setMonetization(idea.monetization_angles);
     setSerpTargets(idea.serp_targets);
-    setPersonas(idea.audience_personas);
+    setResourceTypeId(idea.resource_type_term_id);
+    setTopicIds(idea.topic_term_ids);
+    setAudienceIds(idea.audience_term_ids);
   }, [idea]);
+
+  // Load the synced PLEXKITS taxonomy terms once per drawer mount.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/terms')
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled && d && typeof d === 'object') setTermsByTax(d); })
+      .catch((err) => console.warn('[planner] terms load failed:', err));
+    return () => { cancelled = true; };
+  }, []);
 
   // Load research entries when the open idea changes.
   useEffect(() => {
@@ -451,12 +480,14 @@ function IdeaDrawer({
       const n = parseFloat(effort);
       patch.estimated_effort_hours = Number.isFinite(n) ? n : null;
     }
-    if (refreshCadence !== idea.refresh_cadence) patch.refresh_cadence = refreshCadence;
+    if (frequency !== idea.frequency) patch.frequency = frequency;
     if (refreshNextDue !== (idea.refresh_next_due ?? '')) patch.refresh_next_due = refreshNextDue || null;
     if (JSON.stringify(schemaTypes) !== JSON.stringify(idea.schema_types)) patch.schema_types = schemaTypes;
     if (JSON.stringify(monetization) !== JSON.stringify(idea.monetization_angles)) patch.monetization_angles = monetization;
     if (JSON.stringify(serpTargets) !== JSON.stringify(idea.serp_targets)) patch.serp_targets = serpTargets;
-    if (JSON.stringify(personas) !== JSON.stringify(idea.audience_personas)) patch.audience_personas = personas;
+    if (resourceTypeId !== idea.resource_type_term_id) patch.resource_type_term_id = resourceTypeId;
+    if (JSON.stringify(topicIds) !== JSON.stringify(idea.topic_term_ids)) patch.topic_term_ids = topicIds;
+    if (JSON.stringify(audienceIds) !== JSON.stringify(idea.audience_term_ids)) patch.audience_term_ids = audienceIds;
 
     if (Object.keys(patch).length > 0) await commit(patch);
     onClose();
@@ -563,17 +594,17 @@ function IdeaDrawer({
               />
             </div>
             <div>
-              <Label>Refresh cadence</Label>
+              <Label>Frequency</Label>
               <select
-                value={refreshCadence ?? ''}
+                value={frequency ?? ''}
                 onChange={(e) => {
-                  const v = (e.target.value || null) as RefreshCadence;
-                  setRefreshCadence(v);
-                  commit({ refresh_cadence: v });
+                  const v = (e.target.value || null) as Frequency;
+                  setFrequency(v);
+                  commit({ frequency: v } as Partial<Idea>);
                 }}
                 className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
               >
-                {CADENCE_OPTIONS.map((c) => (
+                {FREQUENCY_OPTIONS.map((c) => (
                   <option key={c.id ?? 'none'} value={c.id ?? ''}>{c.label}</option>
                 ))}
               </select>
@@ -596,7 +627,7 @@ function IdeaDrawer({
             </div>
           </div>
 
-          {refreshCadence && (
+          {frequency && (
             <div>
               <Label>Next refresh due</Label>
               <input
@@ -608,6 +639,29 @@ function IdeaDrawer({
               />
             </div>
           )}
+
+          {/* PLEXKITS taxonomy bindings */}
+          <TaxonomySingleField
+            label="Resource type"
+            taxonomy="resource-type"
+            termsByTax={termsByTax}
+            value={resourceTypeId}
+            onChange={(next) => { setResourceTypeId(next); commit({ resource_type_term_id: next }); }}
+          />
+          <TaxonomyMultiField
+            label="Tags (topic)"
+            taxonomy="topic"
+            termsByTax={termsByTax}
+            values={topicIds}
+            onChange={(next) => { setTopicIds(next); commit({ topic_term_ids: next }); }}
+          />
+          <TaxonomyMultiField
+            label="Audience"
+            taxonomy="audience"
+            termsByTax={termsByTax}
+            values={audienceIds}
+            onChange={(next) => { setAudienceIds(next); commit({ audience_term_ids: next }); }}
+          />
 
           {/* Description */}
           <div>
@@ -640,12 +694,6 @@ function IdeaDrawer({
             placeholder="featured_snippet, paa, image_pack…"
             values={serpTargets}
             onChange={(next) => { setSerpTargets(next); commit({ serp_targets: next }); }}
-          />
-          <TagChipField
-            label="Audience personas"
-            placeholder="pool organizer, casual fan…"
-            values={personas}
-            onChange={(next) => { setPersonas(next); commit({ audience_personas: next }); }}
           />
 
           {/* Research log */}
@@ -814,6 +862,119 @@ function TagChipField({
           className="flex-1 min-w-[120px] text-sm bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none placeholder-gray-400"
         />
       </div>
+    </div>
+  );
+}
+
+function TaxonomySingleField({
+  label,
+  taxonomy,
+  termsByTax,
+  value,
+  onChange,
+}: {
+  label: string;
+  taxonomy: string;
+  termsByTax: Record<string, Term[]>;
+  value: number | null;
+  onChange: (next: number | null) => void;
+}) {
+  const terms = termsByTax[taxonomy] || [];
+  const isReady = Object.prototype.hasOwnProperty.call(termsByTax, taxonomy);
+  return (
+    <div>
+      <Label>{label}</Label>
+      {!isReady ? (
+        <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">Loading taxonomy…</div>
+      ) : terms.length === 0 ? (
+        <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">
+          No <code>{taxonomy}</code> terms synced from WordPress yet.
+        </div>
+      ) : (
+        <select
+          value={value ?? ''}
+          onChange={(e) => {
+            const v = e.target.value === '' ? null : Number(e.target.value);
+            onChange(Number.isFinite(v as number) ? (v as number) : null);
+          }}
+          className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
+        >
+          <option value="">—</option>
+          {terms.map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
+function TaxonomyMultiField({
+  label,
+  taxonomy,
+  termsByTax,
+  values,
+  onChange,
+}: {
+  label: string;
+  taxonomy: string;
+  termsByTax: Record<string, Term[]>;
+  values: number[];
+  onChange: (next: number[]) => void;
+}) {
+  const terms = termsByTax[taxonomy] || [];
+  const isReady = Object.prototype.hasOwnProperty.call(termsByTax, taxonomy);
+  const selected = useMemo(() => new Set(values), [values]);
+  const toggle = (id: number) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    onChange(Array.from(next));
+  };
+  const selectedTerms = terms.filter((t) => selected.has(t.id));
+  return (
+    <div>
+      <Label>{label}</Label>
+      {!isReady ? (
+        <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">Loading taxonomy…</div>
+      ) : terms.length === 0 ? (
+        <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">
+          No <code>{taxonomy}</code> terms synced from WordPress yet.
+        </div>
+      ) : (
+        <>
+          {selectedTerms.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+              {selectedTerms.map((t) => (
+                <span
+                  key={t.id}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-300"
+                >
+                  {t.name}
+                  <button onClick={() => toggle(t.id)} className="hover:text-red-600" aria-label={`Remove ${t.name}`}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 max-h-32 overflow-y-auto p-1">
+            {terms.map((t) => (
+              <label
+                key={t.id}
+                className="flex items-center gap-2 px-1.5 py-0.5 rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900/40 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(t.id)}
+                  onChange={() => toggle(t.id)}
+                  className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                />
+                {t.name}
+              </label>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

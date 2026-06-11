@@ -7,7 +7,7 @@ const DB_PATH = process.env.DATABASE_PATH || './data/juggernaut.db';
 const LEGACY_DB_PATH = './data/plexkits.db';
 
 // Schema version - increment when making breaking changes
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 let db: Database.Database | null = null;
 
@@ -148,6 +148,11 @@ function migrateSchema(database: Database.Database, fromVersion: number, toVersi
   // Version 5 -> 6: research entries table + planning columns on planner_ideas
   if (fromVersion < 6) {
     migrateV5toV6(database);
+  }
+
+  // Version 6 -> 7: bind planner_ideas to PLEXKITS taxonomies + rename refresh_cadence -> frequency
+  if (fromVersion < 7) {
+    migrateV6toV7(database);
   }
 
   setSchemaVersion(database, toVersion);
@@ -519,6 +524,44 @@ function migrateV5toV6(database: Database.Database): void {
 }
 
 /**
+ * Migration from v6 to v7: bind the content-planner to PLEXKITS taxonomies.
+ *
+ * Renames `refresh_cadence` → `frequency` to match how PLEXKITS describes the
+ * publish cycle on resources, and adds three taxonomy-term-id columns so a
+ * planner idea maps cleanly onto a real WP resource when promoted:
+ *   - `resource_type_term_id` (single, taxonomy='resource-type')
+ *   - `topic_term_ids`        (JSON array, taxonomy='topic'  → "Tags")
+ *   - `audience_term_ids`     (JSON array, taxonomy='audience')
+ *
+ * The pre-v7 free-form `audience_personas` column stays in the schema for
+ * back-compat (SQLite ALTER can't drop a column without a full rebuild) but
+ * the UI/MCP surface stop using it.
+ */
+function migrateV6toV7(database: Database.Database): void {
+  console.log('[db] Running migration v6 -> v7...');
+
+  if (tableExists(database, 'planner_ideas')) {
+    if (columnExists(database, 'planner_ideas', 'refresh_cadence') && !columnExists(database, 'planner_ideas', 'frequency')) {
+      database.exec('ALTER TABLE planner_ideas RENAME COLUMN refresh_cadence TO frequency');
+      console.log('[db] Renamed planner_ideas.refresh_cadence -> frequency');
+    }
+    const cols: Array<[string, string]> = [
+      ['resource_type_term_id', 'INTEGER'],
+      ['topic_term_ids', 'TEXT'],
+      ['audience_term_ids', 'TEXT'],
+    ];
+    for (const [name, type] of cols) {
+      if (!columnExists(database, 'planner_ideas', name)) {
+        database.exec(`ALTER TABLE planner_ideas ADD COLUMN ${name} ${type}`);
+      }
+    }
+    console.log('[db] Added PLEXKITS-taxonomy columns to planner_ideas');
+  }
+
+  console.log('[db] Migration v6 -> v7 complete');
+}
+
+/**
  * Initialize a fresh database with v2 schema
  */
 function initializeSchema(database: Database.Database) {
@@ -617,7 +660,7 @@ function initializeSchema(database: Database.Database) {
       linked_keyword_ids TEXT,
       promoted_post_id INTEGER,
       deadline TEXT,
-      refresh_cadence TEXT,
+      frequency TEXT,
       refresh_next_due TEXT,
       cluster TEXT,
       priority INTEGER,
@@ -626,6 +669,9 @@ function initializeSchema(database: Database.Database) {
       monetization_angles TEXT,
       serp_targets TEXT,
       audience_personas TEXT,
+      resource_type_term_id INTEGER,
+      topic_term_ids TEXT,
+      audience_term_ids TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );

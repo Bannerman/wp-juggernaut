@@ -631,7 +631,7 @@ const TOOLS: McpToolDef[] = [
   {
     name: 'planner_create_idea',
     description:
-      'Create a planner idea with optional rich planning fields and an initial batch of research entries. This is the primary way for an agent to fill the planner in one pass.',
+      'Create a planner idea with optional rich planning fields and an initial batch of research entries. This is the primary way for an agent to fill the planner in one pass. Term IDs (resource_type_term_id, topic_term_ids, audience_term_ids) reference rows in the local `terms` table synced from WordPress; use list_terms first to discover IDs.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -640,7 +640,8 @@ const TOOLS: McpToolDef[] = [
         description: { type: 'string', description: '2-4 sentence elevator pitch: what is this template + why best-in-class.' },
         notes: { type: 'string', description: 'Free scratch.' },
         deadline: { type: 'string', description: 'ISO date.' },
-        refresh_cadence: { type: 'string', enum: ['annual', 'seasonal', 'quarterly', 'once'] },
+        frequency: { type: 'string', enum: ['annual', 'seasonal', 'quarterly', 'once'], description: 'Publish/refresh cycle. Renamed from refresh_cadence in v7.' },
+        refresh_cadence: { type: 'string', enum: ['annual', 'seasonal', 'quarterly', 'once'], description: 'Deprecated alias for `frequency`. New code should use `frequency`.' },
         refresh_next_due: { type: 'string', description: 'ISO date for the next refresh.' },
         cluster: { type: 'string', description: 'Free-form cluster tag (e.g. "office-pools").' },
         priority: { type: 'number', description: 'Integer 1-10.' },
@@ -648,7 +649,10 @@ const TOOLS: McpToolDef[] = [
         schema_types: { type: 'array', items: { type: 'string' }, description: 'e.g. ["HowTo", "FAQPage"].' },
         monetization_angles: { type: 'array', items: { type: 'string' }, description: 'e.g. ["ads", "email_capture", "affiliate"].' },
         serp_targets: { type: 'array', items: { type: 'string' }, description: 'e.g. ["featured_snippet", "paa", "image_pack"].' },
-        audience_personas: { type: 'array', items: { type: 'string' } },
+        audience_personas: { type: 'array', items: { type: 'string' }, description: 'Free-form personas. Deprecated in favor of audience_term_ids; kept for back-compat.' },
+        resource_type_term_id: { type: 'number', description: 'Single term ID from the `resource-type` taxonomy (e.g. brackets, spreadsheets, slide decks).' },
+        topic_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs from the `topic` taxonomy. These are the PLEXKITS tags.' },
+        audience_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs from the `audience` taxonomy.' },
         research_entries: {
           type: 'array',
           description: 'Initial batch of typed research findings to seed the log.',
@@ -681,7 +685,8 @@ const TOOLS: McpToolDef[] = [
         description: { type: 'string' },
         notes: { type: 'string' },
         deadline: { type: 'string' },
-        refresh_cadence: { type: 'string', enum: ['annual', 'seasonal', 'quarterly', 'once'] },
+        frequency: { type: 'string', enum: ['annual', 'seasonal', 'quarterly', 'once'] },
+        refresh_cadence: { type: 'string', enum: ['annual', 'seasonal', 'quarterly', 'once'], description: 'Deprecated alias for `frequency`.' },
         refresh_next_due: { type: 'string' },
         cluster: { type: 'string' },
         priority: { type: 'number' },
@@ -689,7 +694,10 @@ const TOOLS: McpToolDef[] = [
         schema_types: { type: 'array', items: { type: 'string' } },
         monetization_angles: { type: 'array', items: { type: 'string' } },
         serp_targets: { type: 'array', items: { type: 'string' } },
-        audience_personas: { type: 'array', items: { type: 'string' } },
+        audience_personas: { type: 'array', items: { type: 'string' }, description: 'Deprecated. Use audience_term_ids.' },
+        resource_type_term_id: { type: 'number', description: 'Single term ID from the `resource-type` taxonomy.' },
+        topic_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs from the `topic` taxonomy.' },
+        audience_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs from the `audience` taxonomy.' },
         promoted_post_id: { type: 'number' },
       },
       required: ['id'],
@@ -1348,7 +1356,7 @@ const PLANNER_RESEARCH_TYPES = [
 ] as const;
 type PlannerResearchType = typeof PLANNER_RESEARCH_TYPES[number];
 const PLANNER_VALID_STATUSES = ['idea', 'researching', 'drafting', 'ready', 'published'] as const;
-const PLANNER_VALID_CADENCES = ['annual', 'seasonal', 'quarterly', 'once'] as const;
+const PLANNER_VALID_FREQUENCIES = ['annual', 'seasonal', 'quarterly', 'once'] as const;
 
 function parseStringArray(raw: unknown): string[] {
   if (typeof raw !== 'string' || !raw) return [];
@@ -1368,6 +1376,14 @@ function parseIdeaRow(row: Record<string, unknown> | undefined): Record<string, 
       if (Array.isArray(v)) linkedKw = v.filter((n): n is number => typeof n === 'number');
     } catch { /* ignore */ }
   }
+  const parseNumberArr = (raw: unknown): number[] => {
+    if (typeof raw !== 'string' || !raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      if (Array.isArray(v)) return v.filter((n): n is number => typeof n === 'number');
+    } catch { /* ignore */ }
+    return [];
+  };
   return {
     ...row,
     linked_keyword_ids: linkedKw,
@@ -1375,6 +1391,8 @@ function parseIdeaRow(row: Record<string, unknown> | undefined): Record<string, 
     monetization_angles: parseStringArray(row.monetization_angles),
     serp_targets: parseStringArray(row.serp_targets),
     audience_personas: parseStringArray(row.audience_personas),
+    topic_term_ids: parseNumberArr(row.topic_term_ids),
+    audience_term_ids: parseNumberArr(row.audience_term_ids),
   };
 }
 
@@ -1423,7 +1441,9 @@ interface PlannerCreateIdeaArgs {
   description?: string;
   notes?: string;
   deadline?: string;
-  refresh_cadence?: typeof PLANNER_VALID_CADENCES[number];
+  frequency?: typeof PLANNER_VALID_FREQUENCIES[number];
+  /** @deprecated Pre-v7 alias for `frequency`. */
+  refresh_cadence?: typeof PLANNER_VALID_FREQUENCIES[number];
   refresh_next_due?: string;
   cluster?: string;
   priority?: number;
@@ -1432,6 +1452,9 @@ interface PlannerCreateIdeaArgs {
   monetization_angles?: string[];
   serp_targets?: string[];
   audience_personas?: string[];
+  resource_type_term_id?: number;
+  topic_term_ids?: number[];
+  audience_term_ids?: number[];
   research_entries?: Array<{ type: PlannerResearchType; content: string; source_url?: string }>;
 }
 
@@ -1440,8 +1463,9 @@ export function plannerCreateIdea(database: DatabaseType.Database, args: Planner
   if (args.status && !(PLANNER_VALID_STATUSES as readonly string[]).includes(args.status)) {
     return { error: `status must be one of ${PLANNER_VALID_STATUSES.join(', ')}` };
   }
-  if (args.refresh_cadence && !(PLANNER_VALID_CADENCES as readonly string[]).includes(args.refresh_cadence)) {
-    return { error: `refresh_cadence must be one of ${PLANNER_VALID_CADENCES.join(', ')}` };
+  const freq = args.frequency ?? args.refresh_cadence;
+  if (freq && !(PLANNER_VALID_FREQUENCIES as readonly string[]).includes(freq)) {
+    return { error: `frequency must be one of ${PLANNER_VALID_FREQUENCIES.join(', ')}` };
   }
   const jsonOrNull = (v: unknown) => Array.isArray(v) ? JSON.stringify(v) : null;
   let newId = 0;
@@ -1449,17 +1473,18 @@ export function plannerCreateIdea(database: DatabaseType.Database, args: Planner
     const result = database.prepare(
       `INSERT INTO planner_ideas (
          title, status, description, notes,
-         deadline, refresh_cadence, refresh_next_due, cluster, priority,
+         deadline, frequency, refresh_next_due, cluster, priority,
          estimated_effort_hours, schema_types, monetization_angles,
-         serp_targets, audience_personas
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         serp_targets, audience_personas,
+         resource_type_term_id, topic_term_ids, audience_term_ids
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       args.title,
       args.status || 'idea',
       args.description || null,
       args.notes || null,
       args.deadline || null,
-      args.refresh_cadence || null,
+      freq || null,
       args.refresh_next_due || null,
       args.cluster || null,
       typeof args.priority === 'number' ? args.priority : null,
@@ -1468,6 +1493,9 @@ export function plannerCreateIdea(database: DatabaseType.Database, args: Planner
       jsonOrNull(args.monetization_angles),
       jsonOrNull(args.serp_targets),
       jsonOrNull(args.audience_personas),
+      typeof args.resource_type_term_id === 'number' ? args.resource_type_term_id : null,
+      jsonOrNull(args.topic_term_ids),
+      jsonOrNull(args.audience_term_ids),
     );
     newId = Number(result.lastInsertRowid);
     if (Array.isArray(args.research_entries)) {
@@ -1496,8 +1524,9 @@ export function plannerUpdateIdea(database: DatabaseType.Database, args: Planner
   if (args.status && !(PLANNER_VALID_STATUSES as readonly string[]).includes(args.status)) {
     return { error: `status must be one of ${PLANNER_VALID_STATUSES.join(', ')}` };
   }
-  if (args.refresh_cadence && !(PLANNER_VALID_CADENCES as readonly string[]).includes(args.refresh_cadence)) {
-    return { error: `refresh_cadence must be one of ${PLANNER_VALID_CADENCES.join(', ')}` };
+  const freq = args.frequency ?? args.refresh_cadence;
+  if (freq && !(PLANNER_VALID_FREQUENCIES as readonly string[]).includes(freq)) {
+    return { error: `frequency must be one of ${PLANNER_VALID_FREQUENCIES.join(', ')}` };
   }
   const fields: string[] = [];
   const vals: unknown[] = [];
@@ -1509,7 +1538,7 @@ export function plannerUpdateIdea(database: DatabaseType.Database, args: Planner
   if (args.description !== undefined) push('description', args.description);
   if (args.notes !== undefined) push('notes', args.notes);
   if (args.deadline !== undefined) push('deadline', args.deadline);
-  if (args.refresh_cadence !== undefined) push('refresh_cadence', args.refresh_cadence);
+  if (args.frequency !== undefined || args.refresh_cadence !== undefined) push('frequency', freq ?? null);
   if (args.refresh_next_due !== undefined) push('refresh_next_due', args.refresh_next_due);
   if (args.cluster !== undefined) push('cluster', args.cluster);
   if (args.priority !== undefined) push('priority', args.priority);
@@ -1518,6 +1547,9 @@ export function plannerUpdateIdea(database: DatabaseType.Database, args: Planner
   if (args.monetization_angles !== undefined) pushJson('monetization_angles', args.monetization_angles);
   if (args.serp_targets !== undefined) pushJson('serp_targets', args.serp_targets);
   if (args.audience_personas !== undefined) pushJson('audience_personas', args.audience_personas);
+  if (args.resource_type_term_id !== undefined) push('resource_type_term_id', args.resource_type_term_id);
+  if (args.topic_term_ids !== undefined) pushJson('topic_term_ids', args.topic_term_ids);
+  if (args.audience_term_ids !== undefined) pushJson('audience_term_ids', args.audience_term_ids);
   if (args.promoted_post_id !== undefined) push('promoted_post_id', args.promoted_post_id);
 
   if (fields.length === 0) return plannerGetIdea(database, { id: args.id });
