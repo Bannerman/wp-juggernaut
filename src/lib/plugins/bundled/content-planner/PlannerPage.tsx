@@ -135,45 +135,47 @@ const STATUS_COLUMNS: Array<{ id: IdeaStatus; label: string }> = [
 
 const PLANNER_STYLE = `
 .planner-root {
-  --paper: #F7F3EA;
-  --paper-2: #EFE9DC;
-  --paper-3: #E5DDC8;
-  --ink: #1A1715;
-  --ink-2: #4A453D;
-  --ink-3: #8B857A;
-  --rule: #D9D2C0;
-  --rule-2: #B5AC95;
-  --accent: #8B2635;
-  --accent-2: #6B1D2A;
-  --kraft: #A67B5B;
-  --warn: #B8682E;
-  --good: #5C7039;
+  /* Mapped to the rest of the Juggernaut palette: Tailwind gray + brand blue. */
+  --paper: #f9fafb;        /* gray-50, page bg */
+  --paper-2: #ffffff;      /* white, elevated surfaces (drawer, cards) */
+  --paper-3: #f3f4f6;      /* gray-100, hover */
+  --ink: #111827;          /* gray-900, body text */
+  --ink-2: #4b5563;        /* gray-600, secondary text */
+  --ink-3: #9ca3af;        /* gray-400, tertiary / placeholder */
+  --rule: #e5e7eb;         /* gray-200, hairline */
+  --rule-2: #d1d5db;       /* gray-300, stronger hairline */
+  --accent: #2563eb;       /* brand-600 */
+  --accent-2: #1d4ed8;     /* brand-700 */
+  --warn: #d97706;         /* amber-600 */
+  --good: #16a34a;         /* green-600 */
+  --urgent: #dc2626;       /* red-600 — used for overdue/urgent deadlines */
+  --violet: #7c3aed;       /* violet-600 — research-type tone */
+  --teal: #0d9488;         /* teal-600 — research-type tone */
+  --pink: #db2777;         /* pink-600 — research-type tone */
   --font-display: 'Newsreader', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
   --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
   font-family: var(--font-ui);
   color: var(--ink);
   background-color: var(--paper);
-  background-image:
-    radial-gradient(circle at 1px 1px, rgba(26,23,21,0.025) 1px, transparent 0);
-  background-size: 14px 14px;
 }
 .dark .planner-root {
-  --paper: #16120E;
-  --paper-2: #1E1813;
-  --paper-3: #2A2118;
-  --ink: #EDE6D3;
-  --ink-2: #B8B0A0;
-  --ink-3: #6E6657;
-  --rule: #2B2419;
-  --rule-2: #3D3322;
-  --accent: #D14855;
-  --accent-2: #E66B73;
-  --kraft: #B8916B;
-  --warn: #D08644;
-  --good: #94A85B;
-  background-image:
-    radial-gradient(circle at 1px 1px, rgba(237,230,211,0.04) 1px, transparent 0);
+  --paper: #111827;        /* gray-900, body bg */
+  --paper-2: #1f2937;      /* gray-800, surfaces — matches the app header */
+  --paper-3: #374151;      /* gray-700, hover */
+  --ink: #f3f4f6;          /* gray-100 */
+  --ink-2: #d1d5db;        /* gray-300 */
+  --ink-3: #6b7280;        /* gray-500 */
+  --rule: #374151;         /* gray-700 */
+  --rule-2: #4b5563;       /* gray-600 */
+  --accent: #60a5fa;       /* brand-400, brighter for dark mode */
+  --accent-2: #93c5fd;     /* brand-300 */
+  --warn: #fbbf24;         /* amber-400 */
+  --good: #4ade80;         /* green-400 */
+  --urgent: #f87171;       /* red-400 */
+  --violet: #a78bfa;       /* violet-400 */
+  --teal: #2dd4bf;         /* teal-400 */
+  --pink: #f472b6;         /* pink-400 */
 }
 .planner-root .display { font-family: var(--font-display); font-feature-settings: 'ss01' on, 'cv11' on; }
 .planner-root .mono { font-family: var(--font-mono); }
@@ -719,7 +721,7 @@ function IdeaListItem({ idea, index, onOpen, onDelete }: { idea: Idea; index: nu
   const badge = deadlineBadge(idea.deadline);
   const hasPending = hasPendingTermRefs(idea);
   const badgeColor =
-    badge?.cls === 'urgent' ? 'var(--accent)'
+    badge?.cls === 'urgent' ? 'var(--urgent)'
     : badge?.cls === 'soon' ? 'var(--warn)'
     : 'var(--ink-3)';
   return (
@@ -736,7 +738,7 @@ function IdeaListItem({ idea, index, onOpen, onDelete }: { idea: Idea; index: nu
       </span>
       <div className="flex items-center gap-2 flex-shrink-0 text-[10px]">
         {idea.priority !== null && idea.priority >= 8 && (
-          <span className="mono" style={{ color: 'var(--accent)' }}>P{idea.priority}</span>
+          <span className="mono" style={{ color: 'var(--urgent)' }}>P{idea.priority}</span>
         )}
         {hasPending && (
           <span
@@ -990,14 +992,14 @@ function IdeaDrawer({
       <PlannerStyle />
       <div
         className="overlay-in fixed inset-0"
-        style={{ background: 'rgba(26, 23, 21, 0.45)', backdropFilter: 'blur(2px)' }}
+        style={{ background: 'rgba(17, 24, 39, 0.5)', backdropFilter: 'blur(2px)' }}
         onClick={close}
       />
       <div
         role="dialog"
         aria-modal="true"
         className="drawer-in relative w-full max-w-2xl h-full flex flex-col overflow-hidden shadow-2xl"
-        style={{ background: 'var(--paper)', borderLeft: '1px solid var(--rule-2)' }}
+        style={{ background: 'var(--paper-2)', borderLeft: '1px solid var(--rule-2)' }}
       >
         {/* Header */}
         <div className="px-8 pt-6 pb-4 flex items-start justify-between" style={{ borderBottom: '1px solid var(--rule)' }}>
@@ -1635,15 +1637,15 @@ function TaxonomyMultiField({
 const RESEARCH_TYPE_TONE: Record<ResearchType, string> = {
   seo: 'var(--accent)',
   structure: 'var(--ink-2)',
-  audience: 'var(--kraft)',
+  audience: 'var(--violet)',
   competitor: 'var(--warn)',
-  internal_linking: 'var(--ink-2)',
+  internal_linking: 'var(--teal)',
   monetization: 'var(--good)',
-  schema_markup: 'var(--accent)',
+  schema_markup: 'var(--pink)',
   serp_features: 'var(--warn)',
   publishing: 'var(--ink-2)',
-  templates: 'var(--kraft)',
-  legal_compliance: 'var(--accent)',
+  templates: 'var(--teal)',
+  legal_compliance: 'var(--urgent)',
   tech_notes: 'var(--ink-3)',
 };
 
