@@ -40,7 +40,13 @@ export const RESEARCH_TYPES: ResearchType[] = [
   'tech_notes',
 ];
 
-export type RefreshCadence = 'annual' | 'seasonal' | 'quarterly' | 'once' | null;
+export type Frequency = 'annual' | 'seasonal' | 'quarterly' | 'once' | null;
+
+/**
+ * @deprecated Use {@link Frequency}. Kept for callers that haven't migrated
+ * past the rc.20 naming.
+ */
+export type RefreshCadence = Frequency;
 
 export interface PlannerIdea {
   id: number;
@@ -51,7 +57,7 @@ export interface PlannerIdea {
   linked_keyword_ids: number[];
   promoted_post_id: number | null;
   deadline: string | null;
-  refresh_cadence: RefreshCadence;
+  frequency: Frequency;
   refresh_next_due: string | null;
   cluster: string | null;
   priority: number | null;
@@ -59,7 +65,11 @@ export interface PlannerIdea {
   schema_types: string[];
   monetization_angles: string[];
   serp_targets: string[];
+  /** @deprecated Replaced by audience_term_ids (audience taxonomy). */
   audience_personas: string[];
+  resource_type_term_id: number | null;
+  topic_term_ids: number[];
+  audience_term_ids: number[];
   created_at: string;
   updated_at: string;
 }
@@ -93,7 +103,7 @@ interface IdeaRow {
   linked_keyword_ids: string | null;
   promoted_post_id: number | null;
   deadline: string | null;
-  refresh_cadence: RefreshCadence;
+  frequency: Frequency;
   refresh_next_due: string | null;
   cluster: string | null;
   priority: number | null;
@@ -102,6 +112,9 @@ interface IdeaRow {
   monetization_angles: string | null;
   serp_targets: string | null;
   audience_personas: string | null;
+  resource_type_term_id: number | null;
+  topic_term_ids: string | null;
+  audience_term_ids: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -127,6 +140,17 @@ function parseStringArray(raw: string | null): string[] {
   return [];
 }
 
+function parseNumberArray(raw: string | null): number[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter((n): n is number => typeof n === 'number');
+  } catch {
+    /* fall through */
+  }
+  return [];
+}
+
 function rowToIdea(row: IdeaRow): PlannerIdea {
   let linked: number[] = [];
   if (row.linked_keyword_ids) {
@@ -144,6 +168,8 @@ function rowToIdea(row: IdeaRow): PlannerIdea {
     monetization_angles: parseStringArray(row.monetization_angles),
     serp_targets: parseStringArray(row.serp_targets),
     audience_personas: parseStringArray(row.audience_personas),
+    topic_term_ids: parseNumberArray(row.topic_term_ids),
+    audience_term_ids: parseNumberArray(row.audience_term_ids),
   };
 }
 
@@ -163,7 +189,7 @@ export interface CreateIdeaInput {
   notes?: string;
   linked_keyword_ids?: number[];
   deadline?: string;
-  refresh_cadence?: RefreshCadence;
+  frequency?: Frequency;
   refresh_next_due?: string;
   cluster?: string;
   priority?: number;
@@ -172,6 +198,9 @@ export interface CreateIdeaInput {
   monetization_angles?: string[];
   serp_targets?: string[];
   audience_personas?: string[];
+  resource_type_term_id?: number | null;
+  topic_term_ids?: number[];
+  audience_term_ids?: number[];
 }
 
 export function createIdea(input: CreateIdeaInput): PlannerIdea {
@@ -179,11 +208,12 @@ export function createIdea(input: CreateIdeaInput): PlannerIdea {
     .prepare(
       `INSERT INTO planner_ideas (
          title, status, description, notes, linked_keyword_ids,
-         deadline, refresh_cadence, refresh_next_due, cluster, priority,
+         deadline, frequency, refresh_next_due, cluster, priority,
          estimated_effort_hours, schema_types, monetization_angles,
-         serp_targets, audience_personas
+         serp_targets, audience_personas,
+         resource_type_term_id, topic_term_ids, audience_term_ids
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.title,
@@ -192,7 +222,7 @@ export function createIdea(input: CreateIdeaInput): PlannerIdea {
       input.notes ?? null,
       input.linked_keyword_ids ? JSON.stringify(input.linked_keyword_ids) : null,
       input.deadline ?? null,
-      input.refresh_cadence ?? null,
+      input.frequency ?? null,
       input.refresh_next_due ?? null,
       input.cluster ?? null,
       input.priority ?? null,
@@ -201,6 +231,9 @@ export function createIdea(input: CreateIdeaInput): PlannerIdea {
       input.monetization_angles ? JSON.stringify(input.monetization_angles) : null,
       input.serp_targets ? JSON.stringify(input.serp_targets) : null,
       input.audience_personas ? JSON.stringify(input.audience_personas) : null,
+      input.resource_type_term_id ?? null,
+      input.topic_term_ids ? JSON.stringify(input.topic_term_ids) : null,
+      input.audience_term_ids ? JSON.stringify(input.audience_term_ids) : null,
     );
   const id = Number(result.lastInsertRowid);
   return getIdea(id)!;
@@ -222,7 +255,7 @@ export type IdeaPatch = Partial<Pick<
   | 'linked_keyword_ids'
   | 'promoted_post_id'
   | 'deadline'
-  | 'refresh_cadence'
+  | 'frequency'
   | 'refresh_next_due'
   | 'cluster'
   | 'priority'
@@ -231,6 +264,9 @@ export type IdeaPatch = Partial<Pick<
   | 'monetization_angles'
   | 'serp_targets'
   | 'audience_personas'
+  | 'resource_type_term_id'
+  | 'topic_term_ids'
+  | 'audience_term_ids'
 >>;
 
 export function updateIdea(id: number, patch: IdeaPatch): PlannerIdea | null {
@@ -245,7 +281,7 @@ export function updateIdea(id: number, patch: IdeaPatch): PlannerIdea | null {
   if (patch.linked_keyword_ids !== undefined) push('linked_keyword_ids', JSON.stringify(patch.linked_keyword_ids));
   if (patch.promoted_post_id !== undefined) push('promoted_post_id', patch.promoted_post_id);
   if (patch.deadline !== undefined) push('deadline', patch.deadline);
-  if (patch.refresh_cadence !== undefined) push('refresh_cadence', patch.refresh_cadence);
+  if (patch.frequency !== undefined) push('frequency', patch.frequency);
   if (patch.refresh_next_due !== undefined) push('refresh_next_due', patch.refresh_next_due);
   if (patch.cluster !== undefined) push('cluster', patch.cluster);
   if (patch.priority !== undefined) push('priority', patch.priority);
@@ -254,6 +290,9 @@ export function updateIdea(id: number, patch: IdeaPatch): PlannerIdea | null {
   if (patch.monetization_angles !== undefined) push('monetization_angles', JSON.stringify(patch.monetization_angles));
   if (patch.serp_targets !== undefined) push('serp_targets', JSON.stringify(patch.serp_targets));
   if (patch.audience_personas !== undefined) push('audience_personas', JSON.stringify(patch.audience_personas));
+  if (patch.resource_type_term_id !== undefined) push('resource_type_term_id', patch.resource_type_term_id);
+  if (patch.topic_term_ids !== undefined) push('topic_term_ids', JSON.stringify(patch.topic_term_ids));
+  if (patch.audience_term_ids !== undefined) push('audience_term_ids', JSON.stringify(patch.audience_term_ids));
 
   if (fields.length === 0) return getIdea(id);
 
