@@ -332,11 +332,11 @@ const PLANNER_STYLE = `
 .planner-root .stagger-4 { animation-delay: 220ms; }
 .planner-root .stagger-5 { animation-delay: 280ms; }
 
-@keyframes planner-drawer-in {
-  from { opacity: 0; transform: translateX(24px); }
-  to   { opacity: 1; transform: translateX(0); }
+@keyframes planner-modal-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-.planner-root .drawer-in { animation: planner-drawer-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.planner-root .modal-in { animation: planner-modal-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 @keyframes planner-overlay-in {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -832,6 +832,7 @@ function IdeaDrawer({
   const [entryType, setEntryType] = useState<ResearchType>('seo');
   const [entryContent, setEntryContent] = useState('');
   const [entrySource, setEntrySource] = useState('');
+  const [isPromoting, setIsPromoting] = useState(false);
 
   // Only reseed local state when the drawer SWITCHES to a different idea.
   // Keying on `[idea]` (the full object) was clobbering every keystroke
@@ -950,6 +951,37 @@ function IdeaDrawer({
     }
   };
 
+  const promote = async () => {
+    if (idea.promoted_post_id !== null || isPromoting) return;
+    setIsPromoting(true);
+    try {
+      // Flush any in-progress edits first so the resource stub picks them up.
+      const patch: Partial<Idea> = {};
+      if (title.trim() && title !== idea.title) patch.title = title.trim();
+      if (status !== idea.status) patch.status = status;
+      if (description !== (idea.description ?? '')) patch.description = description;
+      if (notes !== (idea.notes ?? '')) patch.notes = notes;
+      if (Object.keys(patch).length > 0) await commit(patch);
+
+      const res = await fetch(`/api/planner/ideas/${idea.id}/promote`, { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(`Promote failed: ${body.error || `HTTP ${res.status}`}`);
+        return;
+      }
+      const data = await res.json();
+      let msg = `Promoted to a local resource stub (post #${Math.abs(data.local_post_id)}, draft).`;
+      if (data.pending_terms_count > 0) {
+        msg += `\n\n${data.pending_terms_count} pending taxonomy term${data.pending_terms_count > 1 ? 's were' : ' was'} skipped because they don't exist on WordPress yet. Push them through the WP admin first, then re-sync, then attach to the post.`;
+      }
+      msg += `\n\nFind the draft in the Posts view and click Push to send it to WordPress.`;
+      alert(msg);
+      onClose();
+    } finally {
+      setIsPromoting(false);
+    }
+  };
+
   const close = async () => {
     const patch: Partial<Idea> = {};
     if (title.trim() && title !== idea.title) patch.title = title.trim();
@@ -988,19 +1020,25 @@ function IdeaDrawer({
   const readinessCount = Object.values(readiness).filter(Boolean).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end planner-root">
+    <div className="fixed inset-0 z-50 overflow-y-auto planner-root">
       <PlannerStyle />
       <div
         className="overlay-in fixed inset-0"
         style={{ background: 'rgba(17, 24, 39, 0.5)', backdropFilter: 'blur(2px)' }}
         onClick={close}
       />
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="drawer-in relative w-full max-w-2xl h-full flex flex-col overflow-hidden shadow-2xl"
-        style={{ background: 'var(--paper-2)', borderLeft: '1px solid var(--rule-2)' }}
-      >
+      <div className="relative min-h-full flex items-center justify-center p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="modal-in relative flex flex-col overflow-hidden shadow-2xl rounded-xl"
+          style={{
+            background: 'var(--paper-2)',
+            border: '1px solid var(--rule)',
+            width: 'min(960px, 95vw)',
+            height: 'min(85vh, 900px)',
+          }}
+        >
         {/* Header */}
         <div className="px-8 pt-6 pb-4 flex items-start justify-between" style={{ borderBottom: '1px solid var(--rule)' }}>
           <div>
@@ -1305,18 +1343,36 @@ function IdeaDrawer({
           </Section>
         </div>
 
-        <div className="px-8 py-4 flex items-center justify-between" style={{ borderTop: '1px solid var(--rule)' }}>
+        <div className="px-8 py-4 flex items-center justify-between gap-4" style={{ borderTop: '1px solid var(--rule)' }}>
           <button
             onClick={() => onDelete(idea.id)}
             className="btn-ghost"
-            style={{ color: 'var(--accent)' }}
+            style={{ color: 'var(--urgent)' }}
           >
             Delete idea
           </button>
-          <button onClick={close} className="btn-primary">
-            Done — to press
-          </button>
+          <div className="flex items-center gap-3">
+            {idea.promoted_post_id !== null ? (
+              <a
+                href="#"
+                onClick={(e) => { e.preventDefault(); close(); }}
+                className="mono text-xs"
+                style={{ color: 'var(--good)' }}
+                title="Already promoted to a WP draft. Find it in the Posts view to push to WordPress."
+              >
+                ↗ Promoted to post {idea.promoted_post_id < 0 ? `(stub #${Math.abs(idea.promoted_post_id)})` : `#${idea.promoted_post_id}`}
+              </a>
+            ) : (
+              <button onClick={promote} disabled={isPromoting} className="btn-ghost">
+                {isPromoting ? 'Promoting…' : 'Promote to draft'}
+              </button>
+            )}
+            <button onClick={close} className="btn-primary">
+              Done — to press
+            </button>
+          </div>
         </div>
+      </div>
       </div>
     </div>
   );
