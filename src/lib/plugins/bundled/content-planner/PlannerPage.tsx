@@ -399,9 +399,9 @@ export function PlannerPage(_props: PageComponentProps) {
   }, []);
 
   return (
-    <div className="planner-root flex-1 overflow-auto">
+    <div className="planner-root" style={{ minHeight: 'calc(100vh - 48px)', width: '100%', overflowX: 'clip' }}>
       <PlannerStyle />
-      <div className="max-w-[1400px] mx-auto px-10 py-10">
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '40px 48px' }}>
         <Masthead totals={totals} />
         <TabBar tab={tab} setTab={setTab} totals={totals} />
         {tab === 'ideas' ? <IdeasBoard onChange={(ideas) => setTotals((t) => ({ ...t, ideas }))} /> : <KeywordsTable />}
@@ -454,19 +454,35 @@ function Masthead({ totals }: { totals: { ideas: Idea[]; keywords: Keyword[] } }
           </div>
         </div>
       </div>
-      <div className="border-t border-b py-3 my-1 grid grid-cols-7 gap-6 text-[11px]" style={{ borderColor: 'var(--rule-2)' }}>
+      <div
+        className="py-4 my-1"
+        style={{
+          borderTop: '1px solid var(--rule-2)',
+          borderBottom: '1px solid var(--rule-2)',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+          gap: 24,
+        }}
+      >
         <Stat label="Total" value={totals.ideas.length} accent />
         {STATUS_COLUMNS.map((c) => (
           <Stat key={c.id} label={c.label} value={byStatus[c.id]} />
         ))}
         <Stat label="Pending refs" value={pendingTerms} warn={pendingTerms > 0} />
       </div>
-      <div className="grid grid-cols-7 gap-6 text-[11px] pb-4" style={{ borderColor: 'var(--rule-2)' }}>
+      <div
+        className="py-3"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+          gap: 24,
+        }}
+      >
         <Stat label="Keywords" value={totals.keywords.length} />
         <Stat label="Gaps" value={totals.keywords.filter((k) => !k.target_post_id).length} warn />
         <Stat label="Due ≤14d" value={dueSoon} warn={dueSoon > 0} />
-        <div className="col-span-4 self-end">
-          <div className="label-eyebrow text-right" style={{ color: 'var(--ink-3)' }}>
+        <div style={{ gridColumn: 'span 4', alignSelf: 'end' }}>
+          <div className="label-eyebrow" style={{ color: 'var(--ink-3)', textAlign: 'right' }}>
             ⁂ &nbsp;Plan thoroughly, ship the one piece on the internet that should exist&nbsp; ⁂
           </div>
         </div>
@@ -612,13 +628,21 @@ function IdeasBoard({ onChange }: { onChange?: (ideas: Idea[]) => void }) {
         </div>
       )}
 
-      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-0">
+      <div
+        className="mt-6"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+          gap: 0,
+        }}
+      >
         {STATUS_COLUMNS.map((col, idx) => {
           const items = filteredIdeas.filter((i) => i.status === col.id);
           return (
             <div
               key={col.id}
-              className={cn('col-rule flex flex-col px-4 pb-2 fade-in', `stagger-${idx + 1}`)}
+              className={cn('col-rule flex flex-col fade-in', `stagger-${idx + 1}`)}
+              style={{ padding: '0 16px 8px', minWidth: 0 }}
             >
               <div className="flex items-baseline justify-between pb-2 mb-1 border-b" style={{ borderColor: 'var(--rule)' }}>
                 <h3 className="display text-base font-medium tracking-tight" style={{ color: 'var(--ink)' }}>
@@ -992,7 +1016,14 @@ function IdeaDrawer({
 
           {/* Standing row */}
           <Section title="Standing">
-            <div className="grid grid-cols-3 gap-x-6 gap-y-4">
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                columnGap: 24,
+                rowGap: 16,
+              }}
+            >
               <Field label="Status">
                 <select
                   value={status}
@@ -1227,7 +1258,15 @@ function IdeaDrawer({
               </span>
             }
           >
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+            <div
+              className="text-sm"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                columnGap: 24,
+                rowGap: 4,
+              }}
+            >
               <ReadinessRow ok={readiness.hasDescription} label="Lede ≥ 30 chars" />
               <ReadinessRow ok={readiness.hasResearchEntries} label="≥ 3 research entries" />
               <ReadinessRow ok={readiness.hasSchemaTypes} label="At least one schema type" />
