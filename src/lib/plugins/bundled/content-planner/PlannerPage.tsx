@@ -1,10 +1,25 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, X, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import { registerGlobalPage } from '@/components/globalPages';
 import { cn } from '@/lib/utils';
 import type { PageComponentProps } from '../../types';
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE PLANNER — newsroom planning-desk aesthetic.
+ *
+ * Editorial typography (Newsreader serif + IBM Plex Sans + JetBrains Mono),
+ * warm-paper/ink palette in light mode, deep brown-charcoal/cream in dark,
+ * single oxblood/ember accent. Hairline rules instead of nested boxes,
+ * numbered idea entries like a Table of Contents, status labels typeset in
+ * uppercase tracking, research log presented as numbered footnotes.
+ *
+ * All state, effects, handlers, and API calls from rc.22 are preserved
+ * verbatim — only the JSX presentation layer changes.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
 
 type IdeaStatus = 'idea' | 'researching' | 'drafting' | 'ready' | 'published';
 type Frequency = 'annual' | 'seasonal' | 'quarterly' | 'once' | null;
@@ -54,7 +69,7 @@ interface Term {
 }
 
 interface PendingTerm {
-  id: number; // negative
+  id: number;
   taxonomy: string;
   name: string;
   slug: string | null;
@@ -108,17 +123,407 @@ interface Keyword {
   updated_at: string;
 }
 
-const STATUS_COLUMNS: Array<{ id: IdeaStatus; label: string; accent: string }> = [
-  { id: 'idea', label: 'Idea', accent: 'border-gray-400 dark:border-gray-600' },
-  { id: 'researching', label: 'Researching', accent: 'border-blue-400 dark:border-blue-600' },
-  { id: 'drafting', label: 'Drafting', accent: 'border-yellow-400 dark:border-yellow-600' },
-  { id: 'ready', label: 'Ready', accent: 'border-purple-400 dark:border-purple-600' },
-  { id: 'published', label: 'Published', accent: 'border-green-500 dark:border-green-600' },
+const STATUS_COLUMNS: Array<{ id: IdeaStatus; label: string }> = [
+  { id: 'idea', label: 'Idea' },
+  { id: 'researching', label: 'Researching' },
+  { id: 'drafting', label: 'Drafting' },
+  { id: 'ready', label: 'Ready' },
+  { id: 'published', label: 'Published' },
 ];
+
+// ─── Design tokens (injected once, scoped to .planner-root) ──────────────────
+
+const PLANNER_STYLE = `
+.planner-root {
+  --paper: #F7F3EA;
+  --paper-2: #EFE9DC;
+  --paper-3: #E5DDC8;
+  --ink: #1A1715;
+  --ink-2: #4A453D;
+  --ink-3: #8B857A;
+  --rule: #D9D2C0;
+  --rule-2: #B5AC95;
+  --accent: #8B2635;
+  --accent-2: #6B1D2A;
+  --kraft: #A67B5B;
+  --warn: #B8682E;
+  --good: #5C7039;
+  --font-display: 'Newsreader', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-family: var(--font-ui);
+  color: var(--ink);
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(26,23,21,0.025) 1px, transparent 0);
+  background-size: 14px 14px;
+}
+.dark .planner-root {
+  --paper: #16120E;
+  --paper-2: #1E1813;
+  --paper-3: #2A2118;
+  --ink: #EDE6D3;
+  --ink-2: #B8B0A0;
+  --ink-3: #6E6657;
+  --rule: #2B2419;
+  --rule-2: #3D3322;
+  --accent: #D14855;
+  --accent-2: #E66B73;
+  --kraft: #B8916B;
+  --warn: #D08644;
+  --good: #94A85B;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(237,230,211,0.04) 1px, transparent 0);
+}
+.planner-root .display { font-family: var(--font-display); font-feature-settings: 'ss01' on, 'cv11' on; }
+.planner-root .mono { font-family: var(--font-mono); }
+.planner-root .label-eyebrow {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.planner-root .hairline { background: var(--rule); }
+.planner-root .ink-input {
+  background: transparent;
+  color: var(--ink);
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  padding: 6px 0;
+  width: 100%;
+  font-family: var(--font-ui);
+  outline: none;
+  transition: border-color 140ms ease;
+}
+.planner-root .ink-input:focus { border-bottom-color: var(--accent); }
+.planner-root .ink-input::placeholder { color: var(--ink-3); font-style: italic; }
+.planner-root .ink-select {
+  background: transparent;
+  color: var(--ink);
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  padding: 6px 18px 6px 0;
+  width: 100%;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  outline: none;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position: calc(100% - 8px) 50%, calc(100% - 4px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+  transition: border-color 140ms ease;
+}
+.planner-root .ink-select:focus { border-bottom-color: var(--accent); }
+.planner-root .ink-textarea {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  padding: 10px 12px;
+  width: 100%;
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+  transition: border-color 140ms ease;
+}
+.planner-root .ink-textarea:focus { border-color: var(--accent); }
+.planner-root .ink-textarea::placeholder { color: var(--ink-3); font-style: italic; }
+
+.planner-root .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--rule-2);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.planner-root .pill.is-active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.planner-root .pill.is-accent {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--paper);
+}
+.planner-root .pill.is-pending {
+  border-color: var(--warn);
+  background: transparent;
+  color: var(--warn);
+}
+.planner-root .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 9px;
+  border: 1px solid var(--rule-2);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.2;
+}
+.planner-root .chip.is-pending {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.planner-root .ordinal {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-3);
+  width: 22px;
+  text-align: right;
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+.planner-root .ordinal.is-strong { color: var(--ink); }
+.planner-root .btn-primary {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid var(--ink);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.planner-root .btn-primary:hover { background: var(--accent); border-color: var(--accent); }
+.planner-root .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.planner-root .btn-ghost {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--ink-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.planner-root .btn-ghost:hover { color: var(--accent); }
+.planner-root .col-rule + .col-rule { border-left: 1px solid var(--rule); }
+.planner-root .focus-row:hover { background: var(--paper-2); }
+.planner-root .focus-row { transition: background 90ms ease; }
+
+@keyframes planner-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.planner-root .fade-in { animation: planner-fade-up 320ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.planner-root .stagger-1 { animation-delay: 40ms; }
+.planner-root .stagger-2 { animation-delay: 100ms; }
+.planner-root .stagger-3 { animation-delay: 160ms; }
+.planner-root .stagger-4 { animation-delay: 220ms; }
+.planner-root .stagger-5 { animation-delay: 280ms; }
+
+@keyframes planner-drawer-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.planner-root .drawer-in { animation: planner-drawer-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+@keyframes planner-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.planner-root .overlay-in { animation: planner-overlay-in 200ms ease both; }
+
+.planner-root .footnote-marker {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+.planner-root details > summary { list-style: none; cursor: pointer; }
+.planner-root details > summary::-webkit-details-marker { display: none; }
+`;
+
+function PlannerStyle() {
+  return <style dangerouslySetInnerHTML={{ __html: PLANNER_STYLE }} />;
+}
+
+function useFontInjection() {
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById('planner-fonts')) return;
+    const link = document.createElement('link');
+    link.id = 'planner-fonts';
+    link.rel = 'stylesheet';
+    link.href =
+      'https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap';
+    document.head.appendChild(link);
+  }, []);
+}
+
+// ─── Top-level page shell ────────────────────────────────────────────────────
+
+type Tab = 'ideas' | 'keywords';
+
+export function PlannerPage(_props: PageComponentProps) {
+  useFontInjection();
+  const [tab, setTab] = useState<Tab>('ideas');
+  const [totals, setTotals] = useState<{ ideas: Idea[]; keywords: Keyword[] }>({ ideas: [], keywords: [] });
+
+  // Top-level counts feed the masthead strip; data is also fetched inside each
+  // tab component, but pulling here keeps the strip live without prop-drilling.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [iRes, kRes] = await Promise.all([
+          fetch('/api/planner/ideas').then((r) => r.json()),
+          fetch('/api/planner/keywords').then((r) => r.json()),
+        ]);
+        if (cancelled) return;
+        setTotals({ ideas: iRes.ideas || [], keywords: kRes.keywords || [] });
+      } catch { /* surfaced in the per-tab components */ }
+    };
+    load();
+    const id = window.setInterval(load, 6000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
+  return (
+    <div className="planner-root flex-1 overflow-auto">
+      <PlannerStyle />
+      <div className="max-w-[1400px] mx-auto px-10 py-10">
+        <Masthead totals={totals} />
+        <TabBar tab={tab} setTab={setTab} totals={totals} />
+        {tab === 'ideas' ? <IdeasBoard onChange={(ideas) => setTotals((t) => ({ ...t, ideas }))} /> : <KeywordsTable />}
+      </div>
+    </div>
+  );
+}
+
+function Masthead({ totals }: { totals: { ideas: Idea[]; keywords: Keyword[] } }) {
+  const byStatus = useMemo(() => {
+    const out: Record<IdeaStatus, number> = { idea: 0, researching: 0, drafting: 0, ready: 0, published: 0 };
+    for (const i of totals.ideas) out[i.status] = (out[i.status] || 0) + 1;
+    return out;
+  }, [totals.ideas]);
+  const pendingTerms = useMemo(
+    () => totals.ideas.filter((i) =>
+      (i.resource_type_term_id !== null && i.resource_type_term_id < 0) ||
+      i.topic_term_ids.some((n) => n < 0) ||
+      i.audience_term_ids.some((n) => n < 0),
+    ).length,
+    [totals.ideas],
+  );
+  const dueSoon = useMemo(() => {
+    const now = Date.now();
+    return totals.ideas.filter((i) => {
+      if (!i.deadline) return false;
+      const d = new Date(i.deadline).getTime();
+      if (Number.isNaN(d)) return false;
+      const days = (d - now) / (1000 * 60 * 60 * 24);
+      return days >= 0 && days <= 14;
+    }).length;
+  }, [totals.ideas]);
+
+  return (
+    <header className="fade-in">
+      <div className="flex items-end justify-between gap-6 pb-3">
+        <div>
+          <div className="label-eyebrow mb-2">Content Planner · vol. xxii</div>
+          <h1 className="display text-[56px] leading-none tracking-[-0.02em] font-medium" style={{ color: 'var(--ink)' }}>
+            The Planner
+          </h1>
+          <p className="display italic text-[15px] mt-3 max-w-xl" style={{ color: 'var(--ink-2)' }}>
+            A standing desk for the work before the post — ideas, the research that makes them best-in-class, and the keywords they answer to.
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="label-eyebrow">Edition</div>
+          <div className="mono text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
+            {new Date().toISOString().slice(0, 10)}
+          </div>
+        </div>
+      </div>
+      <div className="border-t border-b py-3 my-1 grid grid-cols-7 gap-6 text-[11px]" style={{ borderColor: 'var(--rule-2)' }}>
+        <Stat label="Total" value={totals.ideas.length} accent />
+        {STATUS_COLUMNS.map((c) => (
+          <Stat key={c.id} label={c.label} value={byStatus[c.id]} />
+        ))}
+        <Stat label="Pending refs" value={pendingTerms} warn={pendingTerms > 0} />
+      </div>
+      <div className="grid grid-cols-7 gap-6 text-[11px] pb-4" style={{ borderColor: 'var(--rule-2)' }}>
+        <Stat label="Keywords" value={totals.keywords.length} />
+        <Stat label="Gaps" value={totals.keywords.filter((k) => !k.target_post_id).length} warn />
+        <Stat label="Due ≤14d" value={dueSoon} warn={dueSoon > 0} />
+        <div className="col-span-4 self-end">
+          <div className="label-eyebrow text-right" style={{ color: 'var(--ink-3)' }}>
+            ⁂ &nbsp;Plan thoroughly, ship the one piece on the internet that should exist&nbsp; ⁂
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function Stat({ label, value, accent, warn }: { label: string; value: number; accent?: boolean; warn?: boolean }) {
+  return (
+    <div>
+      <div className="label-eyebrow">{label}</div>
+      <div
+        className={cn('mono text-2xl mt-1 font-medium')}
+        style={{
+          color: warn && value > 0 ? 'var(--warn)' : accent ? 'var(--accent)' : 'var(--ink)',
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function TabBar({ tab, setTab, totals }: { tab: Tab; setTab: (t: Tab) => void; totals: { ideas: Idea[]; keywords: Keyword[] } }) {
+  return (
+    <nav className="flex items-end gap-8 mt-6 border-b" style={{ borderColor: 'var(--rule-2)' }}>
+      {(['ideas', 'keywords'] as Tab[]).map((t) => {
+        const isActive = t === tab;
+        const count = t === 'ideas' ? totals.ideas.length : totals.keywords.length;
+        return (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className="relative pb-3 -mb-px flex items-baseline gap-2 transition-colors"
+            style={{ color: isActive ? 'var(--ink)' : 'var(--ink-3)' }}
+          >
+            <span className="display text-2xl font-medium tracking-tight">{t.charAt(0).toUpperCase() + t.slice(1)}</span>
+            <span className="mono text-xs" style={{ color: isActive ? 'var(--accent)' : 'var(--ink-3)' }}>
+              {count}
+            </span>
+            {isActive && (
+              <span
+                className="absolute left-0 right-0 -bottom-px h-[2px]"
+                style={{ background: 'var(--accent)' }}
+              />
+            )}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
 
 // ─── Ideas board ─────────────────────────────────────────────────────────────
 
-function IdeasBoard() {
+function IdeasBoard({ onChange }: { onChange?: (ideas: Idea[]) => void }) {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -131,17 +536,16 @@ function IdeasBoard() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setIdeas(data.ideas);
+      onChange?.(data.ideas);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load ideas');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onChange]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useEffect(() => { refresh(); }, [refresh]);
 
   const addIdea = async (title: string, status: IdeaStatus) => {
     const res = await fetch('/api/planner/ideas', {
@@ -182,26 +586,17 @@ function IdeasBoard() {
 
   const openIdea = openIdeaId !== null ? ideas.find((i) => i.id === openIdeaId) || null : null;
 
-  if (loading) {
-    return <div className="text-sm text-gray-500 dark:text-gray-400">Loading ideas…</div>;
-  }
-  if (error) {
-    return <div className="text-sm text-red-600 dark:text-red-400">Error: {error}</div>;
-  }
+  if (loading) return <div className="display italic text-sm mt-6" style={{ color: 'var(--ink-3)' }}>Loading the desk…</div>;
+  if (error) return <div className="mt-6 text-sm" style={{ color: 'var(--accent)' }}>Error: {error}</div>;
 
   return (
     <>
       {clusters.length > 0 && (
-        <div className="mb-3 flex items-center gap-2 text-xs">
-          <span className="text-gray-500 dark:text-gray-400">Cluster:</span>
+        <div className="mt-5 flex items-center gap-2 fade-in">
+          <span className="label-eyebrow">Filed under</span>
           <button
             onClick={() => setClusterFilter('')}
-            className={cn(
-              'px-2 py-0.5 rounded-full border',
-              clusterFilter === ''
-                ? 'bg-brand-600 text-white border-brand-600'
-                : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
-            )}
+            className={cn('pill', clusterFilter === '' && 'is-active')}
           >
             All
           </button>
@@ -209,12 +604,7 @@ function IdeasBoard() {
             <button
               key={c}
               onClick={() => setClusterFilter(c)}
-              className={cn(
-                'px-2 py-0.5 rounded-full border',
-                clusterFilter === c
-                  ? 'bg-brand-600 text-white border-brand-600'
-                  : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
-              )}
+              className={cn('pill', clusterFilter === c && 'is-active')}
             >
               {c}
             </button>
@@ -222,29 +612,32 @@ function IdeasBoard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {STATUS_COLUMNS.map((col) => {
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-0">
+        {STATUS_COLUMNS.map((col, idx) => {
           const items = filteredIdeas.filter((i) => i.status === col.id);
           return (
             <div
               key={col.id}
-              className={cn(
-                'flex flex-col rounded-lg bg-white dark:bg-gray-800 border-t-2',
-                col.accent,
-              )}
+              className={cn('col-rule flex flex-col px-4 pb-2 fade-in', `stagger-${idx + 1}`)}
             >
-              <div className="flex items-center justify-between px-3 pt-3 pb-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-400">
+              <div className="flex items-baseline justify-between pb-2 mb-1 border-b" style={{ borderColor: 'var(--rule)' }}>
+                <h3 className="display text-base font-medium tracking-tight" style={{ color: 'var(--ink)' }}>
                   {col.label}
                 </h3>
-                <span className="text-xs text-gray-400 dark:text-gray-500">{items.length}</span>
+                <span className="mono text-[11px]" style={{ color: 'var(--ink-3)' }}>{String(items.length).padStart(2, '0')}</span>
               </div>
 
-              <ul className="flex-1 pb-1 min-h-[40px]">
-                {items.map((idea) => (
+              <ul className="flex-1 min-h-[60px]">
+                {items.length === 0 && (
+                  <li className="display italic text-[13px] py-3" style={{ color: 'var(--ink-3)' }}>
+                    nothing here yet
+                  </li>
+                )}
+                {items.map((idea, i) => (
                   <IdeaListItem
                     key={idea.id}
                     idea={idea}
+                    index={i + 1}
                     onOpen={() => setOpenIdeaId(idea.id)}
                     onDelete={() => removeIdea(idea.id)}
                   />
@@ -276,10 +669,9 @@ function deadlineBadge(deadline: string | null): { label: string; cls: string } 
   const now = new Date();
   const days = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   const label = days < 0 ? `${-days}d ago` : days === 0 ? 'today' : `${days}d`;
-  if (days < 0) return { label, cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' };
-  if (days <= 14) return { label, cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' };
-  if (days <= 30) return { label, cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' };
-  return { label, cls: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' };
+  if (days < 0 || days <= 14) return { label, cls: 'urgent' };
+  if (days <= 30) return { label, cls: 'soon' };
+  return { label, cls: 'later' };
 }
 
 function hasPendingTermRefs(idea: Idea): boolean {
@@ -289,47 +681,53 @@ function hasPendingTermRefs(idea: Idea): boolean {
   return false;
 }
 
-function IdeaListItem({ idea, onOpen, onDelete }: { idea: Idea; onOpen: () => void; onDelete: () => void }) {
+function IdeaListItem({ idea, index, onOpen, onDelete }: { idea: Idea; index: number; onOpen: () => void; onDelete: () => void }) {
   const badge = deadlineBadge(idea.deadline);
   const hasPending = hasPendingTermRefs(idea);
+  const badgeColor =
+    badge?.cls === 'urgent' ? 'var(--accent)'
+    : badge?.cls === 'soon' ? 'var(--warn)'
+    : 'var(--ink-3)';
   return (
     <li
       onClick={onOpen}
-      className="group flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900/40 cursor-pointer border-b border-gray-100 dark:border-gray-700/50 last:border-b-0"
+      className="focus-row group flex items-baseline gap-2 py-1.5 cursor-pointer"
     >
-      <span className="truncate flex-1">{idea.title}</span>
-      <div className="flex items-center gap-1 flex-shrink-0">
+      <span className="ordinal">{String(index).padStart(2, '0')}</span>
+      <span
+        className="display flex-1 truncate text-[14px] leading-snug"
+        style={{ color: 'var(--ink)' }}
+      >
+        {idea.title}
+      </span>
+      <div className="flex items-center gap-2 flex-shrink-0 text-[10px]">
         {idea.priority !== null && idea.priority >= 8 && (
-          <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">P{idea.priority}</span>
+          <span className="mono" style={{ color: 'var(--accent)' }}>P{idea.priority}</span>
         )}
         {hasPending && (
           <span
-            className="w-1.5 h-1.5 rounded-full bg-amber-500"
-            title="References terms that don't exist on WordPress yet"
+            className="inline-block w-1.5 h-1.5 rounded-full"
+            style={{ background: 'var(--warn)' }}
+            title="References terms not on WordPress yet"
           />
         )}
         {badge && (
-          <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium', badge.cls)}>{badge.label}</span>
+          <span className="mono" style={{ color: badgeColor }}>{badge.label}</span>
         )}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ color: 'var(--ink-3)' }}
           aria-label="Delete idea"
         >
-          <Trash2 className="w-3.5 h-3.5" />
+          <Trash2 className="w-3 h-3" />
         </button>
       </div>
     </li>
   );
 }
 
-function AddIdeaForm({
-  status,
-  onAdd,
-}: {
-  status: IdeaStatus;
-  onAdd: (title: string, status: IdeaStatus) => void;
-}) {
+function AddIdeaForm({ status, onAdd }: { status: IdeaStatus; onAdd: (title: string, status: IdeaStatus) => void }) {
   const [title, setTitle] = useState('');
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -339,24 +737,22 @@ function AddIdeaForm({
     setTitle('');
   };
   return (
-    <form onSubmit={submit} className="px-2 pb-2 pt-1 border-t border-gray-100 dark:border-gray-700/50">
-      <div className="flex items-center gap-1">
+    <form onSubmit={submit} className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--rule)' }}>
+      <div className="flex items-baseline gap-2">
+        <span
+          className="display italic text-sm"
+          style={{ color: title.trim() ? 'var(--accent)' : 'var(--ink-3)' }}
+        >
+          +
+        </span>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="+ Add idea"
-          className="flex-1 text-xs rounded border border-transparent hover:border-gray-200 dark:hover:border-gray-700 focus:border-brand-500 focus:outline-none bg-transparent text-gray-900 dark:text-gray-100 px-1.5 py-1 placeholder-gray-400"
+          placeholder="add idea"
+          className="ink-input display text-[13px] italic"
+          style={{ borderBottom: 'none', padding: '2px 0' }}
         />
-        {title.trim() && (
-          <button
-            type="submit"
-            className="text-brand-600 hover:text-brand-700"
-            aria-label="Add idea"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-        )}
       </div>
     </form>
   );
@@ -392,21 +788,15 @@ function IdeaDrawer({
   const [topicIds, setTopicIds] = useState<number[]>(idea.topic_term_ids);
   const [audienceIds, setAudienceIds] = useState<number[]>(idea.audience_term_ids);
 
-  // PLEXKITS taxonomies (audience / topic / resource-type) — loaded once,
-  // shared by every drawer instance via state ref module-scope cache.
   const [termsByTax, setTermsByTax] = useState<Record<string, Term[]>>({});
-  // Pending terms the user has added inside the planner that don't yet exist
-  // on WP. Keyed by taxonomy; IDs are negative to coexist with synced (+) IDs.
   const [plannerTermsByTax, setPlannerTermsByTax] = useState<Record<string, PendingTerm[]>>({});
 
-  // Research log state
   const [entries, setEntries] = useState<ResearchEntry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(true);
   const [entryType, setEntryType] = useState<ResearchType>('seo');
   const [entryContent, setEntryContent] = useState('');
   const [entrySource, setEntrySource] = useState('');
 
-  // Reset local state when switching to a different idea.
   useEffect(() => {
     setTitle(idea.title);
     setStatus(idea.status);
@@ -426,9 +816,6 @@ function IdeaDrawer({
     setAudienceIds(idea.audience_term_ids);
   }, [idea]);
 
-  // Load the synced PLEXKITS taxonomy terms once per drawer mount, plus the
-  // planner-side pending terms (kept in a separate table so they don't
-  // pollute the resource-edit UI's term lists).
   const refreshPlannerTerms = useCallback(async () => {
     try {
       const r = await fetch('/api/planner/terms');
@@ -442,8 +829,8 @@ function IdeaDrawer({
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      fetch('/api/terms').then((r) => r.json()).catch((err) => { console.warn('[planner] terms load failed:', err); return {}; }),
-      fetch('/api/planner/terms').then((r) => r.json()).catch((err) => { console.warn('[planner] planner-terms load failed:', err); return { terms: {} }; }),
+      fetch('/api/terms').then((r) => r.json()).catch(() => ({})),
+      fetch('/api/planner/terms').then((r) => r.json()).catch(() => ({ terms: {} })),
     ]).then(([synced, planner]) => {
       if (cancelled) return;
       if (synced && typeof synced === 'object') setTermsByTax(synced);
@@ -474,7 +861,6 @@ function IdeaDrawer({
     return data.term as PendingTerm;
   }, [plannerTermsByTax, refreshPlannerTerms]);
 
-  // Load research entries when the open idea changes.
   useEffect(() => {
     let cancelled = false;
     setEntriesLoading(true);
@@ -502,16 +888,11 @@ function IdeaDrawer({
         source_url: entrySource.trim() || undefined,
       }),
     });
-    if (!res.ok) {
-      alert('Failed to add research entry');
-      return;
-    }
+    if (!res.ok) { alert('Failed to add research entry'); return; }
     const data = await res.json();
     setEntries((prev) => [...prev, data.entry]);
     setEntryContent('');
     setEntrySource('');
-    // Auto-transition: adding research is the explicit "research started"
-    // signal. Bumps idea->researching once.
     if (idea.status === 'idea' && status === 'idea') {
       setStatus('researching');
       await commit({ status: 'researching' });
@@ -522,7 +903,6 @@ function IdeaDrawer({
     setEntries((prev) => prev.filter((e) => e.id !== entryId));
     const res = await fetch(`/api/planner/research/${entryId}`, { method: 'DELETE' });
     if (!res.ok) {
-      // Reload on failure.
       const r = await fetch(`/api/planner/ideas/${idea.id}/research`);
       const d = await r.json();
       setEntries(d.entries || []);
@@ -553,12 +933,10 @@ function IdeaDrawer({
     if (resourceTypeId !== idea.resource_type_term_id) patch.resource_type_term_id = resourceTypeId;
     if (JSON.stringify(topicIds) !== JSON.stringify(idea.topic_term_ids)) patch.topic_term_ids = topicIds;
     if (JSON.stringify(audienceIds) !== JSON.stringify(idea.audience_term_ids)) patch.audience_term_ids = audienceIds;
-
     if (Object.keys(patch).length > 0) await commit(patch);
     onClose();
   };
 
-  // Readiness checklist for graduating to drafting/ready.
   const readiness = {
     hasDescription: description.trim().length > 30,
     hasResearchEntries: entries.length >= 3,
@@ -569,221 +947,231 @@ function IdeaDrawer({
   const readinessCount = Object.values(readiness).filter(Boolean).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="fixed inset-0 bg-black/40" onClick={close} />
+    <div className="fixed inset-0 z-50 flex justify-end planner-root">
+      <PlannerStyle />
+      <div
+        className="overlay-in fixed inset-0"
+        style={{ background: 'rgba(26, 23, 21, 0.45)', backdropFilter: 'blur(2px)' }}
+        onClick={close}
+      />
       <div
         role="dialog"
         aria-modal="true"
-        className="relative bg-white dark:bg-gray-800 w-full max-w-2xl shadow-xl h-full flex flex-col overflow-hidden"
+        className="drawer-in relative w-full max-w-2xl h-full flex flex-col overflow-hidden shadow-2xl"
+        style={{ background: 'var(--paper)', borderLeft: '1px solid var(--rule-2)' }}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Idea</h2>
+        {/* Header */}
+        <div className="px-8 pt-6 pb-4 flex items-start justify-between" style={{ borderBottom: '1px solid var(--rule)' }}>
+          <div>
+            <div className="label-eyebrow">An entry from the desk</div>
+            <h2 className="display text-3xl font-medium tracking-tight mt-1" style={{ color: 'var(--ink)' }}>
+              Idea — №{String(idea.id).padStart(3, '0')}
+            </h2>
+          </div>
           <button
             onClick={close}
-            className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="btn-ghost"
             aria-label="Close drawer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto px-8 py-6 space-y-7">
           {/* Title */}
-          <div>
-            <Label>Title</Label>
+          <Section title="Headline">
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={() => { if (title.trim() && title !== idea.title) commit({ title: title.trim() }); }}
-              className="w-full text-base font-medium text-gray-900 dark:text-gray-100 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-brand-500 focus:outline-none py-1"
+              className="display text-2xl font-medium tracking-tight w-full bg-transparent outline-none border-b py-2"
+              style={{ color: 'var(--ink)', borderColor: 'var(--rule)' }}
             />
-          </div>
+          </Section>
 
-          {/* Quick fields row */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label>Status</Label>
-              <select
-                value={status}
-                onChange={(e) => {
-                  const next = e.target.value as IdeaStatus;
-                  setStatus(next);
-                  commit({ status: next });
-                }}
-                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
-              >
-                {STATUS_COLUMNS.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
+          {/* Standing row */}
+          <Section title="Standing">
+            <div className="grid grid-cols-3 gap-x-6 gap-y-4">
+              <Field label="Status">
+                <select
+                  value={status}
+                  onChange={(e) => {
+                    const next = e.target.value as IdeaStatus;
+                    setStatus(next);
+                    commit({ status: next });
+                  }}
+                  className="ink-select display text-base"
+                >
+                  {STATUS_COLUMNS.map((c) => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Cluster">
+                <input
+                  type="text"
+                  value={cluster}
+                  onChange={(e) => setCluster(e.target.value)}
+                  onBlur={() => { if (cluster !== (idea.cluster ?? '')) commit({ cluster: cluster || null }); }}
+                  placeholder="office-pools"
+                  className="ink-input display text-base"
+                />
+              </Field>
+              <Field label="Priority (1—10)">
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value)}
+                  onBlur={() => {
+                    const n = parseInt(priority, 10);
+                    const next = Number.isFinite(n) ? n : null;
+                    if (next !== idea.priority) commit({ priority: next });
+                  }}
+                  className="ink-input mono text-base"
+                />
+              </Field>
+              <Field label="Deadline">
+                <input
+                  type="date"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                  onBlur={() => { if (deadline !== (idea.deadline ?? '')) commit({ deadline: deadline || null }); }}
+                  className="ink-input mono text-sm"
+                />
+              </Field>
+              <Field label="Frequency">
+                <select
+                  value={frequency ?? ''}
+                  onChange={(e) => {
+                    const v = (e.target.value || null) as Frequency;
+                    setFrequency(v);
+                    commit({ frequency: v } as Partial<Idea>);
+                  }}
+                  className="ink-select display text-base"
+                >
+                  {FREQUENCY_OPTIONS.map((c) => (
+                    <option key={c.id ?? 'none'} value={c.id ?? ''}>{c.label}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Effort (h)">
+                <input
+                  type="number"
+                  step={0.5}
+                  min={0}
+                  value={effort}
+                  onChange={(e) => setEffort(e.target.value)}
+                  onBlur={() => {
+                    const n = parseFloat(effort);
+                    const next = Number.isFinite(n) ? n : null;
+                    if (next !== idea.estimated_effort_hours) commit({ estimated_effort_hours: next });
+                  }}
+                  className="ink-input mono text-base"
+                />
+              </Field>
+              {frequency && (
+                <Field label="Next refresh">
+                  <input
+                    type="date"
+                    value={refreshNextDue}
+                    onChange={(e) => setRefreshNextDue(e.target.value)}
+                    onBlur={() => { if (refreshNextDue !== (idea.refresh_next_due ?? '')) commit({ refresh_next_due: refreshNextDue || null }); }}
+                    className="ink-input mono text-sm"
+                  />
+                </Field>
+              )}
             </div>
-            <div>
-              <Label>Cluster</Label>
-              <input
-                type="text"
-                value={cluster}
-                onChange={(e) => setCluster(e.target.value)}
-                onBlur={() => { if (cluster !== (idea.cluster ?? '')) commit({ cluster: cluster || null }); }}
-                placeholder="e.g. office-pools"
-                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1 placeholder-gray-400"
-              />
-            </div>
-            <div>
-              <Label>Priority (1-10)</Label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                onBlur={() => {
-                  const n = parseInt(priority, 10);
-                  const next = Number.isFinite(n) ? n : null;
-                  if (next !== idea.priority) commit({ priority: next });
-                }}
-                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label>Deadline</Label>
-              <input
-                type="date"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                onBlur={() => { if (deadline !== (idea.deadline ?? '')) commit({ deadline: deadline || null }); }}
-                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
-              />
-            </div>
-            <div>
-              <Label>Frequency</Label>
-              <select
-                value={frequency ?? ''}
-                onChange={(e) => {
-                  const v = (e.target.value || null) as Frequency;
-                  setFrequency(v);
-                  commit({ frequency: v } as Partial<Idea>);
-                }}
-                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
-              >
-                {FREQUENCY_OPTIONS.map((c) => (
-                  <option key={c.id ?? 'none'} value={c.id ?? ''}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label>Effort (hours)</Label>
-              <input
-                type="number"
-                step={0.5}
-                min={0}
-                value={effort}
-                onChange={(e) => setEffort(e.target.value)}
-                onBlur={() => {
-                  const n = parseFloat(effort);
-                  const next = Number.isFinite(n) ? n : null;
-                  if (next !== idea.estimated_effort_hours) commit({ estimated_effort_hours: next });
-                }}
-                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
-              />
-            </div>
-          </div>
-
-          {frequency && (
-            <div>
-              <Label>Next refresh due</Label>
-              <input
-                type="date"
-                value={refreshNextDue}
-                onChange={(e) => setRefreshNextDue(e.target.value)}
-                onBlur={() => { if (refreshNextDue !== (idea.refresh_next_due ?? '')) commit({ refresh_next_due: refreshNextDue || null }); }}
-                className="w-full sm:w-1/3 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
-              />
-            </div>
-          )}
-
-          {/* PLEXKITS taxonomy bindings */}
-          <TaxonomySingleField
-            label="Resource type"
-            taxonomy="resource-type"
-            termsByTax={termsByTax}
-            pendingByTax={plannerTermsByTax}
-            value={resourceTypeId}
-            onChange={(next) => { setResourceTypeId(next); commit({ resource_type_term_id: next }); }}
-            onAddNew={addPendingTerm}
-          />
-          <TaxonomyMultiField
-            label="Tags (topic)"
-            taxonomy="topic"
-            termsByTax={termsByTax}
-            pendingByTax={plannerTermsByTax}
-            values={topicIds}
-            onChange={(next) => { setTopicIds(next); commit({ topic_term_ids: next }); }}
-            onAddNew={addPendingTerm}
-          />
-          <TaxonomyMultiField
-            label="Audience"
-            taxonomy="audience"
-            termsByTax={termsByTax}
-            pendingByTax={plannerTermsByTax}
-            values={audienceIds}
-            onChange={(next) => { setAudienceIds(next); commit({ audience_term_ids: next }); }}
-            onAddNew={addPendingTerm}
-          />
+          </Section>
 
           {/* Description */}
-          <div>
-            <Label>Description</Label>
+          <Section title="Lede">
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={() => { if (description !== (idea.description ?? '')) commit({ description }); }}
               placeholder="What is this template? Why is it worth building best-in-class?"
-              rows={3}
-              className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 placeholder-gray-400"
+              rows={4}
+              className="ink-textarea"
             />
-          </div>
+          </Section>
 
-          {/* Tag-chip fields */}
-          <TagChipField
-            label="Schema markup types"
-            placeholder="HowTo, FAQPage, Dataset…"
-            values={schemaTypes}
-            onChange={(next) => { setSchemaTypes(next); commit({ schema_types: next }); }}
-          />
-          <TagChipField
-            label="Monetization angles"
-            placeholder="ads, affiliate, email_capture…"
-            values={monetization}
-            onChange={(next) => { setMonetization(next); commit({ monetization_angles: next }); }}
-          />
-          <TagChipField
-            label="SERP feature targets"
-            placeholder="featured_snippet, paa, image_pack…"
-            values={serpTargets}
-            onChange={(next) => { setSerpTargets(next); commit({ serp_targets: next }); }}
-          />
+          {/* Classification */}
+          <Section title="Classification — PLEXKITS taxonomies">
+            <div className="space-y-5">
+              <TaxonomySingleField
+                label="Resource type"
+                taxonomy="resource-type"
+                termsByTax={termsByTax}
+                pendingByTax={plannerTermsByTax}
+                value={resourceTypeId}
+                onChange={(next) => { setResourceTypeId(next); commit({ resource_type_term_id: next }); }}
+                onAddNew={addPendingTerm}
+              />
+              <TaxonomyMultiField
+                label="Tags — topic"
+                taxonomy="topic"
+                termsByTax={termsByTax}
+                pendingByTax={plannerTermsByTax}
+                values={topicIds}
+                onChange={(next) => { setTopicIds(next); commit({ topic_term_ids: next }); }}
+                onAddNew={addPendingTerm}
+              />
+              <TaxonomyMultiField
+                label="Audience"
+                taxonomy="audience"
+                termsByTax={termsByTax}
+                pendingByTax={plannerTermsByTax}
+                values={audienceIds}
+                onChange={(next) => { setAudienceIds(next); commit({ audience_term_ids: next }); }}
+                onAddNew={addPendingTerm}
+              />
+            </div>
+          </Section>
+
+          {/* SEO angles */}
+          <Section title="SEO & monetization angles">
+            <div className="space-y-4">
+              <TagChipField
+                label="Schema markup types"
+                placeholder="HowTo, FAQPage, Dataset…"
+                values={schemaTypes}
+                onChange={(next) => { setSchemaTypes(next); commit({ schema_types: next }); }}
+              />
+              <TagChipField
+                label="Monetization angles"
+                placeholder="ads, affiliate, email_capture…"
+                values={monetization}
+                onChange={(next) => { setMonetization(next); commit({ monetization_angles: next }); }}
+              />
+              <TagChipField
+                label="SERP feature targets"
+                placeholder="featured_snippet, paa, image_pack…"
+                values={serpTargets}
+                onChange={(next) => { setSerpTargets(next); commit({ serp_targets: next }); }}
+              />
+            </div>
+          </Section>
 
           {/* Research log */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <Label noMargin>Research log</Label>
-              <span className="text-xs text-gray-400 dark:text-gray-500">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span>
-            </div>
+          <Section
+            title="Research log"
+            rightSlot={<span className="mono text-[11px]" style={{ color: 'var(--ink-3) ' }}>{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span>}
+          >
             {entriesLoading ? (
-              <div className="text-xs text-gray-500 dark:text-gray-400 py-3">Loading…</div>
+              <div className="display italic text-sm py-2" style={{ color: 'var(--ink-3)' }}>setting type…</div>
             ) : (
               <ResearchTimeline entries={entries} onDelete={removeResearchEntry} />
             )}
-            <div className="mt-2 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-2 space-y-1.5">
-              <div className="flex items-center gap-2">
+            <div className="mt-4 p-3 border" style={{ borderColor: 'var(--rule-2)', background: 'var(--paper-2)' }}>
+              <div className="flex items-center gap-2 mb-2">
                 <select
                   value={entryType}
                   onChange={(e) => setEntryType(e.target.value as ResearchType)}
-                  className="text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-1"
+                  className="ink-select text-xs"
+                  style={{ width: 'auto', minWidth: 140 }}
                 >
                   {RESEARCH_TYPES.map((t) => (
                     <option key={t.id} value={t.id}>{t.label}</option>
@@ -793,8 +1181,9 @@ function IdeaDrawer({
                   type="text"
                   value={entrySource}
                   onChange={(e) => setEntrySource(e.target.value)}
-                  placeholder="Source URL (optional)"
-                  className="flex-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-1.5 py-1 placeholder-gray-400"
+                  placeholder="source URL (optional)"
+                  className="ink-input text-xs"
+                  style={{ flex: 1 }}
                 />
               </div>
               <textarea
@@ -802,61 +1191,74 @@ function IdeaDrawer({
                 onChange={(e) => setEntryContent(e.target.value)}
                 placeholder={`Concrete finding for ${RESEARCH_TYPES.find((t) => t.id === entryType)?.label || entryType}…`}
                 rows={2}
-                className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 placeholder-gray-400"
+                className="ink-textarea text-sm"
               />
-              <div className="flex justify-end">
+              <div className="flex justify-end mt-2">
                 <button
                   onClick={addResearchEntry}
                   disabled={!entryContent.trim()}
-                  className="text-xs px-2.5 py-1 rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-primary"
+                  style={{ padding: '6px 12px', fontSize: 10 }}
                 >
-                  Add entry
+                  File entry
                 </button>
               </div>
             </div>
-          </div>
+          </Section>
 
-          {/* Notes (free scratch) */}
-          <div>
-            <Label>Notes (free scratch)</Label>
+          {/* Notes */}
+          <Section title="Marginalia">
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               onBlur={() => { if (notes !== (idea.notes ?? '')) commit({ notes }); }}
               placeholder="Anything that doesn't fit a typed research entry."
               rows={3}
-              className="w-full text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 placeholder-gray-400"
+              className="ink-textarea"
             />
-          </div>
+          </Section>
 
-          {/* Readiness checklist */}
-          <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Readiness</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">{readinessCount}/5</span>
-            </div>
-            <ul className="text-xs space-y-0.5">
-              <ReadinessRow ok={readiness.hasDescription} label="Description ≥30 chars" />
-              <ReadinessRow ok={readiness.hasResearchEntries} label="≥3 research entries" />
+          {/* Readiness */}
+          <Section
+            title="Readiness"
+            rightSlot={
+              <span className="mono text-[11px]" style={{ color: readinessCount === 5 ? 'var(--good)' : 'var(--ink-3)' }}>
+                {readinessCount}/5
+              </span>
+            }
+          >
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+              <ReadinessRow ok={readiness.hasDescription} label="Lede ≥ 30 chars" />
+              <ReadinessRow ok={readiness.hasResearchEntries} label="≥ 3 research entries" />
               <ReadinessRow ok={readiness.hasSchemaTypes} label="At least one schema type" />
               <ReadinessRow ok={readiness.hasDeadline} label="Deadline set" />
               <ReadinessRow ok={readiness.hasCluster} label="Cluster tagged" />
-            </ul>
-          </div>
+            </div>
+            <div className="mt-3 flex items-center gap-1">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <span
+                  key={i}
+                  className="block h-1 flex-1"
+                  style={{
+                    background: i < readinessCount ? 'var(--accent)' : 'var(--rule-2)',
+                    opacity: i < readinessCount ? 1 : 0.4,
+                  }}
+                />
+              ))}
+            </div>
+          </Section>
         </div>
 
-        <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <div className="px-8 py-4 flex items-center justify-between" style={{ borderTop: '1px solid var(--rule)' }}>
           <button
             onClick={() => onDelete(idea.id)}
-            className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+            className="btn-ghost"
+            style={{ color: 'var(--accent)' }}
           >
             Delete idea
           </button>
-          <button
-            onClick={close}
-            className="px-3 py-1 text-xs font-medium rounded-md bg-brand-600 text-white hover:bg-brand-700"
-          >
-            Done
+          <button onClick={close} className="btn-primary">
+            Done — to press
           </button>
         </div>
       </div>
@@ -864,20 +1266,46 @@ function IdeaDrawer({
   );
 }
 
-function Label({ children, noMargin }: { children: React.ReactNode; noMargin?: boolean }) {
+function Section({
+  title,
+  rightSlot,
+  children,
+}: {
+  title: string;
+  rightSlot?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <label className={cn('block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider', noMargin ? '' : 'mb-1')}>
+    <section>
+      <div className="flex items-baseline justify-between pb-2 mb-3" style={{ borderBottom: '1px solid var(--rule)' }}>
+        <h3 className="label-eyebrow">{title}</h3>
+        {rightSlot}
+      </div>
       {children}
-    </label>
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="label-eyebrow mb-1" style={{ color: 'var(--ink-3)' }}>{label}</div>
+      {children}
+    </div>
   );
 }
 
 function ReadinessRow({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <li className="flex items-center gap-1.5">
-      <span className={cn('inline-block w-3 text-center', ok ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500')}>{ok ? '✓' : '·'}</span>
-      <span className={cn(ok ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-500')}>{label}</span>
-    </li>
+    <div className="flex items-center gap-2">
+      <span
+        className="inline-block w-3 text-center mono text-xs"
+        style={{ color: ok ? 'var(--good)' : 'var(--ink-3)' }}
+      >
+        {ok ? '✓' : '·'}
+      </span>
+      <span style={{ color: ok ? 'var(--ink)' : 'var(--ink-3)' }}>{label}</span>
+    </div>
   );
 }
 
@@ -903,15 +1331,15 @@ function TagChipField({
   const remove = (v: string) => onChange(values.filter((x) => x !== v));
   return (
     <div>
-      <Label>{label}</Label>
-      <div className="flex items-center gap-1.5 flex-wrap rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5 min-h-[34px]">
+      <div className="label-eyebrow mb-1.5">{label}</div>
+      <div
+        className="flex items-center gap-1.5 flex-wrap px-2 py-1.5 min-h-[34px]"
+        style={{ border: '1px solid var(--rule)', background: 'var(--paper)' }}
+      >
         {values.map((v) => (
-          <span
-            key={v}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-300"
-          >
+          <span key={v} className="chip">
             {v}
-            <button onClick={() => remove(v)} className="hover:text-red-600" aria-label={`Remove ${v}`}>
+            <button onClick={() => remove(v)} style={{ color: 'var(--ink-3)' }} aria-label={`Remove ${v}`}>
               <X className="w-3 h-3" />
             </button>
           </span>
@@ -930,12 +1358,15 @@ function TagChipField({
           }}
           onBlur={add}
           placeholder={values.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[120px] text-sm bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none placeholder-gray-400"
+          className="flex-1 min-w-[120px] text-sm bg-transparent outline-none"
+          style={{ color: 'var(--ink)' }}
         />
       </div>
     </div>
   );
 }
+
+// ─── Taxonomy pickers ────────────────────────────────────────────────────────
 
 interface MergedTerm {
   id: number;
@@ -943,14 +1374,9 @@ interface MergedTerm {
   isPending: boolean;
 }
 
-function mergeTerms(
-  synced: Term[],
-  pending: PendingTerm[],
-): MergedTerm[] {
+function mergeTerms(synced: Term[], pending: PendingTerm[]): MergedTerm[] {
   const out: MergedTerm[] = synced.map((t) => ({ id: t.id, name: t.name, isPending: false }));
   for (const p of pending) {
-    // Hide pending term if a synced term with the same name was added since
-    // (e.g. user pulled the WP sync after creating the pending row).
     if (!out.some((s) => s.name.toLowerCase() === p.name.toLowerCase() && !s.isPending)) {
       out.push({ id: p.id, name: p.name, isPending: true });
     }
@@ -961,7 +1387,11 @@ function mergeTerms(
 
 function PendingBadge() {
   return (
-    <span className="ml-1 inline-flex items-center px-1 py-0 rounded text-[9px] font-medium uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" title="Not on WordPress yet — will be created on promote">
+    <span
+      className="mono text-[9px] font-medium uppercase tracking-wider"
+      style={{ color: 'var(--warn)' }}
+      title="Not on WordPress yet — will be created on promote"
+    >
       new
     </span>
   );
@@ -985,24 +1415,21 @@ function NewTermInlineForm({
     if (term) setName('');
   };
   return (
-    <div className="mt-1.5 flex items-center gap-1">
+    <div className="mt-2 flex items-baseline gap-2">
+      <span className="display italic text-sm" style={{ color: 'var(--accent)' }}>+</span>
       <input
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
-        placeholder={`+ Add new ${taxonomy} term…`}
+        placeholder={`add new ${taxonomy} term`}
         disabled={busy}
-        className="flex-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1 placeholder-gray-400 disabled:opacity-50"
+        className="ink-input display text-sm italic flex-1"
+        style={{ borderBottom: 'none' }}
       />
       {name.trim() && (
-        <button
-          type="button"
-          onClick={submit}
-          disabled={busy}
-          className="text-xs px-2 py-0.5 rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
-        >
-          {busy ? '…' : 'Add'}
+        <button onClick={submit} disabled={busy} className="btn-primary" style={{ padding: '4px 10px', fontSize: 9 }}>
+          {busy ? '…' : 'add'}
         </button>
       )}
     </div>
@@ -1039,9 +1466,9 @@ function TaxonomySingleField({
   };
   return (
     <div>
-      <Label>{label}</Label>
+      <div className="label-eyebrow mb-1.5">{label}</div>
       {!isReady && merged.length === 0 ? (
-        <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">Loading taxonomy…</div>
+        <div className="display italic text-sm" style={{ color: 'var(--ink-3)' }}>loading…</div>
       ) : (
         <>
           <div className="flex items-center gap-2">
@@ -1051,7 +1478,7 @@ function TaxonomySingleField({
                 const v = e.target.value === '' ? null : Number(e.target.value);
                 onChange(Number.isFinite(v as number) ? (v as number) : null);
               }}
-              className="flex-1 text-sm rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1"
+              className="ink-select display text-base flex-1"
             >
               <option value="">—</option>
               {merged.map((t) => (
@@ -1103,25 +1530,17 @@ function TaxonomyMultiField({
   const selectedMerged = merged.filter((t) => selected.has(t.id));
   return (
     <div>
-      <Label>{label}</Label>
+      <div className="label-eyebrow mb-1.5">{label}</div>
       {!isReady && merged.length === 0 ? (
-        <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">Loading taxonomy…</div>
+        <div className="display italic text-sm" style={{ color: 'var(--ink-3)' }}>loading…</div>
       ) : (
         <>
           {selectedMerged.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap mb-2">
               {selectedMerged.map((t) => (
-                <span
-                  key={t.id}
-                  className={cn(
-                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs',
-                    t.isPending
-                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                      : 'bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-300',
-                  )}
-                >
+                <span key={t.id} className={cn('chip', t.isPending && 'is-pending')}>
                   {t.name}{t.isPending && <PendingBadge />}
-                  <button onClick={() => toggle(t.id)} className="hover:text-red-600" aria-label={`Remove ${t.name}`}>
+                  <button onClick={() => toggle(t.id)} aria-label={`Remove ${t.name}`}>
                     <X className="w-3 h-3" />
                   </button>
                 </span>
@@ -1129,19 +1548,22 @@ function TaxonomyMultiField({
             </div>
           )}
           {merged.length > 0 && (
-            <div className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 max-h-32 overflow-y-auto p-1">
+            <div
+              className="max-h-32 overflow-y-auto px-2 py-1"
+              style={{ border: '1px solid var(--rule)', background: 'var(--paper)' }}
+            >
               {merged.map((t) => (
                 <label
                   key={t.id}
-                  className="flex items-center gap-2 px-1.5 py-0.5 rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900/40 cursor-pointer"
+                  className="flex items-center gap-2 px-1 py-0.5 text-sm cursor-pointer focus-row"
                 >
                   <input
                     type="checkbox"
                     checked={selected.has(t.id)}
                     onChange={() => toggle(t.id)}
-                    className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                    style={{ accentColor: 'var(--accent)' }}
                   />
-                  <span>{t.name}</span>
+                  <span style={{ color: 'var(--ink)' }}>{t.name}</span>
                   {t.isPending && <PendingBadge />}
                 </label>
               ))}
@@ -1154,62 +1576,78 @@ function TaxonomyMultiField({
   );
 }
 
-const RESEARCH_TYPE_COLORS: Record<ResearchType, string> = {
-  seo: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  structure: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
-  audience: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-  competitor: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
-  internal_linking: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
-  monetization: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-  schema_markup: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300',
-  serp_features: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
-  publishing: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
-  templates: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-  legal_compliance: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-  tech_notes: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+// ─── Research timeline ───────────────────────────────────────────────────────
+
+const RESEARCH_TYPE_TONE: Record<ResearchType, string> = {
+  seo: 'var(--accent)',
+  structure: 'var(--ink-2)',
+  audience: 'var(--kraft)',
+  competitor: 'var(--warn)',
+  internal_linking: 'var(--ink-2)',
+  monetization: 'var(--good)',
+  schema_markup: 'var(--accent)',
+  serp_features: 'var(--warn)',
+  publishing: 'var(--ink-2)',
+  templates: 'var(--kraft)',
+  legal_compliance: 'var(--accent)',
+  tech_notes: 'var(--ink-3)',
 };
 
 function ResearchTimeline({ entries, onDelete }: { entries: ResearchEntry[]; onDelete: (id: number) => void }) {
   if (entries.length === 0) {
     return (
-      <div className="text-xs text-gray-500 dark:text-gray-400 italic py-2 px-3 rounded border border-dashed border-gray-300 dark:border-gray-700">
-        No research yet. Add typed findings below: SEO angles, competitor checks, schema decisions, audience notes…
+      <div
+        className="display italic text-sm py-3 px-3"
+        style={{ color: 'var(--ink-3)', border: '1px dashed var(--rule-2)' }}
+      >
+        Nothing filed yet. Add typed findings below — SEO angles, competitor checks, schema decisions, audience notes…
       </div>
     );
   }
   return (
-    <ul className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-      {entries.map((e) => {
+    <ol className="space-y-3 max-h-80 overflow-y-auto pr-1">
+      {entries.map((e, i) => {
         const typeLabel = RESEARCH_TYPES.find((t) => t.id === e.type)?.label || e.type;
+        const tone = RESEARCH_TYPE_TONE[e.type];
         return (
-          <li key={e.id} className="group rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
-            <div className="flex items-start justify-between gap-2">
-              <span className={cn('inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium', RESEARCH_TYPE_COLORS[e.type])}>
-                {typeLabel}
-              </span>
-              <button
-                onClick={() => onDelete(e.id)}
-                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
-                aria-label="Delete entry"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
+          <li key={e.id} className="group flex gap-3 pb-3" style={{ borderBottom: '1px solid var(--rule)' }}>
+            <span className="footnote-marker">§{i + 1}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <span
+                  className="label-eyebrow"
+                  style={{ color: tone }}
+                >
+                  {typeLabel}
+                </span>
+                <button
+                  onClick={() => onDelete(e.id)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ color: 'var(--ink-3)' }}
+                  aria-label="Delete entry"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+              <p className="display text-[14px] leading-[1.55] whitespace-pre-wrap" style={{ color: 'var(--ink)' }}>
+                {e.content}
+              </p>
+              {e.source_url && (
+                <a
+                  href={e.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block mono text-[11px] hover:underline truncate max-w-full"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  ↗ {e.source_url}
+                </a>
+              )}
             </div>
-            <p className="mt-1 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{e.content}</p>
-            {e.source_url && (
-              <a
-                href={e.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-1 inline-block text-[11px] text-brand-600 dark:text-brand-400 hover:underline truncate max-w-full"
-              >
-                {e.source_url}
-              </a>
-            )}
           </li>
         );
       })}
-    </ul>
+    </ol>
   );
 }
 
@@ -1236,9 +1674,7 @@ function KeywordsTable() {
     }
   }, []);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useEffect(() => { refresh(); }, [refresh]);
 
   const addKeyword = async () => {
     const trimmed = newTerm.trim();
@@ -1276,83 +1712,80 @@ function KeywordsTable() {
     if (!res.ok) await refresh();
   };
 
-  if (loading) {
-    return <div className="text-sm text-gray-500 dark:text-gray-400">Loading keywords…</div>;
-  }
-  if (error) {
-    return <div className="text-sm text-red-600 dark:text-red-400">Error: {error}</div>;
-  }
+  if (loading) return <div className="display italic text-sm mt-6" style={{ color: 'var(--ink-3)' }}>typesetting the index…</div>;
+  if (error) return <div className="mt-6 text-sm" style={{ color: 'var(--accent)' }}>Error: {error}</div>;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
-          <tr>
-            <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Term</th>
-            <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">Volume</th>
-            <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">Target post ID</th>
-            <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Notes</th>
-            <th className="w-12"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {keywords.length === 0 && (
-            <tr>
-              <td colSpan={5} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
-                No keywords yet. Add one below.
-              </td>
-            </tr>
-          )}
-          {keywords.map((kw) => (
-            <KeywordRow key={kw.id} keyword={kw} onPatch={patchKeyword} onDelete={removeKeyword} />
-          ))}
-          <tr className="border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30">
-            <td className="px-4 py-2">
-              <input
-                type="text"
-                value={newTerm}
-                onChange={(e) => setNewTerm(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addKeyword(); }}
-                placeholder="+ Add keyword"
-                className="w-full text-sm bg-transparent text-gray-900 dark:text-gray-100 px-0 py-1 focus:outline-none placeholder-gray-400"
-              />
-            </td>
-            <td className="px-4 py-2 text-right">
-              <input
-                type="number"
-                value={newVolume}
-                onChange={(e) => setNewVolume(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addKeyword(); }}
-                placeholder="—"
-                className="w-24 text-sm text-right bg-transparent text-gray-900 dark:text-gray-100 px-0 py-1 focus:outline-none placeholder-gray-400"
-              />
-            </td>
-            <td colSpan={2}></td>
-            <td className="px-4 py-2 text-center">
-              {newTerm.trim() && (
-                <button
-                  type="button"
-                  onClick={() => addKeyword()}
-                  className="text-brand-600 hover:text-brand-700"
-                  aria-label="Add keyword"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              )}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div className="mt-6 fade-in">
+      <div className="grid gap-2 mb-2 label-eyebrow" style={{ gridTemplateColumns: '4fr 1fr 1fr 3fr 32px' }}>
+        <span>Term</span>
+        <span className="text-right">Volume</span>
+        <span className="text-right">Target post</span>
+        <span>Notes</span>
+        <span></span>
+      </div>
+      <div style={{ borderTop: '1px solid var(--rule-2)' }}>
+        {keywords.length === 0 && (
+          <div className="display italic text-sm py-6 text-center" style={{ color: 'var(--ink-3)' }}>
+            No keywords yet. Add one below.
+          </div>
+        )}
+        {keywords.map((kw, i) => (
+          <KeywordRow key={kw.id} keyword={kw} index={i + 1} onPatch={patchKeyword} onDelete={removeKeyword} />
+        ))}
+        <div
+          className="grid gap-2 py-2 items-center"
+          style={{ gridTemplateColumns: '4fr 1fr 1fr 3fr 32px', borderTop: '1px solid var(--rule)' }}
+        >
+          <div className="flex items-baseline gap-2 pl-1">
+            <span
+              className="display italic text-sm"
+              style={{ color: newTerm.trim() ? 'var(--accent)' : 'var(--ink-3)' }}
+            >
+              +
+            </span>
+            <input
+              type="text"
+              value={newTerm}
+              onChange={(e) => setNewTerm(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addKeyword(); }}
+              placeholder="add keyword"
+              className="ink-input display text-sm italic"
+              style={{ borderBottom: 'none', padding: 0 }}
+            />
+          </div>
+          <input
+            type="number"
+            value={newVolume}
+            onChange={(e) => setNewVolume(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') addKeyword(); }}
+            placeholder="—"
+            className="ink-input mono text-sm text-right"
+            style={{ borderBottom: 'none', padding: 0 }}
+          />
+          <div></div>
+          <div></div>
+          <div className="text-center">
+            {newTerm.trim() && (
+              <button onClick={addKeyword} className="btn-ghost" aria-label="Add keyword" style={{ padding: '2px 4px' }}>
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 function KeywordRow({
   keyword,
+  index,
   onPatch,
   onDelete,
 }: {
   keyword: Keyword;
+  index: number;
   onPatch: (id: number, patch: Partial<Keyword>) => void;
   onDelete: (id: number) => void;
 }) {
@@ -1389,105 +1822,60 @@ function KeywordRow({
   const isGap = !keyword.target_post_id;
 
   return (
-    <tr className="group border-t border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-900/30">
-      <td className="px-4 py-2">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={term}
-            onChange={(e) => setTerm(e.target.value)}
-            onBlur={commitTerm}
-            className="flex-1 bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none focus:bg-white dark:focus:bg-gray-800 rounded px-1"
-          />
-          {isGap && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
-              gap
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-4 py-2 text-right">
-        <input
-          type="number"
-          value={volume}
-          onChange={(e) => setVolume(e.target.value)}
-          onBlur={commitVolume}
-          placeholder="—"
-          className="w-24 text-right bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none focus:bg-white dark:focus:bg-gray-800 rounded px-1 placeholder-gray-400"
-        />
-      </td>
-      <td className="px-4 py-2 text-right">
-        <input
-          type="number"
-          value={targetPostId}
-          onChange={(e) => setTargetPostId(e.target.value)}
-          onBlur={commitTargetPostId}
-          placeholder="—"
-          className="w-24 text-right bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none focus:bg-white dark:focus:bg-gray-800 rounded px-1 placeholder-gray-400"
-        />
-      </td>
-      <td className="px-4 py-2">
+    <div
+      className="grid gap-2 py-2 items-center focus-row group"
+      style={{ gridTemplateColumns: '4fr 1fr 1fr 3fr 32px', borderTop: '1px solid var(--rule)' }}
+    >
+      <div className="flex items-baseline gap-2 pl-1">
+        <span className="ordinal">{String(index).padStart(2, '0')}</span>
         <input
           type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          onBlur={commitNotes}
-          placeholder="—"
-          className="w-full bg-transparent text-gray-600 dark:text-gray-400 focus:outline-none focus:bg-white dark:focus:bg-gray-800 rounded px-1 placeholder-gray-400"
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          onBlur={commitTerm}
+          className="display text-[14px] flex-1 bg-transparent outline-none"
+          style={{ color: 'var(--ink)' }}
         />
-      </td>
-      <td className="px-4 py-2 text-center">
+        {isGap && (
+          <span className="pill is-pending mono" style={{ fontSize: 9, padding: '1px 5px' }}>gap</span>
+        )}
+      </div>
+      <input
+        type="number"
+        value={volume}
+        onChange={(e) => setVolume(e.target.value)}
+        onBlur={commitVolume}
+        placeholder="—"
+        className="mono text-sm text-right bg-transparent outline-none"
+        style={{ color: 'var(--ink)' }}
+      />
+      <input
+        type="number"
+        value={targetPostId}
+        onChange={(e) => setTargetPostId(e.target.value)}
+        onBlur={commitTargetPostId}
+        placeholder="—"
+        className="mono text-sm text-right bg-transparent outline-none"
+        style={{ color: 'var(--ink)' }}
+      />
+      <input
+        type="text"
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        onBlur={commitNotes}
+        placeholder="—"
+        className="display text-sm bg-transparent outline-none"
+        style={{ color: 'var(--ink-2)' }}
+      />
+      <div className="text-center">
         <button
           onClick={() => onDelete(keyword.id)}
-          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ color: 'var(--ink-3)' }}
           aria-label="Delete keyword"
         >
-          <Trash2 className="w-4 h-4" />
+          <Trash2 className="w-3 h-3" />
         </button>
-      </td>
-    </tr>
-  );
-}
-
-// ─── Page shell ──────────────────────────────────────────────────────────────
-
-type Tab = 'ideas' | 'keywords';
-
-export function PlannerPage(_props: PageComponentProps) {
-  const [tab, setTab] = useState<Tab>('ideas');
-
-  return (
-    <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-            Content Planner
-          </h1>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Plan ideas and keywords before they become posts.
-          </p>
-        </div>
-
-        <div className="mb-4 border-b border-gray-200 dark:border-gray-700">
-          <nav className="flex gap-4 -mb-px">
-            {(['ideas', 'keywords'] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={cn(
-                  'py-2 px-1 text-sm font-medium border-b-2 capitalize transition-colors',
-                  tab === t
-                    ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300',
-                )}
-              >
-                {t}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {tab === 'ideas' ? <IdeasBoard /> : <KeywordsTable />}
       </div>
     </div>
   );
