@@ -557,6 +557,7 @@ function IdeasBoard({ onChange }: { onChange?: (ideas: Idea[]) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [openIdeaId, setOpenIdeaId] = useState<number | null>(null);
   const [clusterFilter, setClusterFilter] = useState<string>('');
+  const [showAllClusters, setShowAllClusters] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -602,15 +603,28 @@ function IdeasBoard({ onChange }: { onChange?: (ideas: Idea[]) => void }) {
   };
 
   const clusters = useMemo(() => {
-    const set = new Set<string>();
-    ideas.forEach((i) => { if (i.cluster) set.add(i.cluster); });
-    return Array.from(set).sort();
+    const counts: Record<string, number> = {};
+    ideas.forEach((i) => { if (i.cluster) counts[i.cluster] = (counts[i.cluster] || 0) + 1; });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([name, count]) => ({ name, count }));
   }, [ideas]);
 
   const filteredIdeas = useMemo(() => {
     if (!clusterFilter) return ideas;
     return ideas.filter((i) => i.cluster === clusterFilter);
   }, [ideas, clusterFilter]);
+
+  const CLUSTER_LIMIT = 12;
+  const visibleClusters = showAllClusters ? clusters : clusters.slice(0, CLUSTER_LIMIT);
+  // If the active filter is on a cluster that got truncated, surface it too
+  // so it doesn't look like the active filter disappeared.
+  const visibleClusterSet = useMemo(() => new Set(visibleClusters.map((c) => c.name)), [visibleClusters]);
+  if (clusterFilter && !visibleClusterSet.has(clusterFilter)) {
+    const active = clusters.find((c) => c.name === clusterFilter);
+    if (active) visibleClusters.push(active);
+  }
+  const hiddenCount = clusters.length - visibleClusters.length;
 
   const openIdea = openIdeaId !== null ? ideas.find((i) => i.id === openIdeaId) || null : null;
 
@@ -620,23 +634,44 @@ function IdeasBoard({ onChange }: { onChange?: (ideas: Idea[]) => void }) {
   return (
     <>
       {clusters.length > 0 && (
-        <div className="mt-5 flex items-center gap-2 fade-in">
-          <span className="label-eyebrow">Filed under</span>
+        <div className="mt-5 fade-in" style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8, rowGap: 8 }}>
+          <span className="label-eyebrow" style={{ paddingTop: 2 }}>Filed under</span>
           <button
             onClick={() => setClusterFilter('')}
             className={cn('pill', clusterFilter === '' && 'is-active')}
           >
-            All
+            All <span className="mono" style={{ marginLeft: 4, opacity: 0.7, fontSize: 10 }}>{ideas.length}</span>
           </button>
-          {clusters.map((c) => (
+          {visibleClusters.map((c) => (
             <button
-              key={c}
-              onClick={() => setClusterFilter(c)}
-              className={cn('pill', clusterFilter === c && 'is-active')}
+              key={c.name}
+              onClick={() => setClusterFilter(c.name)}
+              className={cn('pill', clusterFilter === c.name && 'is-active')}
+              title={`${c.count} ${c.count === 1 ? 'idea' : 'ideas'}`}
             >
-              {c}
+              {c.name}
+              <span className="mono" style={{ marginLeft: 4, opacity: 0.7, fontSize: 10 }}>{c.count}</span>
             </button>
           ))}
+          {hiddenCount > 0 && (
+            <button
+              onClick={() => setShowAllClusters(true)}
+              className="pill"
+              style={{ borderStyle: 'dashed' }}
+              title={`Show ${hiddenCount} less common cluster${hiddenCount === 1 ? '' : 's'}`}
+            >
+              + {hiddenCount} more
+            </button>
+          )}
+          {showAllClusters && clusters.length > CLUSTER_LIMIT && (
+            <button
+              onClick={() => setShowAllClusters(false)}
+              className="btn-ghost"
+              style={{ fontSize: 11, padding: '3px 8px' }}
+            >
+              Collapse
+            </button>
+          )}
         </div>
       )}
 
