@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getDb } from '@/lib/db';
 import {
   updateIdea,
   deleteIdea,
+  getIdea,
   type IdeaStatus,
   type IdeaPatch,
 } from '@/lib/plugins/bundled/content-planner/queries';
@@ -85,6 +87,32 @@ export async function DELETE(
     const id = parseInt(params.id, 10);
     if (!Number.isFinite(id)) {
       return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+    }
+    // If the idea has a linked local-only draft stub, clean it up too so we
+    // don't leave an orphaned negative-ID post behind. We refuse if the stub
+    // has been pushed to WP — at that point the post is real and should be
+    // deleted from the Posts view instead.
+    const existing = getIdea(id);
+    if (existing && existing.promoted_post_id !== null) {
+      if (existing.promoted_post_id > 0) {
+        return NextResponse.json(
+          {
+            error:
+              'This idea is linked to a WordPress post. Delete the post from the Posts view first, then delete the idea.',
+          },
+          { status: 409 },
+        );
+      }
+      const db = getDb();
+      const postId = existing.promoted_post_id;
+      const cleanup = db.transaction(() => {
+        db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(postId);
+        db.prepare('DELETE FROM post_terms WHERE post_id = ?').run(postId);
+        db.prepare('DELETE FROM change_log WHERE post_id = ?').run(postId);
+        db.prepare('DELETE FROM plugin_data WHERE post_id = ?').run(postId);
+        db.prepare('DELETE FROM posts WHERE id = ?').run(postId);
+      });
+      cleanup();
     }
     const removed = deleteIdea(id);
     if (!removed) {

@@ -96,7 +96,10 @@ export async function POST(
 
       db.prepare(
         `UPDATE planner_ideas
-         SET promoted_post_id = ?, status = 'published', updated_at = datetime('now')
+         SET promoted_post_id = ?,
+             pre_promote_status = status,
+             status = 'published',
+             updated_at = datetime('now')
          WHERE id = ?`,
       ).run(localPostId, id);
 
@@ -121,6 +124,84 @@ export async function POST(
     console.error('[planner] promote failed:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to promote idea' },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * DELETE /api/planner/ideas/[id]/promote — recall.
+ *
+ * Deletes the local draft stub, clears `promoted_post_id`, and reverts the
+ * idea's status to whatever it was pre-promote (or 'ready' as a fallback).
+ * The idea stays on the planner board so the user can revise and re-promote.
+ *
+ * If the stub has already been pushed to WordPress (positive ID), the recall
+ * is refused — the post lives on WP at that point and needs to be deleted
+ * from the Posts view instead.
+ */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  try {
+    const id = parseInt(params.id, 10);
+    if (!Number.isFinite(id)) {
+      return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+    }
+    const idea = getIdea(id);
+    if (!idea) {
+      return NextResponse.json({ error: 'idea not found' }, { status: 404 });
+    }
+    if (idea.promoted_post_id === null) {
+      return NextResponse.json(
+        { error: 'idea is not currently promoted' },
+        { status: 400 },
+      );
+    }
+    if (idea.promoted_post_id > 0) {
+      return NextResponse.json(
+        {
+          error:
+            'The draft has already been pushed to WordPress. Delete it from the Posts view, then sync to refresh the planner.',
+        },
+        { status: 409 },
+      );
+    }
+
+    const db = getDb();
+    const postId = idea.promoted_post_id;
+    const fallbackStatus = idea.pre_promote_status || 'ready';
+
+    const transaction = db.transaction(() => {
+      // CASCADE on post_meta / post_terms / change_log / plugin_data is FK-driven,
+      // but our schema doesn't enforce FKs on those — clear explicitly.
+      db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(postId);
+      db.prepare('DELETE FROM post_terms WHERE post_id = ?').run(postId);
+      db.prepare('DELETE FROM change_log WHERE post_id = ?').run(postId);
+      db.prepare('DELETE FROM plugin_data WHERE post_id = ?').run(postId);
+      db.prepare('DELETE FROM posts WHERE id = ?').run(postId);
+
+      db.prepare(
+        `UPDATE planner_ideas
+         SET promoted_post_id = NULL,
+             status = ?,
+             pre_promote_status = NULL,
+             updated_at = datetime('now')
+         WHERE id = ?`,
+      ).run(fallbackStatus, id);
+    });
+    transaction();
+
+    return NextResponse.json({
+      ok: true,
+      reverted_to_status: fallbackStatus,
+      removed_post_id: postId,
+    });
+  } catch (error) {
+    console.error('[planner] recall failed:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to recall draft' },
       { status: 500 },
     );
   }

@@ -7,7 +7,7 @@ const DB_PATH = process.env.DATABASE_PATH || './data/juggernaut.db';
 const LEGACY_DB_PATH = './data/plexkits.db';
 
 // Schema version - increment when making breaking changes
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 let db: Database.Database | null = null;
 
@@ -158,6 +158,11 @@ function migrateSchema(database: Database.Database, fromVersion: number, toVersi
   // Version 7 -> 8: planner_terms (pending taxonomy terms the planner can flag for promotion to WP)
   if (fromVersion < 8) {
     migrateV7toV8(database);
+  }
+
+  // Version 8 -> 9: pre_promote_status so a recall can revert an idea to its prior stage.
+  if (fromVersion < 9) {
+    migrateV8toV9(database);
   }
 
   setSchemaVersion(database, toVersion);
@@ -604,6 +609,25 @@ function migrateV7toV8(database: Database.Database): void {
 }
 
 /**
+ * Migration from v8 to v9: pre_promote_status column.
+ *
+ * Stores the planner_ideas.status at promote-to-draft time so the new
+ * "Send back to planner" recall can revert the idea to whatever stage it
+ * was in (researching / drafting / ready / etc.) instead of leaving the
+ * idea stranded in 'published'.
+ */
+function migrateV8toV9(database: Database.Database): void {
+  console.log('[db] Running migration v8 -> v9...');
+
+  if (tableExists(database, 'planner_ideas') && !columnExists(database, 'planner_ideas', 'pre_promote_status')) {
+    database.exec('ALTER TABLE planner_ideas ADD COLUMN pre_promote_status TEXT');
+    console.log('[db] Added pre_promote_status column to planner_ideas');
+  }
+
+  console.log('[db] Migration v8 -> v9 complete');
+}
+
+/**
  * Initialize a fresh database with v2 schema
  */
 function initializeSchema(database: Database.Database) {
@@ -714,6 +738,7 @@ function initializeSchema(database: Database.Database) {
       resource_type_term_id INTEGER,
       topic_term_ids TEXT,
       audience_term_ids TEXT,
+      pre_promote_status TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
