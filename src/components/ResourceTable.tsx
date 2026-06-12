@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Edit2, Eye, ChevronUp, ChevronDown, Inbox } from 'lucide-react';
+import { Edit2, Eye, ChevronUp, ChevronDown, Inbox, Trash2 } from 'lucide-react';
 import { cn, formatRelativeTime, STATUS_COLORS, truncate } from '@/lib/utils';
 
 interface Term {
@@ -45,6 +45,9 @@ interface ResourceTableProps {
   onSelect: (ids: number[]) => void;
   onEdit: (resource: Resource) => void;
   onUpdate: (id: number, updates: Partial<Resource>) => void;
+  /** Delete a row. For negative IDs this is a hard local delete; for positive
+   *  IDs the row's WP post is trashed via DELETE without force. */
+  onDelete?: (resource: Resource) => void | Promise<void>;
   /** Site URL from profile (e.g., "https://example.com") */
   siteUrl?: string;
   /** Post type slug for URL building (e.g., "resource") */
@@ -83,6 +86,7 @@ export function ResourceTable({
   onSelect,
   onEdit,
   onUpdate,
+  onDelete,
   siteUrl = '',
   postTypeSlug = 'resource',
   postTypeLabelPlural = 'resources',
@@ -97,6 +101,15 @@ export function ResourceTable({
       setSortField(field);
       setSortDirection('asc');
     }
+  };
+
+  const handleDelete = (resource: Resource): void => {
+    if (!onDelete) return;
+    const msg = resource.id < 0
+      ? `Delete the local draft "${resource.title}"? This is a planner stub that hasn't been pushed to WordPress yet.`
+      : `Move "${resource.title}" to trash on WordPress? You can restore it from the Trashed filter after.`;
+    if (!confirm(msg)) return;
+    void onDelete(resource);
   };
 
   const sortedResources = [...resources].sort((a, b) => {
@@ -248,6 +261,16 @@ export function ResourceTable({
                 >
                   <Eye className="w-4 h-4" />
                 </a>
+              )}
+              {onDelete && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDelete(resource); }}
+                  className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                  title={resource.id < 0 ? 'Delete local draft' : 'Move to trash on WordPress'}
+                  aria-label={`Delete ${resource.title}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               )}
             </div>
           </td>
@@ -522,6 +545,16 @@ export function ResourceTable({
                         >
                           <Eye className="w-4 h-4" />
                         </a>
+                      )}
+                      {onDelete && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(resource); }}
+                          className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                          title={resource.id < 0 ? 'Delete local draft' : 'Move to trash on WordPress'}
+                          aria-label={`Delete ${resource.title}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       )}
                     </div>
                   </td>

@@ -528,11 +528,31 @@ export default function Home() {
 
       const updated = await res.json();
       await fetchData();
-      
+
       // Update editingResource with the fresh data so hasChanges recalculates correctly
       if (editingResource && editingResource.id === id) {
         setEditingResource(updated);
       }
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+
+  const handleDeleteResource = async (resource: Resource) => {
+    try {
+      const res = await fetch(`/api/resources/${resource.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const body = await res.json();
+      await fetchData();
+      // Show what we actually did: hard local delete for stubs, WP trash for real posts.
+      setSuccess(
+        body.mode === 'local_delete'
+          ? `Deleted local draft "${resource.title}".`
+          : `Moved "${resource.title}" to trash on WordPress.`,
+      );
     } catch (err) {
       setError(String(err));
     }
@@ -1079,6 +1099,7 @@ export default function Home() {
             onSelect={setSelectedResources}
             onEdit={handleEditResource}
             onUpdate={handleUpdateResource}
+            onDelete={handleDeleteResource}
             siteUrl={siteUrl}
             postTypeSlug={postTypeSlug}
             postTypeLabelPlural={`${pluralize(postTypeLabel.toLowerCase())}`}
