@@ -833,6 +833,7 @@ function IdeaDrawer({
   const [entryContent, setEntryContent] = useState('');
   const [entrySource, setEntrySource] = useState('');
   const [isPromoting, setIsPromoting] = useState(false);
+  const [isRecalling, setIsRecalling] = useState(false);
 
   // Only reseed local state when the drawer SWITCHES to a different idea.
   // Keying on `[idea]` (the full object) was clobbering every keystroke
@@ -979,6 +980,31 @@ function IdeaDrawer({
       onClose();
     } finally {
       setIsPromoting(false);
+    }
+  };
+
+  const recallDraft = async (mode: 'revert' | 'delete') => {
+    if (idea.promoted_post_id === null || isRecalling) return;
+    const confirmMsg =
+      mode === 'revert'
+        ? 'Send this draft back to the planner? The local stub will be deleted and the idea will revert to its pre-promote stage.'
+        : 'Delete the draft stub? The idea will stay on the planner in "published" status with no linked post.';
+    if (!confirm(confirmMsg)) return;
+    setIsRecalling(true);
+    try {
+      const url =
+        mode === 'revert'
+          ? `/api/planner/ideas/${idea.id}/promote`
+          : `/api/planner/ideas/${idea.id}/draft`;
+      const res = await fetch(url, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(body.error || `HTTP ${res.status}`);
+        return;
+      }
+      onClose();
+    } finally {
+      setIsRecalling(false);
     }
   };
 
@@ -1353,15 +1379,30 @@ function IdeaDrawer({
           </button>
           <div className="flex items-center gap-3">
             {idea.promoted_post_id !== null ? (
-              <a
-                href="#"
-                onClick={(e) => { e.preventDefault(); close(); }}
-                className="mono text-xs"
-                style={{ color: 'var(--good)' }}
-                title="Already promoted to a WP draft. Find it in the Posts view to push to WordPress."
-              >
-                ↗ Promoted to post {idea.promoted_post_id < 0 ? `(stub #${Math.abs(idea.promoted_post_id)})` : `#${idea.promoted_post_id}`}
-              </a>
+              <>
+                <span
+                  className="mono text-xs"
+                  style={{ color: 'var(--good)' }}
+                  title="Linked to a local WP draft stub. Push from the Posts view to publish."
+                >
+                  ↗ stub #{Math.abs(idea.promoted_post_id)}
+                </span>
+                <button
+                  onClick={() => recallDraft('delete')}
+                  disabled={isRecalling}
+                  className="btn-ghost"
+                  style={{ color: 'var(--urgent)' }}
+                >
+                  {isRecalling ? '…' : 'Delete draft'}
+                </button>
+                <button
+                  onClick={() => recallDraft('revert')}
+                  disabled={isRecalling}
+                  className="btn-ghost"
+                >
+                  {isRecalling ? '…' : 'Send back to planner'}
+                </button>
+              </>
             ) : (
               <button onClick={promote} disabled={isPromoting} className="btn-ghost">
                 {isPromoting ? 'Promoting…' : 'Promote to draft'}

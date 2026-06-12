@@ -70,6 +70,7 @@ export interface PlannerIdea {
   resource_type_term_id: number | null;
   topic_term_ids: number[];
   audience_term_ids: number[];
+  pre_promote_status: IdeaStatus | null;
   created_at: string;
   updated_at: string;
 }
@@ -115,6 +116,7 @@ interface IdeaRow {
   resource_type_term_id: number | null;
   topic_term_ids: string | null;
   audience_term_ids: string | null;
+  pre_promote_status: IdeaStatus | null;
   created_at: string;
   updated_at: string;
 }
