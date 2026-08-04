@@ -513,6 +513,14 @@ export function ResourceTable({
                         Trashed
                       </span>
                     )}
+                    {(resource.plugin_data?.seopress?.seo as { robots?: { noindex?: boolean } } | undefined)?.robots?.noindex === true && (
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-600 text-white dark:bg-red-500 flex-shrink-0"
+                        title="This post is set to noindex — Google will not include it in search results"
+                      >
+                        NOINDEX
+                      </span>
+                    )}
                   </div>
                 </td>
 
