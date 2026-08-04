@@ -1,6 +1,6 @@
 {
   "name": "juggernaut",
-  "version": "1.0.0-rc.30",
+  "version": "1.0.0-rc.31",
   "description": "Juggernaut - A modular WordPress content management platform with plugin support",
   "private": true,
   "main": "electron/dist/main.js",
@@ -72,5 +72,8 @@
   },
   "build": {
     "extends": "electron-builder.yml"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.10.0": true
   }
 }
