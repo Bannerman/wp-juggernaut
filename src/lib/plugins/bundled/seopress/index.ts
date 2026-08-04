@@ -383,20 +383,21 @@ class SEOPressPlugin implements JuggernautPlugin {
     const payload: Record<string, string> = {};
 
     if (seoData.robots) {
-      // SEOPress meta keys store "should this be NOINDEXED?" — value 'yes' = noindex,
-      // 'no' / empty = follow site default (index normally). The mapping is the
-      // opposite of what the key name implies.
+      // SEOPress stores "apply this flag?" as 'yes' or empty. The frontend PHP
+      // checks truthiness (`if (get_post_meta(...))`), so ANY non-empty string
+      // — including 'no' — activates the flag. Must send '' (not 'no') when off,
+      // otherwise every push silently sets noindex/nofollow/etc. on the post.
       if (seoData.robots.noindex !== undefined) {
-        payload._seopress_robots_index = seoData.robots.noindex ? 'yes' : 'no';
+        payload._seopress_robots_index = seoData.robots.noindex ? 'yes' : '';
       }
       if (seoData.robots.nofollow !== undefined) {
-        payload._seopress_robots_follow = seoData.robots.nofollow ? 'yes' : 'no';
+        payload._seopress_robots_follow = seoData.robots.nofollow ? 'yes' : '';
       }
       if (seoData.robots.nosnippet !== undefined) {
-        payload._seopress_robots_snippet = seoData.robots.nosnippet ? 'yes' : 'no';
+        payload._seopress_robots_snippet = seoData.robots.nosnippet ? 'yes' : '';
       }
       if (seoData.robots.noimageindex !== undefined) {
-        payload._seopress_robots_imageindex = seoData.robots.noimageindex ? 'yes' : 'no';
+        payload._seopress_robots_imageindex = seoData.robots.noimageindex ? 'yes' : '';
       }
     }
 

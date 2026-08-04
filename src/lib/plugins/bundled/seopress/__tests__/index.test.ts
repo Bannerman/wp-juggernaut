@@ -117,13 +117,13 @@ describe('SEOPressPlugin - updateSEOData', () => {
       `${baseUrl}/wp-json/seopress/v1/posts/${resourceId}/meta-robot-settings`,
       expect.objectContaining({
         method: 'PUT',
-        // SEOPress stores "should this be NOINDEXED?" — 'yes' = noindex set.
-        // Input noindex:true → 'yes'; nofollow:false → 'no'; etc.
+        // SEOPress uses PHP truthiness on the frontend, so any non-empty value
+        // (including 'no') activates the flag. Off must be ''  — not 'no'.
         body: JSON.stringify({
           _seopress_robots_index: 'yes',
-          _seopress_robots_follow: 'no',
+          _seopress_robots_follow: '',
           _seopress_robots_snippet: 'yes',
-          _seopress_robots_imageindex: 'no',
+          _seopress_robots_imageindex: '',
           _seopress_robots_canonical: 'http://canonical.url',
         }),
       })
