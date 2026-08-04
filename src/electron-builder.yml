@@ -38,6 +38,12 @@ mac:
         - x64
         - arm64
   icon: build/icon.icns
+  # Ad-hoc signing: not a real Developer ID cert (no Apple account required),
+  # but produces a stable code signature so macOS doesn't re-quarantine every
+  # auto-update. First-run bypass (right-click → Open, or `xattr -cr <app>`)
+  # is still needed. Upgrade to real Developer ID + notarization for a fully
+  # smooth first-run experience.
+  identity: '-'
 
 # DMG configuration
 dmg:
