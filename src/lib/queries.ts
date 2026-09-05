@@ -1,4 +1,4 @@
-import { getDb, getPrimaryPostType } from './db';
+import { getEnvDb, getPrimaryPostType } from './db';
 import { getTaxonomies } from './wp-client';
 
 export interface SyncedSnapshot {
@@ -41,7 +41,7 @@ export interface LocalTerm {
  * @returns Array of all LocalTerm objects
  */
 export function getAllTerms(): LocalTerm[] {
-  const db = getDb();
+  const db = getEnvDb();
   return db.prepare('SELECT * FROM terms ORDER BY taxonomy, name').all() as LocalTerm[];
 }
 
@@ -51,7 +51,7 @@ export function getAllTerms(): LocalTerm[] {
  * @returns Array of LocalTerm objects for the given taxonomy
  */
 export function getTermsByTaxonomy(taxonomy: string): LocalTerm[] {
-  const db = getDb();
+  const db = getEnvDb();
   return db
     .prepare('SELECT * FROM terms WHERE taxonomy = ? ORDER BY name')
     .all(taxonomy) as LocalTerm[];
@@ -95,7 +95,7 @@ export interface ResourceFilters {
  * @returns Array of LocalResource objects with hydrated meta_box and taxonomies
  */
 export function getResources(filters: ResourceFilters = {}, postType?: string): LocalResource[] {
-  const db = getDb();
+  const db = getEnvDb();
   const type = postType || getPrimaryPostType();
 
   let query = 'SELECT * FROM posts WHERE post_type = ?';
@@ -248,7 +248,7 @@ export function getResources(filters: ResourceFilters = {}, postType?: string): 
  * @returns LocalResource object or null if not found
  */
 export function getResourceById(id: number): LocalResource | null {
-  const db = getDb();
+  const db = getEnvDb();
   const row = db.prepare('SELECT * FROM posts WHERE id = ?').get(id) as {
     id: number;
     post_type: string;
@@ -282,7 +282,7 @@ export function getResourceById(id: number): LocalResource | null {
 }
 
 function getPostMeta(postId: number): Record<string, unknown> {
-  const db = getDb();
+  const db = getEnvDb();
   const rows = db
     .prepare('SELECT field_id, value FROM post_meta WHERE post_id = ?')
     .all(postId) as Array<{ field_id: string; value: string }>;
@@ -299,7 +299,7 @@ function getPostMeta(postId: number): Record<string, unknown> {
 }
 
 function getPostTaxonomies(postId: number): Record<string, number[]> {
-  const db = getDb();
+  const db = getEnvDb();
   const rows = db
     .prepare('SELECT term_id, taxonomy FROM post_terms WHERE post_id = ?')
     .all(postId) as Array<{ term_id: number; taxonomy: string }>;
@@ -348,7 +348,7 @@ export function updateLocalResource(
     meta_box?: Record<string, unknown>;
   }
 ) {
-  const db = getDb();
+  const db = getEnvDb();
   const resource = getResourceById(id);
   if (!resource) throw new Error(`Resource ${id} not found`);
 
@@ -472,7 +472,7 @@ export function getDirtyResources(postType?: string): LocalResource[] {
  * @param id - The resource/post ID to mark as clean
  */
 export function markResourceClean(id: number): void {
-  const db = getDb();
+  const db = getEnvDb();
   db.prepare('UPDATE posts SET is_dirty = 0 WHERE id = ?').run(id);
 }
 
@@ -481,7 +481,7 @@ export function markResourceClean(id: number): void {
  * @param id - The resource/post ID
  */
 export function getSyncedSnapshot(id: number): SyncedSnapshot | null {
-  const db = getDb();
+  const db = getEnvDb();
   const row = db.prepare('SELECT synced_snapshot FROM posts WHERE id = ?').get(id) as { synced_snapshot: string | null } | undefined;
   if (!row?.synced_snapshot) return null;
   try {
@@ -496,7 +496,7 @@ export function getSyncedSnapshot(id: number): SyncedSnapshot | null {
  * @param id - The resource/post ID to reset
  */
 export function discardAllChanges(id: number): void {
-  const db = getDb();
+  const db = getEnvDb();
   const snapshot = getSyncedSnapshot(id);
   if (!snapshot) throw new Error(`No synced snapshot for post ${id}`);
 
@@ -530,7 +530,7 @@ export function discardAllChanges(id: number): void {
  * @returns Number of posts that were discarded
  */
 export function discardAllDirtyPosts(): number {
-  const db = getDb();
+  const db = getEnvDb();
   const rows = db.prepare('SELECT id FROM posts WHERE is_dirty = 1').all() as { id: number }[];
   const discardTxn = db.transaction((ids: number[]) => {
     for (const id of ids) {
@@ -558,7 +558,7 @@ export function getSyncStats(postType?: string): {
   lastSync: string | null;
   totalTerms: number;
 } {
-  const db = getDb();
+  const db = getEnvDb();
   const type = postType || getPrimaryPostType();
 
   const resourceCount = db.prepare('SELECT COUNT(*) as count FROM posts WHERE post_type = ?').get(type) as { count: number };
@@ -616,7 +616,7 @@ const DEFAULT_SEO: LocalSeoData = {
  * @returns LocalSeoData object (defaults to empty strings/false if no data)
  */
 export function getResourceSeo(resourceId: number): LocalSeoData {
-  const db = getDb();
+  const db = getEnvDb();
 
   // Try new plugin_data table first
   const pluginRow = db.prepare(
@@ -652,7 +652,7 @@ export function getResourceSeo(resourceId: number): LocalSeoData {
  * @param markDirty - Whether to set is_dirty = 1 on the resource (default: true)
  */
 export function saveResourceSeo(resourceId: number, seo: LocalSeoData, markDirty = true): void {
-  const db = getDb();
+  const db = getEnvDb();
 
   // Save to new plugin_data table
   db.prepare(`
@@ -675,7 +675,7 @@ export function getPluginData<T = unknown>(
   pluginId: string,
   dataKey: string
 ): T | null {
-  const db = getDb();
+  const db = getEnvDb();
   const row = db.prepare(
     'SELECT data_value FROM plugin_data WHERE post_id = ? AND plugin_id = ? AND data_key = ?'
   ).get(postId, pluginId, dataKey) as { data_value: string } | undefined;
@@ -699,7 +699,7 @@ export function savePluginData(
   value: unknown,
   markDirty = true
 ): void {
-  const db = getDb();
+  const db = getEnvDb();
 
   db.prepare(`
     INSERT OR REPLACE INTO plugin_data (post_id, plugin_id, data_key, data_value)
@@ -719,7 +719,7 @@ export function deletePluginData(
   pluginId: string,
   dataKey?: string
 ): void {
-  const db = getDb();
+  const db = getEnvDb();
 
   if (dataKey) {
     db.prepare(
@@ -737,7 +737,7 @@ export function deletePluginData(
  * Get all plugin data for a post
  */
 export function getAllPluginData(postId: number): Record<string, Record<string, unknown>> {
-  const db = getDb();
+  const db = getEnvDb();
   const rows = db.prepare(
     'SELECT plugin_id, data_key, data_value FROM plugin_data WHERE post_id = ?'
   ).all(postId) as Array<{ plugin_id: string; data_key: string; data_value: string }>;

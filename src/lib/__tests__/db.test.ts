@@ -1,204 +1,203 @@
 /**
- * Database Module Tests
- * Tests for SQLite database connection and schema initialization
+ * Split-DB module tests. Every test runs with a fresh JUGGERNAUT_DATA_DIR and
+ * an isolated module registry so the per-env connection cache and
+ * first-launch migration flag start clean.
  */
 
-import Database from 'better-sqlite3';
-import { getDb, closeDb } from '../db';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
-describe('Database Module', () => {
-  const TEST_DB_PATH = './test-data/test.db';
+function freshDataDir(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'juggernaut-db-test-'));
+  process.env.JUGGERNAUT_DATA_DIR = dir;
+  // Point site-config at the same fresh dir so resolveActiveEnvId() never
+  // picks up the developer's real ~/.juggernaut/site-config.json — that would
+  // route the migration into juggernaut-<real-active>.db instead of the
+  // 'local' slot the tests exercise.
+  process.env.JUGGERNAUT_CONFIG_DIR = dir;
+  delete process.env.DATABASE_PATH;
+  return dir;
+}
 
-  beforeAll(() => {
-    // Set test database path
-    process.env.DATABASE_PATH = TEST_DB_PATH;
+function loadDb(): typeof import('../db') {
+  let mod!: typeof import('../db');
+  jest.isolateModules(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    mod = require('../db');
+  });
+  return mod;
+}
+
+function cleanupDir(dir: string): void {
+  try {
+    if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+  } catch {
+    /* ignore */
+  }
+}
+
+describe('Split-DB', () => {
+  let dataDir: string;
+
+  beforeEach(() => {
+    dataDir = freshDataDir();
   });
 
   afterEach(() => {
-    // Clean up: close database and remove test file
-    try {
-      closeDb();
-      const dbPath = path.resolve(process.cwd(), TEST_DB_PATH);
-      const dbDir = path.dirname(dbPath);
-      if (fs.existsSync(dbPath)) {
-        fs.unlinkSync(dbPath);
-      }
-      if (fs.existsSync(`${dbPath}-shm`)) {
-        fs.unlinkSync(`${dbPath}-shm`);
-      }
-      if (fs.existsSync(`${dbPath}-wal`)) {
-        fs.unlinkSync(`${dbPath}-wal`);
-      }
-      if (fs.existsSync(dbDir)) {
-        fs.rmdirSync(dbDir, { recursive: true });
-      }
-    } catch (error) {
-      // Ignore cleanup errors
-    }
+    cleanupDir(dataDir);
   });
 
-  describe('getDb', () => {
-    it('should return a database instance', () => {
-      const db = getDb();
-      expect(db).toBeDefined();
-      expect(db.prepare).toBeDefined();
+  describe('getEnvDb', () => {
+    it('creates an env DB file on first call', () => {
+      const db = loadDb();
+      db.getEnvDb('local');
+      expect(fs.existsSync(path.join(dataDir, 'juggernaut-local.db'))).toBe(true);
     });
 
-    it('should return the same instance on multiple calls (singleton)', () => {
-      const db1 = getDb();
-      const db2 = getDb();
-      expect(db1).toBe(db2);
+    it('returns the same instance on repeated calls (per-env singleton)', () => {
+      const db = loadDb();
+      const a = db.getEnvDb('local');
+      const b = db.getEnvDb('local');
+      expect(a).toBe(b);
     });
 
-    it('should initialize schema on first call', () => {
-      const db = getDb();
-
-      // Check that all tables exist
-      const tables = db.prepare(`
-        SELECT name FROM sqlite_master
-        WHERE type='table'
-        ORDER BY name
-      `).all() as { name: string }[];
-
-      const tableNames = tables.map(t => t.name);
-
-      expect(tableNames).toContain('sync_meta');
-      expect(tableNames).toContain('terms');
-      expect(tableNames).toContain('posts');
-      expect(tableNames).toContain('post_meta');
-      expect(tableNames).toContain('post_terms');
-      expect(tableNames).toContain('change_log');
+    it('opens distinct files per env id', () => {
+      const db = loadDb();
+      db.getEnvDb('local');
+      db.getEnvDb('production');
+      expect(fs.existsSync(path.join(dataDir, 'juggernaut-local.db'))).toBe(true);
+      expect(fs.existsSync(path.join(dataDir, 'juggernaut-production.db'))).toBe(true);
     });
 
-    it('should create all required indexes', () => {
-      const db = getDb();
-
-      const indexes = db.prepare(`
-        SELECT name FROM sqlite_master
-        WHERE type='index'
-        AND name NOT LIKE 'sqlite_%'
-        ORDER BY name
-      `).all() as { name: string }[];
-
-      const indexNames = indexes.map(i => i.name);
-
-      expect(indexNames).toContain('idx_terms_taxonomy');
-      expect(indexNames).toContain('idx_post_terms_post');
-      expect(indexNames).toContain('idx_post_terms_taxonomy');
-      expect(indexNames).toContain('idx_post_meta_post');
-      expect(indexNames).toContain('idx_posts_status');
-      expect(indexNames).toContain('idx_posts_dirty');
+    it('enables WAL journal mode', () => {
+      const db = loadDb();
+      const conn = db.getEnvDb('local');
+      const mode = conn.pragma('journal_mode', { simple: true });
+      expect(mode).toBe('wal');
     });
 
-    it('should enable WAL mode', () => {
-      const db = getDb();
-      const result = db.pragma('journal_mode', { simple: true });
-      expect(result).toBe('wal');
+    it('initializes env schema (posts, meta, terms, plugin_data, ...) — no planner tables', () => {
+      const db = loadDb();
+      const conn = db.getEnvDb('local');
+      const rows = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>;
+      const names = new Set(rows.map(r => r.name));
+      expect(names).toContain('posts');
+      expect(names).toContain('post_meta');
+      expect(names).toContain('post_terms');
+      expect(names).toContain('terms');
+      expect(names).toContain('plugin_data');
+      expect(names).toContain('change_log');
+      expect(names).not.toContain('planner_ideas');
+      expect(names).not.toContain('planner_keywords');
+    });
+
+    it('ATTACHes the project DB as `project` so planner tables are visible', () => {
+      const db = loadDb();
+      const conn = db.getEnvDb('local');
+      const rows = conn.prepare("SELECT name FROM project.sqlite_master WHERE type='table'").all() as Array<{ name: string }>;
+      const names = new Set(rows.map(r => r.name));
+      expect(names).toContain('planner_ideas');
+      expect(names).toContain('planner_keywords');
     });
   });
 
-  describe('closeDb', () => {
-    it('should close the database connection', () => {
-      const db = getDb();
-      closeDb();
-
-      // Attempting to use closed database should throw
-      expect(() => {
-        db.prepare('SELECT 1').get();
-      }).toThrow();
+  describe('getProjectDb', () => {
+    it('creates the project DB file with only planner tables', () => {
+      const db = loadDb();
+      const conn = db.getProjectDb();
+      expect(fs.existsSync(path.join(dataDir, 'juggernaut-project.db'))).toBe(true);
+      const rows = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>;
+      const names = new Set(rows.map(r => r.name));
+      expect(names).toContain('planner_ideas');
+      expect(names).toContain('planner_research_entries');
+      expect(names).toContain('planner_keywords');
+      expect(names).toContain('planner_terms');
+      expect(names).not.toContain('posts');
+      expect(names).not.toContain('post_meta');
     });
 
-    it('should allow creating new instance after close', () => {
-      getDb();
-      closeDb();
-      const newDb = getDb();
-
-      expect(newDb).toBeDefined();
-      expect(newDb.prepare).toBeDefined();
-    });
-  });
-
-  describe('Schema Integrity', () => {
-    it('should enforce foreign key constraints', () => {
-      const db = getDb();
-
-      // Enable foreign keys (SQLite requires explicit enabling)
-      db.pragma('foreign_keys = ON');
-
-      // Try to insert post_meta without parent post
-      expect(() => {
-        db.prepare(`
-          INSERT INTO post_meta (post_id, field_id, value)
-          VALUES (999, 'test_field', 'test_value')
-        `).run();
-      }).toThrow();
+    it('planner_ideas has promoted_target_id column (env-scoped promotion pointer)', () => {
+      const db = loadDb();
+      const conn = db.getProjectDb();
+      const cols = conn.prepare("PRAGMA table_info('planner_ideas')").all() as Array<{ name: string }>;
+      const names = new Set(cols.map(c => c.name));
+      expect(names).toContain('promoted_target_id');
     });
 
-    it('should cascade delete post_meta when post deleted', () => {
-      const db = getDb();
-
-      // Enable foreign keys
-      db.pragma('foreign_keys = ON');
-
-      // Use unique IDs to avoid collisions with other tests
-      db.prepare(`
-        INSERT OR REPLACE INTO posts (id, post_type, title, slug, status, modified_gmt, synced_at)
-        VALUES (100, 'resource', 'Test', 'test-cascade', 'publish', '2024-01-01', '2024-01-01')
-      `).run();
-
-      db.prepare(`
-        INSERT OR REPLACE INTO post_meta (post_id, field_id, value)
-        VALUES (100, 'test_field', 'test_value')
-      `).run();
-
-      // Delete post
-      db.prepare('DELETE FROM posts WHERE id = 100').run();
-
-      // Meta should be cascade-deleted
-      const meta = db.prepare('SELECT * FROM post_meta WHERE post_id = 100').all();
-      expect(meta).toHaveLength(0);
-    });
-
-    it('should enforce unique constraint on (post_id, term_id)', () => {
-      const db = getDb();
-
-      // Use unique IDs to avoid collisions with other tests
-      db.prepare(`
-        INSERT OR REPLACE INTO posts (id, post_type, title, slug, status, modified_gmt, synced_at)
-        VALUES (200, 'resource', 'Test', 'test-unique', 'publish', '2024-01-01', '2024-01-01')
-      `).run();
-
-      db.prepare(`
-        INSERT OR REPLACE INTO terms (id, taxonomy, name, slug)
-        VALUES (200, 'topic', 'Test Topic', 'test-topic')
-      `).run();
-
-      // Insert assignment
-      db.prepare(`
-        INSERT OR REPLACE INTO post_terms (post_id, term_id, taxonomy)
-        VALUES (200, 200, 'topic')
-      `).run();
-
-      // Duplicate should fail
-      expect(() => {
-        db.prepare(`
-          INSERT INTO post_terms (post_id, term_id, taxonomy)
-          VALUES (200, 200, 'topic')
-        `).run();
-      }).toThrow();
+    it('returns the same instance on repeated calls (singleton)', () => {
+      const db = loadDb();
+      const a = db.getProjectDb();
+      const b = db.getProjectDb();
+      expect(a).toBe(b);
     });
   });
 
-  describe('Performance', () => {
-    it('should initialize database quickly', () => {
-      const start = Date.now();
-      getDb();
-      const duration = Date.now() - start;
+  describe('closeEnvDb / closeAllDbs', () => {
+    it('closeEnvDb closes just the named env', () => {
+      const db = loadDb();
+      const local = db.getEnvDb('local');
+      db.getEnvDb('production');
+      db.closeEnvDb('local');
+      expect(() => local.prepare('SELECT 1').get()).toThrow();
+      // A subsequent getEnvDb('local') should return a fresh, working connection.
+      const reopened = db.getEnvDb('local');
+      expect(reopened).not.toBe(local);
+      expect(reopened.prepare('SELECT 1').get()).toBeDefined();
+    });
 
-      // Should complete in under 100ms
-      expect(duration).toBeLessThan(100);
+    it('closeAllDbs closes every env + the project DB', () => {
+      const db = loadDb();
+      const env = db.getEnvDb('local');
+      const project = db.getProjectDb();
+      db.closeAllDbs();
+      expect(() => env.prepare('SELECT 1').get()).toThrow();
+      expect(() => project.prepare('SELECT 1').get()).toThrow();
+    });
+  });
+
+  describe('First-launch migration', () => {
+    it('splits a pre-existing legacy juggernaut.db into env-{active}.db + project.db', () => {
+      // Seed a legacy single-DB with one env-scoped row and one planner row.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Database = require('better-sqlite3');
+      const legacyPath = path.join(dataDir, 'juggernaut.db');
+      const legacy = new Database(legacyPath);
+      legacy.exec(`
+        CREATE TABLE sync_meta (key TEXT PRIMARY KEY, value TEXT);
+        INSERT INTO sync_meta (key, value) VALUES ('schema_version', '9');
+        CREATE TABLE posts (id INTEGER PRIMARY KEY, post_type TEXT, title TEXT, slug TEXT, status TEXT, content TEXT, excerpt TEXT, featured_media INTEGER, date_gmt TEXT, modified_gmt TEXT, synced_at TEXT, is_dirty INTEGER, synced_snapshot TEXT);
+        CREATE TABLE post_meta (post_id INTEGER, field_id TEXT, value TEXT, PRIMARY KEY (post_id, field_id));
+        CREATE TABLE post_terms (post_id INTEGER, term_id INTEGER, taxonomy TEXT, PRIMARY KEY (post_id, term_id));
+        CREATE TABLE terms (id INTEGER PRIMARY KEY, taxonomy TEXT, name TEXT, slug TEXT, parent_id INTEGER);
+        CREATE TABLE plugin_data (post_id INTEGER, plugin_id TEXT, data_key TEXT, data_value TEXT, PRIMARY KEY (post_id, plugin_id, data_key));
+        CREATE TABLE change_log (id INTEGER PRIMARY KEY AUTOINCREMENT, post_id INTEGER, field TEXT, old_value TEXT, new_value TEXT, changed_at TEXT);
+        CREATE TABLE planner_ideas (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, status TEXT DEFAULT 'idea', description TEXT, notes TEXT, linked_keyword_ids TEXT, promoted_post_id INTEGER, pre_promote_status TEXT, deadline TEXT, frequency TEXT, refresh_next_due TEXT, cluster TEXT, priority INTEGER, estimated_effort_hours REAL, schema_types TEXT, monetization_angles TEXT, serp_targets TEXT, audience_personas TEXT, resource_type_term_id INTEGER, topic_term_ids TEXT, audience_term_ids TEXT, created_at TEXT, updated_at TEXT);
+        INSERT INTO posts (id, title) VALUES (42, 'seed-post');
+        INSERT INTO planner_ideas (id, title) VALUES (7, 'seed-idea');
+      `);
+      legacy.close();
+
+      // Trigger the split. Active env falls back to 'local' when no site-config
+      // is readable, so seed data should land in juggernaut-local.db.
+      const db = loadDb();
+      const envConn = db.getEnvDb('local');
+      const post = envConn.prepare('SELECT title FROM posts WHERE id = 42').get() as { title: string } | undefined;
+      expect(post?.title).toBe('seed-post');
+
+      const projectConn = db.getProjectDb();
+      const idea = projectConn.prepare('SELECT title FROM planner_ideas WHERE id = 7').get() as { title: string } | undefined;
+      expect(idea?.title).toBe('seed-idea');
+
+      // Env DB should not still carry planner tables; project DB should not carry env tables.
+      const envTables = new Set((envConn.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>).map(r => r.name));
+      expect(envTables).not.toContain('planner_ideas');
+      const projTables = new Set((projectConn.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>).map(r => r.name));
+      expect(projTables).not.toContain('posts');
+
+      // Legacy file should be renamed for safety, not deleted.
+      expect(fs.existsSync(path.join(dataDir, 'juggernaut.legacy.db'))).toBe(true);
+      expect(fs.existsSync(path.join(dataDir, 'juggernaut.db'))).toBe(false);
     });
   });
 });

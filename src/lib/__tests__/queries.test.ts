@@ -34,7 +34,7 @@ describe('Queries Module', () => {
       close: jest.fn(),
     };
 
-    mockDb.getDb.mockReturnValue(mockDbInstance);
+    mockDb.getEnvDb.mockReturnValue(mockDbInstance);
     // getPrimaryPostType is imported from db.ts — needs explicit mock
     (mockDb.getPrimaryPostType as jest.Mock).mockReturnValue('resource');
   });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getEnvDb } from '@/lib/db';
 import {
   updateIdea,
   deleteIdea,
@@ -103,7 +103,7 @@ export async function DELETE(
           { status: 409 },
         );
       }
-      const db = getDb();
+      const db = getEnvDb();
       const postId = existing.promoted_post_id;
       const cleanup = db.transaction(() => {
         db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(postId);

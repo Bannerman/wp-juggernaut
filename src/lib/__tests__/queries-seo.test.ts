@@ -17,7 +17,7 @@ describe('Queries Module - getResourceSeo', () => {
       close: jest.fn(),
     };
 
-    mockDb.getDb.mockReturnValue(mockDbInstance);
+    mockDb.getEnvDb.mockReturnValue(mockDbInstance);
   });
 
   const DEFAULT_SEO: LocalSeoData = {

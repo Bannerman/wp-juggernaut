@@ -81,8 +81,22 @@ export function setActiveTarget(targetId: string): SiteConfig {
   }
 
   const config = getConfig();
+  const previousTarget = config.activeTarget;
   const newConfig: SiteConfig = { ...config, activeTarget: targetId };
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2));
+
+  // Close the previous env DB connection so the next getEnvDb() call opens
+  // the newly-active env's file. Deferred require avoids a circular import
+  // (db.ts reads site-config via require to resolve the active target).
+  if (previousTarget && previousTarget !== targetId) {
+    try {
+      const { closeEnvDb } = require('./db');
+      closeEnvDb(previousTarget);
+    } catch {
+      // db module not loaded yet — nothing to close.
+    }
+  }
+
   return newConfig;
 }
 

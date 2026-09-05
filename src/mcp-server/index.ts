@@ -21,6 +21,7 @@
 import type DatabaseType from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -211,28 +212,52 @@ const DEFAULT_SEO: SeoData = {
 
 // ─── Database ──────────────────────────────────────────────────────────────────
 
-// After compilation, __dirname is src/mcp-server/dist/, so go up two levels to src/
-// Mirrors src/lib/db.ts legacy support: prefer plexkits.db (active production DB),
-// fall back to juggernaut.db
+// Split-DB layout (see docs/v1.0-spec.md §16 "Split-DB Per Environment"):
+// each env has its own file (posts, meta, terms, plugin_data, ...) and the
+// project DB (juggernaut-project.db) holds cross-env planner tables. mcp-server
+// opens the currently-active env DB and ATTACHes the project DB as `project`,
+// so planner tables are addressed as `project.planner_ideas` etc.
 const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
-const DB_PATH = process.env.DATABASE_PATH
-  || (fs.existsSync(path.join(DATA_DIR, 'plexkits.db'))
-    ? path.join(DATA_DIR, 'plexkits.db')
-    : path.join(DATA_DIR, 'juggernaut.db'));
+const SITE_CONFIG_PATH = path.join(os.homedir(), '.juggernaut', 'site-config.json');
+
+function resolveActiveEnvId(): string {
+  try {
+    const raw = fs.readFileSync(SITE_CONFIG_PATH, 'utf-8');
+    const parsed = JSON.parse(raw) as { activeTarget?: string };
+    if (parsed?.activeTarget) return parsed.activeTarget;
+  } catch {
+    // Site config unreadable — fall back to 'local'.
+  }
+  return 'local';
+}
+
+function sanitizeEnvId(id: string): string {
+  return id.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+const ACTIVE_ENV_ID = resolveActiveEnvId();
+const ENV_DB_PATH = process.env.DATABASE_PATH
+  || path.join(DATA_DIR, `juggernaut-${sanitizeEnvId(ACTIVE_ENV_ID)}.db`);
+const PROJECT_DB_PATH = path.join(DATA_DIR, 'juggernaut-project.db');
+// Kept for the startup log message.
+const DB_PATH = ENV_DB_PATH;
 
 let dbInstance: DatabaseType.Database | null = null;
 
 /**
- * Returns the singleton database connection. Mirrors src/lib/db.ts settings
- * (WAL mode) with added busy_timeout for multi-process safety.
+ * Returns the singleton database connection. Opens the env DB and ATTACHes
+ * the project DB as `project` so cross-DB transactions and joins work.
+ * Mirrors src/lib/db.ts settings (WAL mode) with added busy_timeout for
+ * multi-process safety.
  */
 export function getDb(): DatabaseType.Database {
   if (!dbInstance) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const Database = require('better-sqlite3') as typeof DatabaseType;
-    dbInstance = new Database(DB_PATH);
+    dbInstance = new Database(ENV_DB_PATH);
     dbInstance.pragma('journal_mode = WAL');
     dbInstance.pragma('busy_timeout = 5000');
+    dbInstance.exec(`ATTACH DATABASE '${PROJECT_DB_PATH.replace(/'/g, "''")}' AS project`);
   }
   return dbInstance;
 }
@@ -1443,7 +1468,7 @@ export function plannerListIdeas(database: DatabaseType.Database, args: PlannerL
   const limit = Math.min(Math.max(args.limit || 100, 1), 500);
   const where = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
   const rows = database.prepare(
-    `SELECT * FROM planner_ideas ${where} ORDER BY updated_at DESC LIMIT ?`,
+    `SELECT * FROM project.planner_ideas ${where} ORDER BY updated_at DESC LIMIT ?`,
   ).all(...vals, limit) as Array<Record<string, unknown>>;
   return { total: rows.length, ideas: rows.map(parseIdeaRow) };
 }
@@ -1452,11 +1477,11 @@ interface PlannerGetIdeaArgs { id: number }
 
 export function plannerGetIdea(database: DatabaseType.Database, args: PlannerGetIdeaArgs): Record<string, unknown> {
   if (typeof args.id !== 'number') return { error: 'id is required' };
-  const row = database.prepare('SELECT * FROM planner_ideas WHERE id = ?').get(args.id) as Record<string, unknown> | undefined;
+  const row = database.prepare('SELECT * FROM project.planner_ideas WHERE id = ?').get(args.id) as Record<string, unknown> | undefined;
   if (!row) return { error: 'idea not found' };
   const idea = parseIdeaRow(row);
   const research = database
-    .prepare('SELECT * FROM planner_research_entries WHERE idea_id = ? ORDER BY created_at ASC')
+    .prepare('SELECT * FROM project.planner_research_entries WHERE idea_id = ? ORDER BY created_at ASC')
     .all(args.id);
   return { idea, research_entries: research };
 }
@@ -1497,7 +1522,7 @@ export function plannerCreateIdea(database: DatabaseType.Database, args: Planner
   let newId = 0;
   const transaction = database.transaction(() => {
     const result = database.prepare(
-      `INSERT INTO planner_ideas (
+      `INSERT INTO project.planner_ideas (
          title, status, description, notes,
          deadline, frequency, refresh_next_due, cluster, priority,
          estimated_effort_hours, schema_types, monetization_angles,
@@ -1526,7 +1551,7 @@ export function plannerCreateIdea(database: DatabaseType.Database, args: Planner
     newId = Number(result.lastInsertRowid);
     if (Array.isArray(args.research_entries)) {
       const stmt = database.prepare(
-        'INSERT INTO planner_research_entries (idea_id, type, content, source_url) VALUES (?, ?, ?, ?)',
+        'INSERT INTO project.planner_research_entries (idea_id, type, content, source_url) VALUES (?, ?, ?, ?)',
       );
       for (const e of args.research_entries) {
         if (!e?.type || !(PLANNER_RESEARCH_TYPES as readonly string[]).includes(e.type)) continue;
@@ -1581,7 +1606,7 @@ export function plannerUpdateIdea(database: DatabaseType.Database, args: Planner
   if (fields.length === 0) return plannerGetIdea(database, { id: args.id });
   fields.push("updated_at = datetime('now')");
   vals.push(args.id);
-  const result = database.prepare(`UPDATE planner_ideas SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+  const result = database.prepare(`UPDATE project.planner_ideas SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
   if (result.changes === 0) return { error: 'idea not found' };
   return plannerGetIdea(database, { id: args.id });
 }
@@ -1599,13 +1624,13 @@ export function plannerAddResearchEntry(database: DatabaseType.Database, args: P
     return { error: `type must be one of ${PLANNER_RESEARCH_TYPES.join(', ')}` };
   }
   if (!args.content || typeof args.content !== 'string') return { error: 'content is required' };
-  const exists = database.prepare('SELECT id FROM planner_ideas WHERE id = ?').get(args.idea_id);
+  const exists = database.prepare('SELECT id FROM project.planner_ideas WHERE id = ?').get(args.idea_id);
   if (!exists) return { error: 'idea not found' };
   const result = database.prepare(
-    'INSERT INTO planner_research_entries (idea_id, type, content, source_url) VALUES (?, ?, ?, ?)',
+    'INSERT INTO project.planner_research_entries (idea_id, type, content, source_url) VALUES (?, ?, ?, ?)',
   ).run(args.idea_id, args.type, args.content, args.source_url || null);
   const id = Number(result.lastInsertRowid);
-  const entry = database.prepare('SELECT * FROM planner_research_entries WHERE id = ?').get(id);
+  const entry = database.prepare('SELECT * FROM project.planner_research_entries WHERE id = ?').get(id);
   return { entry };
 }
 
@@ -1623,7 +1648,7 @@ export function plannerListKeywords(database: DatabaseType.Database, args: Plann
   const limit = Math.min(Math.max(args.limit || 200, 1), 1000);
   const where = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
   const rows = database.prepare(
-    `SELECT * FROM planner_keywords ${where} ORDER BY (volume IS NULL), volume DESC, term ASC LIMIT ?`,
+    `SELECT * FROM project.planner_keywords ${where} ORDER BY (volume IS NULL), volume DESC, term ASC LIMIT ?`,
   ).all(...vals, limit);
   return { total: rows.length, keywords: rows };
 }
@@ -1649,21 +1674,21 @@ export function plannerCreateTerm(database: DatabaseType.Database, args: Planner
   const name = args.name.trim();
   // Negative IDs so this row coexists with positive WP-term IDs inside the
   // same JSON-array columns on planner_ideas.
-  const minRow = database.prepare('SELECT MIN(id) as m FROM planner_terms').get() as { m: number | null };
+  const minRow = database.prepare('SELECT MIN(id) as m FROM project.planner_terms').get() as { m: number | null };
   const nextId = Math.min(minRow.m ?? 0, 0) - 1;
   try {
     database.prepare(
-      `INSERT INTO planner_terms (id, taxonomy, name, slug, parent_id)
+      `INSERT INTO project.planner_terms (id, taxonomy, name, slug, parent_id)
        VALUES (?, ?, ?, ?, ?)`,
     ).run(nextId, taxonomy, name, args.slug || null, typeof args.parent_id === 'number' ? args.parent_id : 0);
   } catch (err) {
     if (err instanceof Error && err.message.includes('UNIQUE')) {
-      const existing = database.prepare('SELECT * FROM planner_terms WHERE taxonomy = ? AND name = ?').get(taxonomy, name);
+      const existing = database.prepare('SELECT * FROM project.planner_terms WHERE taxonomy = ? AND name = ?').get(taxonomy, name);
       return { term: existing, created: false, note: 'pending term already existed' };
     }
     throw err;
   }
-  const term = database.prepare('SELECT * FROM planner_terms WHERE id = ?').get(nextId);
+  const term = database.prepare('SELECT * FROM project.planner_terms WHERE id = ?').get(nextId);
   return { term, created: true };
 }
 
@@ -1672,9 +1697,9 @@ interface PlannerListTermsArgs { taxonomy?: string }
 export function plannerListTerms(database: DatabaseType.Database, args: PlannerListTermsArgs): Record<string, unknown> {
   let rows;
   if (args.taxonomy) {
-    rows = database.prepare('SELECT * FROM planner_terms WHERE taxonomy = ? ORDER BY name ASC').all(args.taxonomy);
+    rows = database.prepare('SELECT * FROM project.planner_terms WHERE taxonomy = ? ORDER BY name ASC').all(args.taxonomy);
   } else {
-    rows = database.prepare('SELECT * FROM planner_terms ORDER BY taxonomy ASC, name ASC').all();
+    rows = database.prepare('SELECT * FROM project.planner_terms ORDER BY taxonomy ASC, name ASC').all();
   }
   return { total: (rows as unknown[]).length, terms: rows };
 }
@@ -1682,7 +1707,7 @@ export function plannerListTerms(database: DatabaseType.Database, args: PlannerL
 export function plannerUpsertKeyword(database: DatabaseType.Database, args: PlannerUpsertKeywordArgs): Record<string, unknown> {
   if (!args.term || typeof args.term !== 'string') return { error: 'term is required' };
   const trimmed = args.term.trim();
-  const existing = database.prepare('SELECT * FROM planner_keywords WHERE term = ?').get(trimmed) as Record<string, unknown> | undefined;
+  const existing = database.prepare('SELECT * FROM project.planner_keywords WHERE term = ?').get(trimmed) as Record<string, unknown> | undefined;
   if (existing) {
     const fields: string[] = [];
     const vals: unknown[] = [];
@@ -1692,12 +1717,12 @@ export function plannerUpsertKeyword(database: DatabaseType.Database, args: Plan
     if (fields.length > 0) {
       fields.push("updated_at = datetime('now')");
       vals.push(existing.id);
-      database.prepare(`UPDATE planner_keywords SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+      database.prepare(`UPDATE project.planner_keywords SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
     }
-    return { keyword: database.prepare('SELECT * FROM planner_keywords WHERE id = ?').get(existing.id), created: false };
+    return { keyword: database.prepare('SELECT * FROM project.planner_keywords WHERE id = ?').get(existing.id), created: false };
   }
   const result = database.prepare(
-    'INSERT INTO planner_keywords (term, volume, target_post_id, notes) VALUES (?, ?, ?, ?)',
+    'INSERT INTO project.planner_keywords (term, volume, target_post_id, notes) VALUES (?, ?, ?, ?)',
   ).run(
     trimmed,
     typeof args.volume === 'number' ? args.volume : null,
@@ -1705,7 +1730,7 @@ export function plannerUpsertKeyword(database: DatabaseType.Database, args: Plan
     args.notes || null,
   );
   const id = Number(result.lastInsertRowid);
-  return { keyword: database.prepare('SELECT * FROM planner_keywords WHERE id = ?').get(id), created: true };
+  return { keyword: database.prepare('SELECT * FROM project.planner_keywords WHERE id = ?').get(id), created: true };
 }
 
 // ─── Tool Dispatch ─────────────────────────────────────────────────────────────

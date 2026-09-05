@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getPluginRegistry } from '@/lib/plugins/registry';
-import { getDb } from '@/lib/db';
+import { getEnvDb } from '@/lib/db';
 import { getResourceById } from '@/lib/queries';
 import { savePluginData } from '@/lib/queries';
 import { createResource } from '@/lib/wp-client';
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     saveResource(newPost, sourceImageUrl || undefined, targetPostType);
 
     // Mark as dirty so the user can review and push when ready
-    const db = getDb();
+    const db = getEnvDb();
     db.prepare('UPDATE posts SET is_dirty = 1 WHERE id = ?').run(newPost.id);
 
     // Copy SEO data to the new post if it exists

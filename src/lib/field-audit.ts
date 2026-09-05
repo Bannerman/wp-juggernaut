@@ -1,4 +1,4 @@
-import { getDb } from './db';
+import { getEnvDb } from './db';
 import type { WPResource } from './wp-client';
 import { getProfileTaxonomyMetaFieldMapping, getProfileManager, ensureProfileLoaded } from './profiles';
 
@@ -154,7 +154,7 @@ export function runFieldAudit(
 
 /** Store audit results in the database, pruning to last 5 runs */
 export function saveAuditResults(entries: AuditEntry[]): string {
-  const db = getDb();
+  const db = getEnvDb();
   const auditRunAt = new Date().toISOString();
 
   const insertStmt = db.prepare(`
@@ -193,7 +193,7 @@ export function saveAuditResults(entries: AuditEntry[]): string {
 
 /** Retrieve the most recent audit run with entries and summary */
 export function getLatestAudit(): AuditResult | null {
-  const db = getDb();
+  const db = getEnvDb();
 
   const latestRun = db.prepare(
     'SELECT DISTINCT audit_run_at FROM field_audit ORDER BY audit_run_at DESC LIMIT 1'

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getConfig, setActiveTarget, getActiveTarget, getSiteTargets, getCredentials, setCredentials } from '@/lib/site-config';
 import { getProfileManager, ensureProfileLoaded } from '@/lib/profiles';
-import { getDb } from '@/lib/db';
+import { getEnvDb } from '@/lib/db';
 import { discardAllDirtyPosts } from '@/lib/queries';
 
 // GET /api/site-config - Get current config and available targets
@@ -90,7 +90,7 @@ export async function PATCH(request: NextRequest) {
       // target is a no-op, and the dirty rows are correctly attributed to it.
       if (isActualChange && !dirtyAction) {
         const dirtyCount = (
-          getDb().prepare('SELECT COUNT(*) as c FROM posts WHERE is_dirty = 1').get() as { c: number }
+          getEnvDb().prepare('SELECT COUNT(*) as c FROM posts WHERE is_dirty = 1').get() as { c: number }
         ).c;
         if (dirtyCount > 0) {
           const newTargetMeta = getSiteTargets().find(t => t.id === targetId);
