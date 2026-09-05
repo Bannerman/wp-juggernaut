@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getPluginRegistry } from '@/lib/plugins/registry';
-import { getDb } from '@/lib/db';
+import { getEnvDb } from '@/lib/db';
 
 /** Truncate a string to maxLen characters */
 function truncate(str: string, maxLen: number): string {
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const postType = searchParams.get('postType');
     const postId = searchParams.get('postId');
 
-    const db = getDb();
+    const db = getEnvDb();
 
     // Return post list for a post type
     if (postType) {

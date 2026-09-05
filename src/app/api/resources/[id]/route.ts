@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getResourceById, updateLocalResource, getResourceSeo, saveResourceSeo, getSyncedSnapshot } from '@/lib/queries';
-import { getDb } from '@/lib/db';
+import { getEnvDb } from '@/lib/db';
 import { trashResource } from '@/lib/wp-client';
 import { getRestBaseForPostType } from '@/lib/push';
 
@@ -111,9 +111,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
     }
 
-    const db = getDb();
+    // Env DB has the project DB ATTACHed as `project` — planner tables live
+    // there. The transaction below spans both files and stays atomic.
+    const db = getEnvDb();
     const linkedPlannerIdea = db
-      .prepare('SELECT id, pre_promote_status FROM planner_ideas WHERE promoted_post_id = ?')
+      .prepare('SELECT id, pre_promote_status FROM project.planner_ideas WHERE promoted_post_id = ?')
       .get(id) as { id: number; pre_promote_status: string | null } | undefined;
 
     if (id < 0) {
@@ -127,8 +129,9 @@ export async function DELETE(
         if (linkedPlannerIdea) {
           const fallback = linkedPlannerIdea.pre_promote_status || 'ready';
           db.prepare(
-            `UPDATE planner_ideas
+            `UPDATE project.planner_ideas
              SET promoted_post_id = NULL,
+                 promoted_target_id = NULL,
                  status = ?,
                  pre_promote_status = NULL,
                  updated_at = datetime('now')

@@ -1,4 +1,4 @@
-import { getDb } from './db';
+import { getEnvDb } from './db';
 import {
   updateResource,
   createResource,
@@ -158,7 +158,7 @@ function getLatestChangelogDate(metaBox?: Record<string, unknown>): string | nul
  * @returns Array of ConflictInfo objects for resources that have server-side changes
  */
 export async function checkForConflicts(resourceIds: number[]): Promise<ConflictInfo[]> {
-  const db = getDb();
+  const db = getEnvDb();
   const conflicts: ConflictInfo[] = [];
 
   for (const id of resourceIds) {
@@ -377,7 +377,7 @@ export async function pushResource(
     if (preTrashResource?.status === 'trash') {
       const restBase = getRestBaseForPostType(preTrashResource.post_type || 'resource');
       await trashResource(resourceId, restBase);
-      const db = getDb();
+      const db = getEnvDb();
       db.prepare('UPDATE posts SET is_dirty = 0 WHERE id = ?').run(resourceId);
       db.prepare("DELETE FROM post_meta WHERE post_id = ? AND field_id = '_dirty_taxonomies'").run(resourceId);
       return { success: true, resourceId };
@@ -417,7 +417,7 @@ export async function pushResource(
     const localModifiedGmt = changelogDate
       ? changelogDate + 'T00:00:00'
       : originalModifiedGmt || updated.modified_gmt;
-    const db = getDb();
+    const db = getEnvDb();
     db.prepare('UPDATE posts SET modified_gmt = ?, is_dirty = 0 WHERE id = ?').run(
       localModifiedGmt,
       resourceId
@@ -471,7 +471,7 @@ async function pushNewResource(localId: number): Promise<PushResult> {
   // PRAGMA defer_foreign_keys defers FK validation to COMMIT so the order
   // of UPDATEs within the transaction doesn't matter — the final state is
   // consistent.
-  const db = getDb();
+  const db = getEnvDb();
   const renumber = db.transaction(() => {
     db.exec('PRAGMA defer_foreign_keys = 1');
     db.prepare('UPDATE post_meta SET post_id = ? WHERE post_id = ?').run(realId, localId);
@@ -571,7 +571,7 @@ async function pushBatch(
     }));
 
     const batchResponse = await batchUpdate(requests);
-    const db = getDb();
+    const db = getEnvDb();
 
     for (let i = 0; i < safeIds.length; i++) {
       const response = batchResponse.responses[i];

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getEnvDb } from '@/lib/db';
 import { getResourceById } from '@/lib/queries';
 import { updateResource } from '@/lib/wp-client';
 import { getRestBaseForPostType } from '@/lib/push';
@@ -31,7 +31,7 @@ export async function POST(
     const restBase = getRestBaseForPostType(resource.post_type || 'resource');
     const updated = await updateResource(id, { status: 'draft' }, restBase);
 
-    const db = getDb();
+    const db = getEnvDb();
     db.prepare('UPDATE posts SET status = ?, is_dirty = 0, modified_gmt = ? WHERE id = ?').run(
       'draft',
       updated.modified_gmt,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getEnvDb } from '@/lib/db';
+import { getConfig } from '@/lib/site-config';
 import {
   getIdea,
   listResearchEntries,
@@ -44,7 +45,10 @@ export async function POST(
     }
     const entries = listResearchEntries(id);
 
-    const db = getDb();
+    // Env DB has the project DB ATTACHed as `project`; single transaction
+    // spans both files and stays atomic.
+    const db = getEnvDb();
+    const targetId = getConfig().activeTarget;
     const minRow = db.prepare('SELECT MIN(id) as m FROM posts').get() as { m: number | null };
     const localPostId = Math.min(minRow.m ?? 0, -1) - 1;
     const now = new Date().toISOString();
@@ -95,13 +99,14 @@ export async function POST(
       }
 
       db.prepare(
-        `UPDATE planner_ideas
+        `UPDATE project.planner_ideas
          SET promoted_post_id = ?,
+             promoted_target_id = ?,
              pre_promote_status = status,
              status = 'published',
              updated_at = datetime('now')
          WHERE id = ?`,
-      ).run(localPostId, id);
+      ).run(localPostId, targetId, id);
 
       db.prepare(
         'INSERT INTO change_log (post_id, field, old_value, new_value) VALUES (?, ?, ?, ?)',
@@ -169,7 +174,7 @@ export async function DELETE(
       );
     }
 
-    const db = getDb();
+    const db = getEnvDb();
     const postId = idea.promoted_post_id;
     const fallbackStatus = idea.pre_promote_status || 'ready';
 
@@ -183,8 +188,9 @@ export async function DELETE(
       db.prepare('DELETE FROM posts WHERE id = ?').run(postId);
 
       db.prepare(
-        `UPDATE planner_ideas
+        `UPDATE project.planner_ideas
          SET promoted_post_id = NULL,
+             promoted_target_id = NULL,
              status = ?,
              pre_promote_status = NULL,
              updated_at = datetime('now')

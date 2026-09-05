@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getEnvDb } from '@/lib/db';
 import { getIdea } from '@/lib/plugins/bundled/content-planner/queries';
 
 /**
@@ -45,7 +45,9 @@ export async function DELETE(
       );
     }
 
-    const db = getDb();
+    // Env DB has the project DB ATTACHed as `project`, so a single
+    // transaction spans both files and stays atomic.
+    const db = getEnvDb();
     const postId = idea.promoted_post_id;
     const transaction = db.transaction(() => {
       db.prepare('DELETE FROM post_meta WHERE post_id = ?').run(postId);
@@ -55,7 +57,7 @@ export async function DELETE(
       db.prepare('DELETE FROM posts WHERE id = ?').run(postId);
 
       db.prepare(
-        `UPDATE planner_ideas
+        `UPDATE project.planner_ideas
          SET promoted_post_id = NULL,
              pre_promote_status = NULL,
              updated_at = datetime('now')

@@ -7,7 +7,7 @@
  * migrateV4toV5 + migrateV5toV6).
  */
 
-import { getDb } from '../../../db';
+import { getProjectDb } from '../../../db';
 
 export type IdeaStatus = 'idea' | 'researching' | 'drafting' | 'ready' | 'published';
 
@@ -178,7 +178,7 @@ function rowToIdea(row: IdeaRow): PlannerIdea {
 // ─── Ideas ───────────────────────────────────────────────────────────────────
 
 export function listIdeas(): PlannerIdea[] {
-  const rows = getDb()
+  const rows = getProjectDb()
     .prepare('SELECT * FROM planner_ideas ORDER BY updated_at DESC')
     .all() as IdeaRow[];
   return rows.map(rowToIdea);
@@ -206,7 +206,7 @@ export interface CreateIdeaInput {
 }
 
 export function createIdea(input: CreateIdeaInput): PlannerIdea {
-  const result = getDb()
+  const result = getProjectDb()
     .prepare(
       `INSERT INTO planner_ideas (
          title, status, description, notes, linked_keyword_ids,
@@ -242,7 +242,7 @@ export function createIdea(input: CreateIdeaInput): PlannerIdea {
 }
 
 export function getIdea(id: number): PlannerIdea | null {
-  const row = getDb()
+  const row = getProjectDb()
     .prepare('SELECT * FROM planner_ideas WHERE id = ?')
     .get(id) as IdeaRow | undefined;
   return row ? rowToIdea(row) : null;
@@ -300,21 +300,21 @@ export function updateIdea(id: number, patch: IdeaPatch): PlannerIdea | null {
 
   fields.push("updated_at = datetime('now')");
   values.push(id);
-  getDb()
+  getProjectDb()
     .prepare(`UPDATE planner_ideas SET ${fields.join(', ')} WHERE id = ?`)
     .run(...values);
   return getIdea(id);
 }
 
 export function deleteIdea(id: number): boolean {
-  const result = getDb().prepare('DELETE FROM planner_ideas WHERE id = ?').run(id);
+  const result = getProjectDb().prepare('DELETE FROM planner_ideas WHERE id = ?').run(id);
   return result.changes > 0;
 }
 
 // ─── Research entries ────────────────────────────────────────────────────────
 
 export function listResearchEntries(ideaId: number): PlannerResearchEntry[] {
-  return getDb()
+  return getProjectDb()
     .prepare('SELECT * FROM planner_research_entries WHERE idea_id = ? ORDER BY created_at ASC')
     .all(ideaId) as PlannerResearchEntry[];
 }
@@ -328,7 +328,7 @@ export function createResearchEntry(input: {
   if (!RESEARCH_TYPES.includes(input.type)) {
     throw new Error(`invalid research type: ${input.type}`);
   }
-  const result = getDb()
+  const result = getProjectDb()
     .prepare(
       `INSERT INTO planner_research_entries (idea_id, type, content, source_url)
        VALUES (?, ?, ?, ?)`,
@@ -339,7 +339,7 @@ export function createResearchEntry(input: {
 }
 
 export function getResearchEntry(id: number): PlannerResearchEntry | null {
-  const row = getDb()
+  const row = getProjectDb()
     .prepare('SELECT * FROM planner_research_entries WHERE id = ?')
     .get(id) as PlannerResearchEntry | undefined;
   return row ?? null;
@@ -361,14 +361,14 @@ export function updateResearchEntry(
 
   fields.push("updated_at = datetime('now')");
   values.push(id);
-  getDb()
+  getProjectDb()
     .prepare(`UPDATE planner_research_entries SET ${fields.join(', ')} WHERE id = ?`)
     .run(...values);
   return getResearchEntry(id);
 }
 
 export function deleteResearchEntry(id: number): boolean {
-  const result = getDb().prepare('DELETE FROM planner_research_entries WHERE id = ?').run(id);
+  const result = getProjectDb().prepare('DELETE FROM planner_research_entries WHERE id = ?').run(id);
   return result.changes > 0;
 }
 
@@ -390,11 +390,11 @@ export interface PlannerTerm {
 
 export function listPlannerTerms(taxonomy?: string): PlannerTerm[] {
   if (taxonomy) {
-    return getDb()
+    return getProjectDb()
       .prepare('SELECT * FROM planner_terms WHERE taxonomy = ? ORDER BY name ASC')
       .all(taxonomy) as PlannerTerm[];
   }
-  return getDb()
+  return getProjectDb()
     .prepare('SELECT * FROM planner_terms ORDER BY taxonomy ASC, name ASC')
     .all() as PlannerTerm[];
 }
@@ -410,7 +410,7 @@ export function listPlannerTermsGrouped(): Record<string, PlannerTerm[]> {
 }
 
 export function getPlannerTerm(id: number): PlannerTerm | null {
-  const row = getDb()
+  const row = getProjectDb()
     .prepare('SELECT * FROM planner_terms WHERE id = ?')
     .get(id) as PlannerTerm | undefined;
   return row ?? null;
@@ -427,7 +427,7 @@ export function createPlannerTerm(input: {
   slug?: string;
   parent_id?: number;
 }): PlannerTerm | null {
-  const db = getDb();
+  const db = getProjectDb();
   // Find the next available negative ID (one less than the current minimum,
   // or -1 if no rows yet). Mirrors the MCP `create_post` synthetic-ID pattern.
   const minRow = db.prepare('SELECT MIN(id) as m FROM planner_terms').get() as { m: number | null };
@@ -445,14 +445,14 @@ export function createPlannerTerm(input: {
 }
 
 export function deletePlannerTerm(id: number): boolean {
-  const result = getDb().prepare('DELETE FROM planner_terms WHERE id = ? AND status = ?').run(id, 'pending');
+  const result = getProjectDb().prepare('DELETE FROM planner_terms WHERE id = ? AND status = ?').run(id, 'pending');
   return result.changes > 0;
 }
 
 // ─── Keywords ────────────────────────────────────────────────────────────────
 
 export function listKeywords(): PlannerKeyword[] {
-  return getDb()
+  return getProjectDb()
     .prepare('SELECT * FROM planner_keywords ORDER BY (volume IS NULL), volume DESC, term ASC')
     .all() as KeywordRow[];
 }
@@ -463,7 +463,7 @@ export function createKeyword(input: {
   target_post_id?: number;
   notes?: string;
 }): PlannerKeyword {
-  const result = getDb()
+  const result = getProjectDb()
     .prepare(
       `INSERT INTO planner_keywords (term, volume, target_post_id, notes)
        VALUES (?, ?, ?, ?)`,
@@ -474,14 +474,14 @@ export function createKeyword(input: {
 }
 
 export function getKeyword(id: number): PlannerKeyword | null {
-  const row = getDb()
+  const row = getProjectDb()
     .prepare('SELECT * FROM planner_keywords WHERE id = ?')
     .get(id) as KeywordRow | undefined;
   return row ?? null;
 }
 
 export function getKeywordByTerm(term: string): PlannerKeyword | null {
-  const row = getDb()
+  const row = getProjectDb()
     .prepare('SELECT * FROM planner_keywords WHERE term = ?')
     .get(term) as KeywordRow | undefined;
   return row ?? null;
@@ -513,13 +513,13 @@ export function updateKeyword(
 
   fields.push("updated_at = datetime('now')");
   values.push(id);
-  getDb()
+  getProjectDb()
     .prepare(`UPDATE planner_keywords SET ${fields.join(', ')} WHERE id = ?`)
     .run(...values);
   return getKeyword(id);
 }
 
 export function deleteKeyword(id: number): boolean {
-  const result = getDb().prepare('DELETE FROM planner_keywords WHERE id = ?').run(id);
+  const result = getProjectDb().prepare('DELETE FROM planner_keywords WHERE id = ?').run(id);
   return result.changes > 0;
 }

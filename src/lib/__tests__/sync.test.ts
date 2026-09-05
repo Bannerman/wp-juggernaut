@@ -72,7 +72,7 @@ describe('Sync Engine Module', () => {
       }),
     };
 
-    mockDb.getDb.mockReturnValue(mockDbInstance as any);
+    mockDb.getEnvDb.mockReturnValue(mockDbInstance as any);
 
     // Default: getTaxonomies returns profile-driven taxonomies
     mockWpClient.getTaxonomies.mockReturnValue(['resource-type', 'topic']);

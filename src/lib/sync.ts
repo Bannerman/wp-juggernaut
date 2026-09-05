@@ -1,4 +1,4 @@
-import { getDb } from './db';
+import { getEnvDb } from './db';
 import {
   fetchAllTaxonomies,
   fetchAllResources,
@@ -119,7 +119,7 @@ export interface SyncResult {
  * @returns ISO timestamp string or null
  */
 export function getLastSyncTime(): string | null {
-  const db = getDb();
+  const db = getEnvDb();
   const row = db.prepare('SELECT value FROM sync_meta WHERE key = ?').get('last_sync_time') as
     | { value: string }
     | undefined;
@@ -131,7 +131,7 @@ export function getLastSyncTime(): string | null {
  * @param timestamp - ISO timestamp string to store
  */
 export function setLastSyncTime(timestamp: string): void {
-  const db = getDb();
+  const db = getEnvDb();
   db.prepare('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)').run(
     'last_sync_time',
     timestamp
@@ -143,7 +143,7 @@ export function setLastSyncTime(timestamp: string): void {
  * @param term - The WordPress term object to persist
  */
 export function saveTerm(term: WPTerm): void {
-  const db = getDb();
+  const db = getEnvDb();
   db.prepare(`
     INSERT OR REPLACE INTO terms (id, taxonomy, name, slug, parent_id)
     VALUES (?, ?, ?, ?, ?)
@@ -266,7 +266,7 @@ function buildSnapshot(
  * @param postType - Optional post type slug override (defaults to 'resource')
  */
 export function saveResource(resource: WPResource, featuredImageUrl?: string, postType?: string): void {
-  const db = getDb();
+  const db = getEnvDb();
   const now = new Date().toISOString();
   const type = postType || 'resource';
 
@@ -357,7 +357,7 @@ export function saveResource(resource: WPResource, featuredImageUrl?: string, po
  * the synced snapshot (i.e. no actual local changes remain).
  */
 export function clearOrphanedDirtyFlags(): void {
-  const db = getDb();
+  const db = getEnvDb();
   const dirtyRows = db.prepare(
     'SELECT id, title, slug, status, synced_snapshot FROM posts WHERE is_dirty = 1 AND synced_snapshot IS NOT NULL'
   ).all() as Array<{ id: number; title: string; slug: string; status: string; synced_snapshot: string }>;
@@ -440,7 +440,7 @@ export function clearOrphanedDirtyFlags(): void {
  * @param id - The resource/post ID to delete
  */
 export function deleteResource(id: number): void {
-  const db = getDb();
+  const db = getEnvDb();
   db.prepare('DELETE FROM posts WHERE id = ?').run(id);
 }
 
@@ -452,7 +452,7 @@ export function deleteResource(id: number): void {
  */
 export function deleteResources(ids: number[]): void {
   if (ids.length === 0) return;
-  const db = getDb();
+  const db = getEnvDb();
 
   const deleteBatch = db.transaction((idsToDelete: number[]) => {
     // SQLite has a limit on the number of variables in a single query (usually 999).
@@ -568,7 +568,7 @@ export async function syncResources(
 
   // Save resources with their featured image URLs
   // Wrap in a transaction for performance (SQLite is much faster with bulk inserts)
-  const saveTransaction = getDb().transaction((resourcesToSave: WPResource[]) => {
+  const saveTransaction = getEnvDb().transaction((resourcesToSave: WPResource[]) => {
     for (const resource of resourcesToSave) {
       let featuredImageUrl: string | undefined;
       if (resource.featured_media && resource.featured_media > 0) {
@@ -605,7 +605,7 @@ export async function syncResources(
   let deletedCount = 0;
   if (!incremental) {
     const serverIds = new Set(await fetchResourceIds(restBase));
-    const db = getDb();
+    const db = getEnvDb();
     const localIds = db
       .prepare('SELECT id FROM posts WHERE post_type = ?')
       .all(typeSlug) as { id: number }[];

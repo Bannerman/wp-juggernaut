@@ -59,7 +59,7 @@ describe('Push Engine Module', () => {
       }),
     };
 
-    mockDb.getDb.mockReturnValue(mockDbInstance as any);
+    mockDb.getEnvDb.mockReturnValue(mockDbInstance as any);
 
     // getTaxonomies must return an iterable array for buildUpdatePayload
     mockWpClient.getTaxonomies.mockReturnValue(['resource-type', 'topic', 'access_level']);
