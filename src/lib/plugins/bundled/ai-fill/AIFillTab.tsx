@@ -347,8 +347,8 @@ function AIFillTab({ terms, context }: PluginTabProps) {
 
       // Parse Taxonomies — profile-driven so any taxonomy in the active profile
       // auto-parses without code changes. The pattern accepts either dash or
-      // underscore separator in the slug (so the AI can output `bracket-size:` or
-      // `bracket_size:` and both work).
+      // underscore separator in the slug (so the AI can output `post-tag:` or
+      // `post_tag:` and both work).
       const taxMatch = content.match(/---TAXONOMIES---\s*([\s\S]*?)(?=---[A-Z_]+---|$)/);
       if (taxMatch) {
         const taxContent = taxMatch[1];

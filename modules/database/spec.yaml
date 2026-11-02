@@ -232,7 +232,7 @@ documentation:
   readme: |
     # Database Module
     
-    Manages SQLite database connection and schema for Example API.
+    Manages SQLite database connection and schema for Juggernaut.
     
     ## Usage
     
@@ -261,12 +261,12 @@ configuration:
     - name: DATABASE_PATH
       type: string
       required: false
-      default: ./data/example.db
+      default: ./data/juggernaut.db
       description: Path to SQLite database file
   
   constants:
     - name: DB_PATH
-      value: process.env.DATABASE_PATH || './data/example.db'
+      value: process.env.DATABASE_PATH || './data/juggernaut.db'
       description: Resolved database file path
 
 logging:

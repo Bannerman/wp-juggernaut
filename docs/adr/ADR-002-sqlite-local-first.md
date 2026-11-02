@@ -45,7 +45,7 @@ The schema uses normalized tables:
 
 All database access goes through a **singleton** (`getDb()` in `src/lib/db.ts`). The singleton:
 1. Creates the data directory if needed
-2. Handles legacy `example.db` → `juggernaut.db` migration
+2. Handles the legacy single-DB → split-DB migration
 3. Applies schema migrations based on a version number in `sync_meta`
 4. Enables WAL mode
 

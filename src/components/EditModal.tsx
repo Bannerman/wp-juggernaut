@@ -451,10 +451,10 @@ export function EditModal({
   // Hide ONLY taxonomies that are both `editable: false` AND have no conditional
   // visibility rule. Those are auto-derived on the WP side (e.g. `file_format` on
   // resources, synced from `download_file_format` per download link — see
-  // lib/push.ts:307-309). Taxonomies with a `conditional` (e.g. `leagues`,
-  // `bracket-size`, `competition_format`) need to remain in the candidate list
+  // lib/push.ts:307-309). Taxonomies with a `conditional` (shown only when
+  // another taxonomy has a given term) need to remain in the candidate list
   // so the separate `isTaxonomyVisible` check can show them when the conditional
-  // matches (e.g. league appears once Sports is selected on topic).
+  // matches.
   const classificationTaxonomies = taxonomyConfig
     .filter(t => t.editable !== false || !!t.conditional?.show_when)
     .sort((a, b) => (a.filter_position || 99) - (b.filter_position || 99));

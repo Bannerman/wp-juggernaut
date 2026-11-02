@@ -37,10 +37,7 @@ For **Claude Desktop**, add to `~/Library/Application Support/Claude/claude_desk
   "mcpServers": {
     "juggernaut": {
       "command": "node",
-      "args": ["/full/path/to/wp-juggernaut/src/mcp-server/dist/index.js"],
-      "env": {
-        "DATABASE_PATH": "/full/path/to/wp-juggernaut/src/data/example.db"
-      }
+      "args": ["/full/path/to/wp-juggernaut/src/mcp-server/dist/index.js"]
     }
   }
 }
@@ -50,10 +47,10 @@ For **Claude Desktop**, add to `~/Library/Application Support/Claude/claude_desk
 
 The server looks for the database in this order:
 
-1. `DATABASE_PATH` environment variable (if set)
-2. `src/data/juggernaut.db` (default, relative to compiled output)
+1. `DATABASE_PATH` environment variable (if set): a specific env DB file
+2. `src/data/juggernaut-<activeTarget>.db` (default, relative to compiled output; `activeTarget` comes from `~/.juggernaut/site-config.json`), with `src/data/juggernaut-project.db` attached for planner tables
 
-If your database has a different name (e.g. `example.db`), set the `DATABASE_PATH` env var in your MCP config.
+Only set `DATABASE_PATH` if your database lives somewhere else. A ready-made project config ships as `src/.mcp.json.example` (copy it to `src/.mcp.json`).
 
 **Important:** The database must already be initialized by the Juggernaut app (run at least one sync first). The MCP server does not run migrations.
 

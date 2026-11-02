@@ -19,7 +19,7 @@ It's built for content teams that need to edit dozens or hundreds of WordPress p
 - **Local-first**: All data lives in a local SQLite database. You can edit offline.
 - **Profile-driven**: A JSON profile defines what post types, taxonomies, plugins, and UI tabs are available for a given WordPress site.
 - **Plugin-based**: WordPress plugin integrations (MetaBox, SEOPress, etc.) are handled by Juggernaut plugins that extend sync, push, and UI behavior.
-- **Workspace**: A workspace groups related sites (e.g. `example.com` + `dev.example.com`) that share the same profile and post type structure. Each workspace has its own database.
+- **Workspace**: A workspace groups related sites (e.g. `example.com` + `staging.example.com`) that share the same profile and post type structure. Each workspace has its own database.
 
 ---
 
@@ -110,7 +110,7 @@ WordPress REST API
 
 ## Profile System
 
-A profile is a JSON file that configures everything about a WordPress site. See `src/lib/profiles/example-resources.json` for a full example.
+A profile is a JSON file that configures everything about a WordPress site. The app bundles a minimal generic profile (`src/lib/profiles/default.json`); your own profiles live in `~/.juggernaut/profiles/*.json` and are loaded automatically (import or switch them in Settings > Profiles).
 
 ### Key Sections
 
@@ -351,12 +351,12 @@ npm rebuild better-sqlite3
 
 `EditModal.tsx` is ~1,625 lines (down from ~1,965). The SEO tab has been extracted to `src/lib/plugins/bundled/seopress/SEOTab.tsx` as the first plugin-registered tab component. Further extraction of Basic/Classification/AI tabs is planned.
 
-### EXAMPLE Hardcoding
+### Site-Specific Hardcoding
 
-Most EXAMPLE-specific references have been removed:
+Site-specific references have been removed from the app:
 - ✅ Hardcoded site URLs replaced with profile-driven values
 - ✅ `TAXONOMY_META_FIELD` and `META_BOX_FIELD_GROUPS` constants removed (profile-driven)
-- ✅ API route profile paths use `getActiveProfileFilePath()` instead of hardcoded `example-resources.json`
+- ✅ API route profile paths use `getActiveProfileFilePath()` (resolves to the active profile's file in `~/.juggernaut/profiles/`)
 - ✅ Comment references cleaned up
 - ⚠️ Some taxonomy slug references remain in AI fill patterns and table columns (non-critical)
 

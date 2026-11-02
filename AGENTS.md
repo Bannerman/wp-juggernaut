@@ -12,7 +12,7 @@ Before making significant changes:
 3. If the plan is outdated, UPDATE IT before proceeding
 4. For new features, add them to the plan and get user approval
 
-The spec document (`docs/v1.0-spec.md`) contains architecture decisions, implementation roadmap (§13), EXAMPLE hardcoding audit (§14), blockers (§15), backlog (§16), and what's completed vs. in progress.
+The spec document (`docs/v1.0-spec.md`) contains architecture decisions, implementation roadmap (§13), site-specific hardcoding audit (§14), blockers (§15), backlog (§16), and what's completed vs. in progress.
 
 **Do not rely on conversation context alone** — plans get lost when conversations compact.
 
@@ -63,7 +63,7 @@ wp-juggernaut/
 │   │   └── __tests__/           # Unit tests for core modules
 │   ├── electron/                # Electron main process files
 │   ├── types/                   # TypeScript declarations
-│   └── prompt-templates/        # AI prompt template files
+│   └── (user data lives in ~/.juggernaut/: profiles/, prompt-templates/, site-config.json)
 └── .github/workflows/           # CI/CD (release.yml)
 ```
 
@@ -135,7 +135,7 @@ These were added during Phase 2 and do not have corresponding `modules/*/spec.ya
 | Feature | Implementation Path | Description |
 | :--- | :--- | :--- |
 | **plugins** | `src/lib/plugins/*` | Hook-based plugin system with registry & loader |
-| **profiles** | `src/lib/profiles/*` | Site-specific JSON configurations |
+| **profiles** | `src/lib/profiles/*` | ProfileManager + bundled generic `default.json`; site profiles are user files in `~/.juggernaut/profiles/` |
 | **electron** | `src/electron/*` | Desktop shell, auto-updater, IPC bridge |
 | **discovery** | `src/lib/discovery.ts` | WordPress site scanning (post types, taxonomies, plugins) |
 | **field-audit** | `src/lib/field-audit.ts` | Field integrity auditing between local DB and WordPress |
@@ -156,7 +156,7 @@ These were added during Phase 2 and do not have corresponding `modules/*/spec.ya
 | `/api/resources` | CRUD operations on resources |
 | `/api/terms` | Taxonomy term management |
 | `/api/profile` | Site profile configuration |
-| `/api/profile/import-export` | Profile import (POST) and export (GET) |
+| `/api/profile/import-export` | Profile list (GET ?list=1), import (POST, persisted to `~/.juggernaut/profiles/`), export (GET ?id=) and delete (DELETE ?id=) |
 | `/api/plugins` | Plugin management |
 | `/api/discover` | WordPress site discovery |
 | `/api/discover-fields` | Discover meta/taxonomy fields per post type from WP |
@@ -176,7 +176,7 @@ These were added during Phase 2 and do not have corresponding `modules/*/spec.ya
 Juggernaut uses a modular plugin architecture. See **[`docs/plugin-authoring.md`](docs/plugin-authoring.md)** for the full plugin creation guide with step-by-step instructions and a copy-pasteable skeleton (`src/lib/plugins/bundled/_example/`).
 
 - **Bundled Plugins** (`src/lib/plugins/bundled/`): MetaBox, SEOPress, AI Fill, Convert Post Type, WooCommerce, Custom Views, _example (template)
-- **Profile System** (`src/lib/profiles/`): Site-specific configurations (e.g., `example-resources.json`)
+- **Profile System** (`src/lib/profiles/`): Bundled generic `default.json`; user profiles are auto-discovered from `~/.juggernaut/profiles/*.json`
 - **Hook System** (`src/lib/plugins/hooks.ts`): Event-driven extension points with priority ordering
 - **Plugin Registry** (`src/lib/plugins/registry.ts`): Plugin registration and lifecycle
 - **Plugin Loader** (`src/lib/plugins/loader.ts`): Dynamic plugin loading

@@ -67,7 +67,7 @@ interfaces:
   constants:
     - name: TAXONOMIES
       type: "readonly string[]"
-      value: "['resource-type', 'topic', 'intent', 'audience', 'leagues', 'access_level', 'competition_format', 'bracket-size', 'file_format']"
+      value: "getProfileTaxonomySlugs() (taxonomy slugs from the active profile, e.g. ['category', 'post_tag'])"
   
   types:
     - name: WPResource

@@ -317,7 +317,7 @@ documentation:
   readme: |
     # Queries Module
     
-    High-level database query interface for Example API.
+    High-level database query interface for Juggernaut.
     
     ## Usage
     

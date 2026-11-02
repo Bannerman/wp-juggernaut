@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-Juggernaut was initially built for a single WordPress site (Example) with hardcoded post types, taxonomies, and plugin assumptions. To make it a generic tool that works with any WordPress site, all site-specific configuration needs to be externalized.
+Juggernaut was initially built for a single WordPress site with hardcoded post types, taxonomies, and plugin assumptions. To make it a generic tool that works with any WordPress site, all site-specific configuration needs to be externalized.
 
 Requirements:
 - Support multiple WordPress sites with different post types, taxonomies, and plugins

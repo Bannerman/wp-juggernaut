@@ -16,7 +16,7 @@ When a user manages multiple unrelated WordPress sites, mixing their data in a s
 - A corrupt database affects all sites
 - Cannot easily back up, export, or delete data for a single site
 
-A "workspace" groups related sites that share the same profile, post types, and taxonomy structure. For example, `example.com`, `dev.example.com`, and `local.example.com` would all be one workspace because they share the same WordPress configuration.
+A "workspace" groups related sites that share the same profile, post types, and taxonomy structure. For example, `example.com`, `dev.example.com`, and `example.local` would all be one workspace because they share the same WordPress configuration.
 
 ## Decision
 
