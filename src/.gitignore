@@ -51,3 +51,11 @@ mcp-server/dist/
 *.deb
 *.exe
 *.snap
+
+# User-specific data lives in ~/.juggernaut (profiles, prompt templates).
+# Never commit site profiles, prompt templates or local MCP config here.
+/prompt-templates/
+/lib/profiles/*.json
+!/lib/profiles/default.json
+.mcp.json
+noindex-audit-result.json

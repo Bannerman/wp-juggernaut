@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Server, Sparkles, Puzzle, Activity, Repeat, LayoutGrid, Columns3, Download } from 'lucide-react';
+import { ArrowLeft, Server, Sparkles, Puzzle, Activity, Repeat, LayoutGrid, Columns3, Download, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SettingsNavProps {
@@ -16,6 +16,7 @@ interface SettingsNavProps {
 
 const NAV_ITEMS = [
   { id: 'target', label: 'Target Site', icon: Server, href: '/settings?tab=target', inPage: true },
+  { id: 'profiles', label: 'Profiles', icon: FolderOpen, href: '/settings/profiles', inPage: false },
   { id: 'prompts', label: 'Prompts', icon: Sparkles, href: '/settings?tab=prompts', inPage: true },
   { id: 'plugins', label: 'Plugins', icon: Puzzle, href: '/settings?tab=plugins', inPage: true },
   { id: 'diagnostics', label: 'Diagnostics', icon: Activity, href: '/settings?tab=diagnostics', inPage: true },

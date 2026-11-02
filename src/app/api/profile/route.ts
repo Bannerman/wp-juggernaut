@@ -11,10 +11,10 @@ import {
   ensureProfileLoaded,
   getProfileConfig,
 } from '@/lib/profiles';
-import { getActiveTarget, setActiveTarget } from '@/lib/site-config';
+import { getActiveTarget, setActiveTarget, getConfig } from '@/lib/site-config';
 import { getPluginRegistry } from '@/lib/plugins/registry';
 import { bundledPlugins } from '@/lib/plugins/bundled';
-import { ensurePluginsInitialized } from '@/lib/plugins/init';
+import { ensurePluginsInitialized, onProfileChanged } from '@/lib/plugins/init';
 
 /**
  * GET /api/profile
@@ -94,13 +94,28 @@ export async function PATCH(request: NextRequest) {
 
     // Switch profile if specified
     if (profileId) {
-      const success = manager.setCurrentProfile(profileId);
+      const success = manager.setCurrentProfile(profileId, { persist: true });
       if (!success) {
         return NextResponse.json(
           { error: `Profile not found: ${profileId}` },
           { status: 404 }
         );
       }
+      // If the persisted active target does not exist in the new profile,
+      // fall back to the new profile's default site.
+      const profile = manager.getCurrentProfile();
+      const persistedTarget = getConfig().activeTarget;
+      if (profile && !siteId && !profile.sites.some((s) => s.id === persistedTarget)) {
+        const fallbackSite = profile.sites.find((s) => s.is_default) || profile.sites[0];
+        if (fallbackSite) {
+          try {
+            setActiveTarget(fallbackSite.id);
+          } catch (e) {
+            console.warn('[API] Failed to persist fallback target after profile switch:', e);
+          }
+        }
+      }
+      await onProfileChanged();
     }
 
     // Switch site if specified

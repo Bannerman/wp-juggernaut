@@ -613,6 +613,12 @@ export interface SiteProfile {
   profile_version: string;
   juggernaut_version?: string;
 
+  /**
+   * Prefer this profile on startup when the user has not picked one yet
+   * (user profiles in ~/.juggernaut/profiles only).
+   */
+  is_default?: boolean;
+
   /** Configured sites */
   sites: SiteConfig[];
 

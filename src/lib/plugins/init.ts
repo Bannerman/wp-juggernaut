@@ -157,3 +157,36 @@ export async function ensurePluginsInitialized(): Promise<void> {
     await initializePlugins();
   }
 }
+
+/**
+ * Re-apply the plugin system to a newly activated profile: auto-enable the
+ * profile's required plugins, re-run activate(profile, settings) for every
+ * enabled plugin, and refresh the on-disk agent guide. Best-effort; errors
+ * are logged, never thrown.
+ */
+export async function onProfileChanged(): Promise<void> {
+  try {
+    await ensurePluginsInitialized();
+    const profile = ensureProfileLoaded();
+    const registry = getPluginRegistry();
+    const loader = getPluginLoader();
+
+    for (const rp of profile.required_plugins ?? []) {
+      if (rp.auto_enable && !registry.isPluginEnabled(rp.id) && !registry.isUserDisabled(rp.id)) {
+        registry.enablePlugin(rp.id);
+      }
+    }
+    for (const pluginId of registry.getEnabledPluginIds()) {
+      try {
+        await loader.activatePluginForProfile(pluginId, profile);
+      } catch (err) {
+        console.error(`[PluginInit] Failed to re-activate plugin ${pluginId}:`, err);
+      }
+    }
+
+    const { writeAgentGuide } = await import('../agent-guide');
+    writeAgentGuide();
+  } catch (err) {
+    console.warn('[PluginInit] Profile change handling failed:', err);
+  }
+}
