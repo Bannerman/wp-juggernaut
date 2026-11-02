@@ -11,7 +11,6 @@ const DATA_DIR = process.env.JUGGERNAUT_DATA_DIR
 
 // Legacy single-DB paths (used only for first-launch migration).
 const LEGACY_SINGLE_DB = path.join(DATA_DIR, 'juggernaut.db');
-const LEGACY_SITE_DB = path.join(DATA_DIR, 'example.db');
 const LEGACY_RENAMED = path.join(DATA_DIR, 'juggernaut.legacy.db');
 
 // Project DB (cross-env: content-planner tables live here).
@@ -199,10 +198,8 @@ function ensureFirstLaunchMigration(): void {
     return;
   }
 
-  // Locate a legacy single DB. Prefer juggernaut.db; fall back to example.db.
-  let legacySource: string | null = null;
-  if (fs.existsSync(LEGACY_SINGLE_DB)) legacySource = LEGACY_SINGLE_DB;
-  else if (fs.existsSync(LEGACY_SITE_DB)) legacySource = LEGACY_SITE_DB;
+  // Locate a legacy single DB (juggernaut.db).
+  const legacySource: string | null = fs.existsSync(LEGACY_SINGLE_DB) ? LEGACY_SINGLE_DB : null;
 
   if (!legacySource) {
     // Fresh install — no legacy data to split. Callers will initialize each

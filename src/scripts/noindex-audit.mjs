@@ -4,7 +4,7 @@
 // No mutations.
 //
 // Usage:
-//   AUDIT_BASE=https://example.com AUDIT_USER=... AUDIT_PASS='...' \
+//   AUDIT_BASE=https://your-site.example AUDIT_USER=... AUDIT_PASS='...' \
 //     node scripts/noindex-audit.mjs
 
 import fs from 'node:fs';
