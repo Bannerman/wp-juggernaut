@@ -3,10 +3,25 @@ import {
   listPlannerTermsGrouped,
   createPlannerTerm,
 } from '@/lib/plugins/bundled/content-planner/queries';
+import { resolvePlannerClassification } from '@/lib/plugins/bundled/content-planner/classification';
+import { ensureProfileLoaded, getProfileManager } from '@/lib/profiles';
 
 export async function GET() {
   try {
-    return NextResponse.json({ terms: listPlannerTermsGrouped() });
+    // `classification` tells the planner UI which taxonomy backs each
+    // classification slot for the active profile.
+    let classification;
+    try {
+      ensureProfileLoaded();
+      const manager = getProfileManager();
+      classification = resolvePlannerClassification(
+        manager.getPluginSettings('content-planner'),
+        manager.getTaxonomyLabels(),
+      );
+    } catch {
+      classification = resolvePlannerClassification(undefined);
+    }
+    return NextResponse.json({ terms: listPlannerTermsGrouped(), classification });
   } catch (error) {
     console.error('[planner] listPlannerTerms failed:', error);
     return NextResponse.json(

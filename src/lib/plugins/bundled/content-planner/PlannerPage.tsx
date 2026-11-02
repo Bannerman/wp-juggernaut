@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { DEFAULT_PLANNER_CLASSIFICATION, type PlannerClassification } from './classification';
 import { Plus, Trash2, X } from 'lucide-react';
 import { registerGlobalPage } from '@/components/globalPages';
 import { cn } from '@/lib/utils';
@@ -861,6 +862,7 @@ function IdeaDrawer({
 
   const [termsByTax, setTermsByTax] = useState<Record<string, Term[]>>({});
   const [plannerTermsByTax, setPlannerTermsByTax] = useState<Record<string, PendingTerm[]>>({});
+  const [classification, setClassification] = useState<PlannerClassification>(DEFAULT_PLANNER_CLASSIFICATION);
 
   const [entries, setEntries] = useState<ResearchEntry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(true);
@@ -913,6 +915,9 @@ function IdeaDrawer({
       if (cancelled) return;
       if (synced && typeof synced === 'object') setTermsByTax(synced);
       if (planner && typeof planner.terms === 'object') setPlannerTermsByTax(planner.terms);
+      if (planner && planner.classification && typeof planner.classification === 'object') {
+        setClassification(planner.classification as PlannerClassification);
+      }
     });
     return () => { cancelled = true; };
   }, []);
@@ -1246,37 +1251,45 @@ function IdeaDrawer({
           </Section>
 
           {/* Classification */}
-          <Section title="Classification — EXAMPLE taxonomies">
+          {(classification.primary || classification.tags || classification.audience) && (
+          <Section title="Classification">
             <div className="space-y-5">
-              <TaxonomySingleField
-                label="Resource type"
-                taxonomy="resource-type"
-                termsByTax={termsByTax}
-                pendingByTax={plannerTermsByTax}
-                value={resourceTypeId}
-                onChange={(next) => { setResourceTypeId(next); commit({ resource_type_term_id: next }); }}
-                onAddNew={addPendingTerm}
-              />
-              <TaxonomyMultiField
-                label="Tags — topic"
-                taxonomy="topic"
-                termsByTax={termsByTax}
-                pendingByTax={plannerTermsByTax}
-                values={topicIds}
-                onChange={(next) => { setTopicIds(next); commit({ topic_term_ids: next }); }}
-                onAddNew={addPendingTerm}
-              />
-              <TaxonomyMultiField
-                label="Audience"
-                taxonomy="audience"
-                termsByTax={termsByTax}
-                pendingByTax={plannerTermsByTax}
-                values={audienceIds}
-                onChange={(next) => { setAudienceIds(next); commit({ audience_term_ids: next }); }}
-                onAddNew={addPendingTerm}
-              />
+              {classification.primary && (
+                <TaxonomySingleField
+                  label={classification.primary.label}
+                  taxonomy={classification.primary.taxonomy}
+                  termsByTax={termsByTax}
+                  pendingByTax={plannerTermsByTax}
+                  value={resourceTypeId}
+                  onChange={(next) => { setResourceTypeId(next); commit({ resource_type_term_id: next }); }}
+                  onAddNew={addPendingTerm}
+                />
+              )}
+              {classification.tags && (
+                <TaxonomyMultiField
+                  label={classification.tags.label}
+                  taxonomy={classification.tags.taxonomy}
+                  termsByTax={termsByTax}
+                  pendingByTax={plannerTermsByTax}
+                  values={topicIds}
+                  onChange={(next) => { setTopicIds(next); commit({ topic_term_ids: next }); }}
+                  onAddNew={addPendingTerm}
+                />
+              )}
+              {classification.audience && (
+                <TaxonomyMultiField
+                  label={classification.audience.label}
+                  taxonomy={classification.audience.taxonomy}
+                  termsByTax={termsByTax}
+                  pendingByTax={plannerTermsByTax}
+                  values={audienceIds}
+                  onChange={(next) => { setAudienceIds(next); commit({ audience_term_ids: next }); }}
+                  onAddNew={addPendingTerm}
+                />
+              )}
             </div>
           </Section>
+          )}
 
           {/* SEO angles */}
           <Section title="SEO & monetization angles">

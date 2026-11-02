@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEnvDb } from '@/lib/db';
+import { getEnvDb, getPrimaryPostType } from '@/lib/db';
+import { ensureProfileLoaded, getProfileManager } from '@/lib/profiles';
+import { resolvePlannerClassification } from '@/lib/plugins/bundled/content-planner/classification';
 import { getConfig } from '@/lib/site-config';
 import {
   getIdea,
@@ -52,7 +54,14 @@ export async function POST(
     const minRow = db.prepare('SELECT MIN(id) as m FROM posts').get() as { m: number | null };
     const localPostId = Math.min(minRow.m ?? 0, -1) - 1;
     const now = new Date().toISOString();
-    const postType = 'resource';
+    ensureProfileLoaded();
+    const postType = getPrimaryPostType();
+    const classification = resolvePlannerClassification(
+      getProfileManager().getPluginSettings('content-planner'),
+    );
+    const primaryTax = classification.primary?.taxonomy ?? null;
+    const tagsTax = classification.tags?.taxonomy ?? null;
+    const audienceTax = classification.audience?.taxonomy ?? null;
     const title = idea.title;
     const slug = slugifyTitle(title);
     const content = buildContent(idea, entries);
@@ -80,17 +89,17 @@ export async function POST(
         'INSERT INTO post_terms (post_id, term_id, taxonomy) VALUES (?, ?, ?)',
       );
       const dirtyTaxonomies: string[] = [];
-      if (syncedResourceTypeId !== null) {
-        termStmt.run(localPostId, syncedResourceTypeId, 'resource-type');
-        dirtyTaxonomies.push('resource-type');
+      if (primaryTax && syncedResourceTypeId !== null) {
+        termStmt.run(localPostId, syncedResourceTypeId, primaryTax);
+        dirtyTaxonomies.push(primaryTax);
       }
-      if (syncedTopicIds.length > 0) {
-        for (const tid of syncedTopicIds) termStmt.run(localPostId, tid, 'topic');
-        dirtyTaxonomies.push('topic');
+      if (tagsTax && syncedTopicIds.length > 0) {
+        for (const tid of syncedTopicIds) termStmt.run(localPostId, tid, tagsTax);
+        dirtyTaxonomies.push(tagsTax);
       }
-      if (syncedAudienceIds.length > 0) {
-        for (const aid of syncedAudienceIds) termStmt.run(localPostId, aid, 'audience');
-        dirtyTaxonomies.push('audience');
+      if (audienceTax && syncedAudienceIds.length > 0) {
+        for (const aid of syncedAudienceIds) termStmt.run(localPostId, aid, audienceTax);
+        dirtyTaxonomies.push(audienceTax);
       }
       if (dirtyTaxonomies.length > 0) {
         db.prepare(
