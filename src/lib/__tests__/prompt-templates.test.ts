@@ -1,11 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import { getTemplateVersions } from '../prompt-templates';
+import { getUserPromptTemplatesDir } from '../user-config-dir';
 
 jest.mock('fs');
 
 describe('getTemplateVersions', () => {
-  const TEMPLATES_DIR = path.join(process.cwd(), 'prompt-templates');
+  const TEMPLATES_DIR = getUserPromptTemplatesDir();
   const templateId = 'ai-fill';
   const templateDir = path.join(TEMPLATES_DIR, templateId);
 

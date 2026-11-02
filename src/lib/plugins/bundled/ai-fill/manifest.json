@@ -19,7 +19,7 @@
     "prompt_templates": {
       "type": "boolean",
       "label": "Enable prompt templates",
-      "description": "Load prompt templates from the prompt-templates directory",
+      "description": "Load prompt templates from the user prompt templates folder (~/.juggernaut/prompt-templates)",
       "default": true
     }
   }
