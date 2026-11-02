@@ -16,6 +16,10 @@ import { getPluginRegistry } from '@/lib/plugins/registry';
 import { bundledPlugins } from '@/lib/plugins/bundled';
 import { ensurePluginsInitialized, onProfileChanged } from '@/lib/plugins/init';
 
+// Reads user files / local DB at request time: never prerender at build
+// (a build would otherwise bake one machine's data into the output).
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/profile
  * Returns the active profile configuration for the frontend

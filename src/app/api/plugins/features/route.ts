@@ -9,6 +9,10 @@ import { getPluginRegistry } from '@/lib/plugins/registry';
 import { bundledPlugins } from '@/lib/plugins/bundled';
 import { ensurePluginsInitialized } from '@/lib/plugins/init';
 
+// Reads user files / local DB at request time: never prerender at build
+// (a build would otherwise bake one machine's data into the output).
+export const dynamic = 'force-dynamic';
+
 /**
  * Features provided by enabled plugins
  */

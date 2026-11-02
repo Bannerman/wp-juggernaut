@@ -4,6 +4,10 @@ import { getProfileManager, ensureProfileLoaded } from '@/lib/profiles';
 import { getEnvDb } from '@/lib/db';
 import { discardAllDirtyPosts } from '@/lib/queries';
 
+// Reads user files / local DB at request time: never prerender at build
+// (a build would otherwise bake one machine's data into the output).
+export const dynamic = 'force-dynamic';
+
 // GET /api/site-config - Get current config and available targets
 export async function GET() {
   try {

@@ -6,6 +6,10 @@ import {
 import { resolvePlannerClassification } from '@/lib/plugins/bundled/content-planner/classification';
 import { ensureProfileLoaded, getProfileManager } from '@/lib/profiles';
 
+// Reads user files / local DB at request time: never prerender at build
+// (a build would otherwise bake one machine's data into the output).
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     // `classification` tells the planner UI which taxonomy backs each

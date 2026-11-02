@@ -4,6 +4,10 @@ import {
   createKeyword,
 } from '@/lib/plugins/bundled/content-planner/queries';
 
+// Reads user files / local DB at request time: never prerender at build
+// (a build would otherwise bake one machine's data into the output).
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     return NextResponse.json({ keywords: listKeywords() });

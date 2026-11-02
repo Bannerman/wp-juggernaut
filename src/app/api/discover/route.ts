@@ -9,6 +9,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { discoverWordPressSite, generateProfileFromDiscovery } from '@/lib/discovery';
 import { getActiveBaseUrl } from '@/lib/site-config';
 
+// Reads user files / local DB at request time: never prerender at build
+// (a build would otherwise bake one machine's data into the output).
+export const dynamic = 'force-dynamic';
+
 const WP_USERNAME = process.env.WP_USERNAME || '';
 const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD || '';
 

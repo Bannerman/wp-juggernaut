@@ -6,6 +6,10 @@ import {
   type CreateIdeaInput,
 } from '@/lib/plugins/bundled/content-planner/queries';
 
+// Reads user files / local DB at request time: never prerender at build
+// (a build would otherwise bake one machine's data into the output).
+export const dynamic = 'force-dynamic';
+
 const VALID_STATUSES: IdeaStatus[] = ['idea', 'researching', 'drafting', 'ready', 'published'];
 const VALID_FREQUENCIES = ['annual', 'seasonal', 'quarterly', 'once'] as const;
 

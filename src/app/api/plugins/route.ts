@@ -12,6 +12,10 @@ import { bundledPlugins } from '@/lib/plugins/bundled';
 import { ensurePluginsInitialized } from '@/lib/plugins/init';
 import { ensureProfileLoaded } from '@/lib/profiles';
 
+// Reads user files / local DB at request time: never prerender at build
+// (a build would otherwise bake one machine's data into the output).
+export const dynamic = 'force-dynamic';
+
 /**
  * Plugin info returned by the API
  */
