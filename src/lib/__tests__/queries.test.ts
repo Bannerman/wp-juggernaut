@@ -365,19 +365,20 @@ describe('Queries Module', () => {
   describe('getAllTermsGrouped', () => {
     it('should group terms by taxonomy', () => {
       const mockTerms = [
-        { id: 1, taxonomy: 'resource-type', name: 'Bracket', slug: 'bracket', parent_id: 0 },
-        { id: 2, taxonomy: 'resource-type', name: 'Tracker', slug: 'tracker', parent_id: 0 },
-        { id: 3, taxonomy: 'topic', name: 'Basketball', slug: 'basketball', parent_id: 0 },
+        { id: 1, taxonomy: 'category', name: 'News', slug: 'news', parent_id: 0 },
+        { id: 2, taxonomy: 'category', name: 'Guides', slug: 'guides', parent_id: 0 },
+        { id: 3, taxonomy: 'post_tag', name: 'Featured', slug: 'featured', parent_id: 0 },
       ];
 
       mockDbInstance.prepare.mockReturnValue({
         all: jest.fn().mockReturnValue(mockTerms),
       });
 
+      // Taxonomies come from the active profile (bundled generic default here)
       const results = getAllTermsGrouped();
 
-      expect(results['resource-type']).toHaveLength(2);
-      expect(results.topic).toHaveLength(1);
+      expect(results.category).toHaveLength(2);
+      expect(results.post_tag).toHaveLength(1);
     });
   });
 
