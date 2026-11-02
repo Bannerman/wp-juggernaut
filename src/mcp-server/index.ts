@@ -509,7 +509,7 @@ const TOOLS: McpToolDef[] = [
         },
         taxonomies: {
           type: 'object',
-          description: 'Map of taxonomy slug to array of term IDs (e.g., { "topic": [432] }).',
+          description: 'Map of taxonomy slug to array of term IDs (e.g., { "category": [12] }).',
         },
       },
       required: ['post_type', 'title'],
@@ -568,7 +568,7 @@ const TOOLS: McpToolDef[] = [
       properties: {
         taxonomy: {
           type: 'string',
-          description: "Taxonomy slug to filter by (e.g., 'category', 'resource-type'). Omit to list all.",
+          description: "Taxonomy slug to filter by (e.g., 'category', 'post_tag'). Omit to list all.",
         },
       },
     },
@@ -581,7 +581,7 @@ const TOOLS: McpToolDef[] = [
       type: 'object',
       properties: {
         post_id: { type: 'number', description: 'WordPress post ID' },
-        taxonomy: { type: 'string', description: "Taxonomy slug (e.g., 'category', 'resource-type')" },
+        taxonomy: { type: 'string', description: "Taxonomy slug (e.g., 'category', 'post_tag')" },
         term_ids: {
           type: 'array',
           items: { type: 'number' },
@@ -675,9 +675,9 @@ const TOOLS: McpToolDef[] = [
         monetization_angles: { type: 'array', items: { type: 'string' }, description: 'e.g. ["ads", "email_capture", "affiliate"].' },
         serp_targets: { type: 'array', items: { type: 'string' }, description: 'e.g. ["featured_snippet", "paa", "image_pack"].' },
         audience_personas: { type: 'array', items: { type: 'string' }, description: 'Free-form personas. Deprecated in favor of audience_term_ids; kept for back-compat.' },
-        resource_type_term_id: { type: 'number', description: 'Single term ID from the `resource-type` taxonomy (e.g. brackets, spreadsheets, slide decks).' },
-        topic_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs from the `topic` taxonomy. These are the EXAMPLE tags.' },
-        audience_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs from the `audience` taxonomy.' },
+        resource_type_term_id: { type: 'number', description: 'Single term ID for the planner\'s primary classification slot (taxonomy set per profile in plugin_settings["content-planner"].classification.primary; default `category`).' },
+        topic_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs for the planner\'s tags slot (taxonomy set per profile in classification.tags; default `post_tag`).' },
+        audience_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs for the planner\'s audience slot (taxonomy set per profile; hidden when not configured).' },
         research_entries: {
           type: 'array',
           description: 'Initial batch of typed research findings to seed the log.',
@@ -720,9 +720,9 @@ const TOOLS: McpToolDef[] = [
         monetization_angles: { type: 'array', items: { type: 'string' } },
         serp_targets: { type: 'array', items: { type: 'string' } },
         audience_personas: { type: 'array', items: { type: 'string' }, description: 'Deprecated. Use audience_term_ids.' },
-        resource_type_term_id: { type: 'number', description: 'Single term ID from the `resource-type` taxonomy.' },
-        topic_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs from the `topic` taxonomy.' },
-        audience_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs from the `audience` taxonomy.' },
+        resource_type_term_id: { type: 'number', description: 'Single term ID for the planner\'s primary classification slot (taxonomy set per profile).' },
+        topic_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs for the planner\'s tags slot (taxonomy set per profile).' },
+        audience_term_ids: { type: 'array', items: { type: 'number' }, description: 'Term IDs for the planner\'s audience slot (taxonomy set per profile; hidden when not configured).' },
         promoted_post_id: { type: 'number' },
       },
       required: ['id'],
@@ -764,7 +764,7 @@ const TOOLS: McpToolDef[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        taxonomy: { type: 'string', description: "Taxonomy slug, e.g. 'audience', 'topic', 'resource-type'." },
+        taxonomy: { type: 'string', description: "Taxonomy slug, e.g. 'category', 'post_tag'." },
         name: { type: 'string', description: 'Human-readable term name. WP slug will be generated on promote unless `slug` is also provided.' },
         slug: { type: 'string', description: 'Optional slug override.' },
         parent_id: { type: 'number', description: 'Parent term ID for hierarchical taxonomies. May reference a synced WP term (positive) or another pending term (negative).' },
